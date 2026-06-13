@@ -1,0 +1,295 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+
+.beschaffung-card {
+  .card__body { padding: 0; }
+}
+
+.beschaffung-article-select {
+  padding: $space-md $space-md $space-sm;
+  border-bottom: 1px solid $border;
+}
+
+.beschaffung-form { padding: 0; }
+
+.beschaffung-row {
+  display: flex;
+  border-bottom: 1px solid $border;
+
+  &--haendler {
+    border-bottom: none;
+    border-top: 1px solid $border;
+    & + & { border-top: none; }
+  }
+}
+
+.beschaffung-cell {
+  flex: 1;
+  padding: 0;
+  border-right: 1px solid $border;
+
+  &:last-child { border-right: none; }
+  &--full { flex: 1 1 100%; border-right: none; }
+  &--bedarfsmelder { flex: 2; }
+  &--telefon { flex: 1; }
+  &--datum   { flex: 1; }
+
+  input, textarea, select {
+    @include beschaffung-input;
+  }
+
+  textarea { resize: vertical; min-height: 90px; }
+}
+
+.beschaffung-label {
+  font-size: $font-size-xs;
+  color: $text-muted;
+  padding: $space-xs $space-md 0;
+  white-space: nowrap;
+}
+
+.beschaffung-table-header {
+  display: flex;
+  background: $bg-card-hover;
+  border-bottom: 1px solid $border;
+}
+
+.beschaffung-th {
+  padding: $space-xs $space-md;
+  font-size: $font-size-xs;
+  font-weight: 700;
+  color: $text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-right: 1px solid $border;
+
+  &:last-child     { border-right: none; }
+  &--menge         { width: 80px; }
+  &--einheit       { width: 140px; }
+  &--gesamt        { width: 90px; }
+  &--gegenstand    { flex: 1; }
+}
+
+.beschaffung-table-row {
+  display: flex;
+  border-bottom: 1px solid $border;
+  &:hover { background: $bg-card-hover; }
+}
+
+.beschaffung-td {
+  padding: 0;
+  border-right: 1px solid $border;
+
+  &:last-child  { border-right: none; }
+  &--menge      { width: 80px; }
+  &--einheit    { width: 140px; }
+  &--gesamt     { width: 90px; }
+  &--gegenstand { flex: 1; }
+
+  input, select {
+    @include beschaffung-input;
+  }
+}
+
+.beschaffung-hint {
+  font-size: $font-size-xs;
+  color: $text-subtle;
+  padding: $space-xs $space-md;
+  border-bottom: 1px solid $border;
+}
+
+// ── Lager-Layout ──────────────────────────────────────────────────────────────
+.lager-layout {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.lager-sidebar { width: 220px; flex-shrink: 0; }
+.lager-main    { flex: 1; min-width: 0; }
+
+.lager-filter {
+  padding: 10px 16px;
+  border-bottom: 1px solid $border;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+
+  &__search { @include field-base; flex: 1; min-width: 180px; max-width: 320px; }
+  &__select { @include field-base; min-width: 160px; }
+}
+
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+.sidebar-heading {
+  font-size: $font-size-sm;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sidebar-card-header {
+  padding: 10px 12px;
+}
+
+// ── Location-Tree ─────────────────────────────────────────────────────────────
+.location-tree { padding: 4px 0; }
+
+.loc-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px 5px calc(10px + var(--depth, 0) * 14px);
+  cursor: pointer;
+  border-radius: $radius-sm;
+  font-size: $font-size-sm;
+  color: $text;
+  transition: background $transition-fast;
+
+  &:hover:not(.loc-item--active) { background: $bg-card-hover; }
+  &--active { background: var(--lager-hell); color: var(--lager-c); }
+  &--root   { font-weight: 600; color: $text-subtle; }
+
+  &__label  { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &__btn    { padding: 1px 4px; opacity: 0.5; flex-shrink: 0; }
+  &__btn--delete { color: $error; }
+}
+
+// ── Expanded Row Sections ─────────────────────────────────────────────────────
+.expanded-section {
+  padding: 8px 16px;
+  border-bottom: 1px solid $border;
+  &:last-child { border-bottom: none; }
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  &__label { font-size: $font-size-sm; font-weight: 600; color: $text-subtle; }
+  &__empty { color: $text-subtle; font-size: $font-size-sm; margin: 0; }
+}
+
+// ── Check-Hint ────────────────────────────────────────────────────────────────
+.check-hint {
+  font-size: $font-size-xs;
+  color: $text-subtle;
+  margin: 4px 0 0 24px;
+}
+
+// ── Pagination ────────────────────────────────────────────────────────────────
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-top: 1px solid $border;
+  font-size: $font-size-md;
+  color: $text-muted;
+}
+
+// ── Order-Detail ──────────────────────────────────────────────────────────────
+.order-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 20px;
+  margin-bottom: 16px;
+  font-size: $font-size-sm;
+}
+
+.order-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.order-detail-section {
+  margin-bottom: 12px;
+  font-size: $font-size-sm;
+}
+
+// ── Filter-Bar Inline (kein Außenabstand im Card-Header) ──────────────────────
+.filter-bar--inline { margin: 0; }
+
+// ── Bestellpositionen-Miniтабelle im Listen-Row ───────────────────────────────
+.orders-mini-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: $font-size-sm;
+
+  th {
+    padding: 2px 8px 2px 0;
+    color: $text-muted;
+    font-weight: 600;
+    white-space: nowrap;
+    border-bottom: 1px solid $border;
+    &:first-child { width: 60px; }
+    &:nth-child(2) { width: 110px; }
+  }
+
+  td {
+    padding: 2px 8px 2px 0;
+    vertical-align: top;
+    &:last-child { padding-right: 0; }
+  }
+}
+
+// ── Lieferungs-Tabelle ────────────────────────────────────────────────────────
+.delivery-table {
+  width: 100%;
+  margin-bottom: 16px;
+
+  th {
+    padding: 4px 8px 4px 0;
+    color: $text-muted;
+    font-weight: 600;
+    font-size: $font-size-sm;
+    &:last-child { padding-right: 0; }
+  }
+
+  td {
+    padding: 6px 8px 6px 0;
+    vertical-align: top;
+    &:last-child { padding-right: 0; }
+  }
+}
+
+.delivery-qty {
+  width: 90px;
+  display: none;
+  &.visible { display: inline-block; }
+}
+
+.delivery-select { width: 130px; }
+
+// ── EAN-Lookup Ergebnis ───────────────────────────────────────────────────────
+.ean-result {
+  padding: 12px;
+  background: $bg-card-hover;
+  border-radius: $radius-md;
+  margin-top: 8px;
+
+  &--found { border: 1px solid $gruen; }
+  &--error { border: 1px solid $error; color: $error; }
+
+  &__btn { margin-top: 8px; }
+}
+
+// ── Artikel-Zustand ───────────────────────────────────────────────────────────
+.condition {
+  font-weight: 600;
+  &--gut         { color: $gruen; }
+  &--in_wartung  { color: $gelb; }
+  &--defekt      { color: $error; }
+  &--ausgemustert { color: $text-subtle; font-weight: 400; }
+}
+
+// ── Datum-Status (Prüffristen, MHD) ──────────────────────────────────────────
+.date-status {
+  &--overdue { color: $error; font-weight: 600; }
+  &--soon    { color: $gelb;  font-weight: 600; }
+}

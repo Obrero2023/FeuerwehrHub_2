@@ -1,0 +1,23 @@
+// Aggregator — lädt alle Komponenten-Dateien.
+// Neue Komponenten kommen in eine eigene Datei und werden hier eingetragen.
+
+@use 'mixins';
+@use 'cards';
+@use 'buttons';
+@use 'forms';
+@use 'tables';
+@use 'badges';
+@use 'tabs';
+@use 'stats';
+@use 'modal';
+@use 'toast';
+@use 'auth';
+@use 'beschaffung';
+@use 'dashboard';
+@use 'utilities';
+@use 'protokoll';
+@use 'clock';
+@use 'vehicles';
+@use 'admin';
+@use 'personal';
+@use 'articles';

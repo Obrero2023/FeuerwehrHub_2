@@ -1,0 +1,79 @@
+@use 'variables' as *;
+
+.table-wrapper {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th {
+  background: $bg-card-hover;
+  padding: 10px 16px;
+  text-align: left;
+  font-size: $font-size-xs;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: $text-muted;
+  border-bottom: 1px solid $border;
+  white-space: nowrap;
+}
+
+td {
+  padding: 10px 16px;
+  border-bottom: 1px solid $border;
+  vertical-align: middle;
+  color: $text;
+  font-size: $font-size-sm;
+
+  &:last-child { white-space: nowrap; }
+}
+
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: $bg-card-hover; }
+
+.table-empty {
+  text-align: center;
+  padding: $space-2xl;
+  color: $text-muted;
+  font-style: italic;
+}
+
+/* Chargen Sub-Tabelle */
+.charges-container {
+  padding: 0 !important;
+  background: $bg-card-hover;
+}
+
+.table--nested {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: $font-size-xs;
+
+  th {
+    background: transparent;
+    padding: 6px 12px;
+    font-size: 0.75rem;
+  }
+
+  td {
+    padding: 6px 12px;
+    font-size: $font-size-xs;
+    border-bottom: 1px solid $border;
+  }
+
+  tr:last-child td { border-bottom: none; }
+}
+
+.charge-row > td {
+  padding: 0 !important;
+  border-bottom: 2px solid $border;
+}
+
+.row--warning {
+  td { background: rgba(231, 76, 60, 0.06); }
+  &:hover td { background: rgba(231, 76, 60, 0.1); }
+}

@@ -1,0 +1,254 @@
+import { api } from '../api.js';
+import { toast } from '../toast.js';
+import { renderShell, setShellInfo } from '../shell.js';
+import { esc } from '../utils.js';
+
+export async function renderSettings() {
+  const [settings, user] = await Promise.all([api.getSettings(), api.me()]);
+  setShellInfo(settings?.ff_name, user, settings?.modules);
+  renderShell('settings');
+
+  const content = document.getElementById('page-content');
+  const totp_enabled = user?.totp_enabled || false;
+
+  content.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h2>Einstellungen</h2>
+        <p>Konto verwalten</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__header">Darstellung</div>
+      <div class="card__body">
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
+          Wähle, wie FeuerwehrHub in deinem Browser angezeigt werden soll. Die Einstellung wird lokal gespeichert.
+        </p>
+        <div class="btn-group" id="theme-toggle-group">
+          <button class="btn btn--outline" data-theme-choice="light">☀️ Hell</button>
+          <button class="btn btn--outline" data-theme-choice="dark">🌙 Dunkel</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__header">Konto: ${esc(user?.username || '')}</div>
+      <div class="card__body">
+        <div class="form-grid" style="margin-bottom:16px">
+          <div class="form-group form-group--full">
+            <label>Anzeigename (wird als Bedarfsmelder vorausgefüllt)</label>
+            <input type="text" id="set-display-name" maxlength="100"
+              value="${esc(user?.display_name || '')}"
+              placeholder="${esc(user?.username || '')}" />
+          </div>
+        </div>
+        <div class="btn-group" style="margin-bottom:24px">
+          <button class="btn btn--primary" id="btn-save-profile">Anzeigename speichern</button>
+        </div>
+        <hr style="border:none;border-top:1px solid var(--border);margin-bottom:20px" />
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Aktuelles Passwort</label>
+            <input type="password" id="pw-current" autocomplete="current-password" />
+          </div>
+          <div class="form-group">
+            <label>Neues Passwort</label>
+            <input type="password" id="pw-new" autocomplete="new-password" />
+          </div>
+          <div class="form-group">
+            <label>Neues Passwort wiederholen</label>
+            <input type="password" id="pw-new2" autocomplete="new-password" />
+          </div>
+        </div>
+        <div class="btn-group" style="margin-top:16px">
+          <button class="btn btn--secondary" id="btn-change-pw">Passwort ändern</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__header">2-Faktor-Authentifizierung</div>
+      <div class="card__body">
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
+          ${totp_enabled
+            ? '✅ 2FA ist aktiviert. Dein Account ist mit einem Authenticator gesichert.'
+            : '⚠️ 2FA ist <strong>nicht aktiv</strong>. Du kannst es optional aktivieren.'}
+        </p>
+        ${!totp_enabled ? `
+          <div id="totp-setup-area">
+            <button class="btn btn--secondary" id="btn-setup-totp">2FA einrichten</button>
+          </div>
+          <div id="totp-qr-area" style="display:none;margin-top:16px">
+            <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
+              Scanne den QR-Code mit deiner Authenticator-App (2FAS, Google Authenticator, Authy, ...):
+            </p>
+            <div style="margin-bottom:16px;display:flex;justify-content:flex-start">
+              <div style="background:#ffffff;padding:12px;border-radius:8px;display:inline-block">
+                <canvas id="totp-qr-canvas"></canvas>
+              </div>
+            </div>
+            <p style="font-size:12px;color:var(--text-muted);margin-bottom:6px">
+              Oder manuell eingeben:
+            </p>
+            <div id="totp-uri" class="terminal" style="font-size:11px;margin-bottom:16px"></div>
+            <div class="form-group" style="max-width:200px">
+              <label>Code bestätigen</label>
+              <input type="text" id="totp-code" maxlength="6" inputmode="numeric"
+                     placeholder="000000" style="text-align:center;font-size:20px;letter-spacing:6px;font-weight:700" />
+            </div>
+            <div class="btn-group" style="margin-top:12px">
+              <button class="btn btn--primary" id="btn-confirm-totp">2FA aktivieren</button>
+              <button class="btn btn--outline" id="btn-cancel-totp">Abbrechen</button>
+            </div>
+          </div>
+        ` : `
+          <div id="totp-disable-area">
+            <button class="btn btn--danger" id="btn-disable-totp">2FA deaktivieren</button>
+          </div>
+          <div id="totp-disable-confirm" style="display:none;margin-top:16px">
+            <p class="error-msg" style="margin-bottom:12px">
+              Gib deinen aktuellen Authenticator-Code ein, um 2FA zu deaktivieren:
+            </p>
+            <div class="form-group" style="max-width:200px">
+              <label>Aktueller Code</label>
+              <input type="text" id="totp-disable-code" maxlength="6" inputmode="numeric"
+                     placeholder="000000" style="text-align:center;font-size:20px;letter-spacing:6px;font-weight:700" />
+            </div>
+            <div class="btn-group" style="margin-top:12px">
+              <button class="btn btn--danger" id="btn-confirm-disable-totp">Deaktivieren bestätigen</button>
+              <button class="btn btn--outline" id="btn-cancel-disable-totp">Abbrechen</button>
+            </div>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+
+  // ── Theme-Toggle (server-persisted, pro User) ────────────────────────────
+  let currentTheme = user?.theme === 'dark' ? 'dark' : 'light';
+  const themeGroup = document.getElementById('theme-toggle-group');
+  const markActive = () => {
+    themeGroup.querySelectorAll('[data-theme-choice]').forEach(btn => {
+      const active = btn.dataset.themeChoice === currentTheme;
+      btn.classList.toggle('btn--primary', active);
+      btn.classList.toggle('btn--outline', !active);
+    });
+  };
+  markActive();
+  themeGroup.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-theme-choice]');
+    if (!btn) return;
+    const choice = btn.dataset.themeChoice;
+    if (choice === currentTheme) return;
+    try {
+      await api.updateProfile({ theme: choice });
+      currentTheme = choice;
+      localStorage.setItem('ff_theme', choice);
+      if (choice === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+      else document.documentElement.removeAttribute('data-theme');
+      markActive();
+      toast(`Design auf „${choice === 'dark' ? 'Dunkel' : 'Hell'}" gesetzt`);
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  });
+
+  document.getElementById('btn-save-profile').addEventListener('click', async () => {
+    try {
+      await api.updateProfile({
+        display_name: document.getElementById('set-display-name').value.trim() || null,
+      });
+      toast('Anzeigename gespeichert');
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  });
+
+  // 2FA Setup (nur wenn nicht aktiv)
+  if (!totp_enabled) {
+    document.getElementById('btn-setup-totp').addEventListener('click', async () => {
+      try {
+        const res = await api.setupTotp();
+        if (!res) return;
+        document.getElementById('totp-setup-area').style.display = 'none';
+        document.getElementById('totp-qr-area').style.display = 'block';
+
+        // QR-Code generieren
+        const QRCode = (await import('qrcode')).default;
+        const canvas = document.getElementById('totp-qr-canvas');
+        await QRCode.toCanvas(canvas, res.uri, {
+          width: 200,
+          margin: 2,
+          color: { dark: '#000000', light: '#ffffff' },
+        });
+
+        document.getElementById('totp-uri').textContent = res.uri;
+        document.getElementById('totp-code').focus();
+      } catch (e) { toast(e.message, 'error'); }
+    });
+
+    document.getElementById('btn-cancel-totp').addEventListener('click', () => {
+      document.getElementById('totp-setup-area').style.display = 'block';
+      document.getElementById('totp-qr-area').style.display = 'none';
+    });
+
+    document.getElementById('btn-confirm-totp').addEventListener('click', async () => {
+      const code = document.getElementById('totp-code').value.trim();
+      if (code.length !== 6) { toast('6-stelligen Code eingeben', 'error'); return; }
+      try {
+        const res = await api.confirmTotp({ code });
+        if (!res) return;
+        toast('2FA erfolgreich aktiviert!');
+        renderSettings();
+      } catch (e) { toast(e.message || 'Ungültiger Code', 'error'); }
+    });
+  }
+
+  // 2FA Deaktivieren (nur wenn aktiv)
+  if (totp_enabled) {
+    document.getElementById('btn-disable-totp').addEventListener('click', () => {
+      document.getElementById('totp-disable-area').style.display = 'none';
+      document.getElementById('totp-disable-confirm').style.display = 'block';
+      document.getElementById('totp-disable-code').focus();
+    });
+
+    document.getElementById('btn-cancel-disable-totp').addEventListener('click', () => {
+      document.getElementById('totp-disable-area').style.display = 'block';
+      document.getElementById('totp-disable-confirm').style.display = 'none';
+      document.getElementById('totp-disable-code').value = '';
+    });
+
+    document.getElementById('btn-confirm-disable-totp').addEventListener('click', async () => {
+      const code = document.getElementById('totp-disable-code').value.trim();
+      if (code.length !== 6) { toast('6-stelligen Code eingeben', 'error'); return; }
+      try {
+        await api.disableTotp({ code });
+        toast('2FA deaktiviert');
+        renderSettings();
+      } catch (e) { toast(e.message || 'Ungültiger Code', 'error'); }
+    });
+  }
+
+  document.getElementById('btn-change-pw').addEventListener('click', async () => {
+    const current = document.getElementById('pw-current').value;
+    const newPw   = document.getElementById('pw-new').value;
+    const newPw2  = document.getElementById('pw-new2').value;
+
+    if (!current || !newPw) { toast('Alle Passwortfelder ausfüllen', 'error'); return; }
+    if (newPw !== newPw2)   { toast('Passwörter stimmen nicht überein', 'error'); return; }
+    if (newPw.length < 16)  { toast('Mindestens 16 Zeichen', 'error'); return; }
+
+    try {
+      await api.changePassword({ current_password: current, new_password: newPw });
+      toast('Passwort geändert');
+      document.getElementById('pw-current').value = '';
+      document.getElementById('pw-new').value = '';
+      document.getElementById('pw-new2').value = '';
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  });
+
+}
+

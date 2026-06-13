@@ -1,0 +1,217 @@
+@use 'variables' as *;
+
+// ── Update-Banner ─────────────────────────────────────────────────────────────
+.update-banner {
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-banner-link {
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.admin-btn-gruen {
+  background: $gruen !important;
+}
+
+// ── Update-Modal ──────────────────────────────────────────────────────────────
+.admin-update-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.admin-spinner {
+  display: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid $border;
+  border-top-color: $rot;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.admin-timer {
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-countdown {
+  margin-top: $space-md;
+  text-align: center;
+}
+
+// ── Terminal-Modifier ─────────────────────────────────────────────────────────
+.terminal--update         { max-height: 320px; }
+.terminal--container-log  { max-height: 600px; }
+
+// ── Vorschau-Zeilen (Logo, Unterschrift) ──────────────────────────────────────
+.admin-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: $space-sm;
+  min-height: 32px;
+}
+
+.admin-preview-logo {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border: 1px solid $border;
+  border-radius: $radius-lg;
+  padding: 4px;
+  background: $bg-card;
+}
+
+.admin-preview-sig {
+  height: 44px;
+  max-width: 220px;
+  object-fit: contain;
+  border: 1px solid $border;
+  border-radius: $radius-md;
+  padding: 4px;
+  background: $bg-card;
+}
+
+// ── Einsatzarten ──────────────────────────────────────────────────────────────
+.ea-add-form {
+  padding: $space-md;
+  background: $bg-card-hover;
+  border-bottom: 1px solid $border;
+}
+
+.ea-add-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: $space-sm;
+  align-items: end;
+}
+
+.ea-group {
+  border-bottom: 1px solid $border;
+}
+
+.ea-cat-header {
+  padding: 8px 16px;
+  background: $bg-card-hover;
+  font-size: $font-size-xs;
+  font-weight: 700;
+  color: $text-muted;
+}
+
+.ea-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid $border;
+
+  &:last-child    { border-bottom: none; }
+  &:hover         { background: $bg-card-hover; }
+  &--inactive     { opacity: 0.5; }
+}
+
+.ea-key {
+  flex: 0 0 140px;
+  font-family: monospace;
+  font-size: $font-size-xs;
+  color: $text-muted;
+}
+
+.ea-label {
+  flex: 1;
+  font-size: $font-size-sm;
+}
+
+.ea-count {
+  flex: 0 0 80px;
+  text-align: right;
+}
+
+// ── Einsatzart Inline-Editor ──────────────────────────────────────────────────
+.ea-edit-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.ea-edit-label { flex: 1; }
+.ea-edit-sort  { width: 60px; }
+
+// ── Module ────────────────────────────────────────────────────────────────────
+.module-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid $border;
+
+  &__info  { flex: 1; }
+  &__label { font-size: $font-size-sm; font-weight: 600; color: $text; }
+  &__desc  { font-size: $font-size-xs; color: $text-muted; margin-top: 2px; }
+}
+
+// ── Check-Listen (Rollen/Funktionen) ─────────────────────────────────────────
+.admin-check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fn-check-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: 4px;
+}
+
+// ── Dienstausweis-Karten ──────────────────────────────────────────────────────
+.badge-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 4px;
+}
+
+.badge-card {
+  background: $bg-card;
+  border: 1px solid $border;
+  border-radius: $radius-md;
+  padding: 14px;
+  text-align: center;
+  min-width: 160px;
+
+  &__qr-img {
+    display: block;
+    margin: 0 auto 6px;
+  }
+
+  &__qr-placeholder {
+    width: 128px;
+    height: 128px;
+    margin: 0 auto 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed $border;
+    border-radius: $radius-md;
+    color: $text-subtle;
+    font-size: $font-size-xs;
+    text-align: center;
+  }
+
+  &__name {
+    font-weight: 600;
+    font-size: $font-size-sm;
+    margin-bottom: 2px;
+  }
+
+  &__code {
+    font-size: $font-size-xs;
+    color: $text-subtle;
+    margin-bottom: 8px;
+  }
+}

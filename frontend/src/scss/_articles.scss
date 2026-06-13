@@ -1,0 +1,260 @@
+@use 'variables' as *;
+
+// ── Lager-Layout (Sidebar + Hauptbereich) ─────────────────────────────────────
+.lager-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: $space-md;
+  align-items: start;
+}
+
+.lager-sidebar {
+  position: sticky;
+  top: $space-md;
+}
+
+.lager-main {
+  min-width: 0;
+}
+
+// ── Filter-Zeile ──────────────────────────────────────────────────────────────
+.lager-filter {
+  display: flex;
+  gap: $space-sm;
+  padding: $space-sm $space-md;
+  border-bottom: 1px solid $border;
+
+  &__search {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid $border;
+    border-radius: $radius-md;
+    background: $bg-card;
+    color: $text;
+    font-size: $font-size-sm;
+
+    &:focus { outline: none; border-color: $rot; }
+  }
+
+  &__select {
+    padding: 6px 10px;
+    border: 1px solid $border;
+    border-radius: $radius-md;
+    background: $bg-card;
+    color: $text;
+    font-size: $font-size-sm;
+    cursor: pointer;
+  }
+}
+
+// ── Sidebar: Lagerort-Baum ────────────────────────────────────────────────────
+.sidebar-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sidebar-heading {
+  font-size: $font-size-xs;
+  font-weight: 700;
+  color: $text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.location-tree {
+  padding: $space-sm 0;
+}
+
+.loc-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px 5px calc(12px + var(--depth, 0) * 14px);
+  font-size: $font-size-sm;
+  cursor: pointer;
+  border-radius: 0;
+  color: $text;
+
+  &:hover       { background: $bg-card-hover; }
+  &--active     { background: $rot-subtle; color: $rot; font-weight: 600; }
+  &--root       { font-weight: 600; color: $text-muted; font-size: $font-size-xs; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  &__label      { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  &__btn {
+    opacity: 0;
+    flex-shrink: 0;
+    transition: opacity 0.15s;
+
+    &--delete:hover { color: $error; }
+  }
+
+  &:hover &__btn { opacity: 1; }
+}
+
+// ── Artikel-Zeile ─────────────────────────────────────────────────────────────
+.article-row {
+  cursor: default;
+}
+
+// ── Expanded-Bereich (Chargen, Inspektionen, Instanzen) ───────────────────────
+.expanded-section {
+  padding: $space-sm 0;
+  border-bottom: 1px solid $border;
+
+  &:last-child { border-bottom: none; }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px $space-md;
+  }
+
+  &__label {
+    font-size: $font-size-xs;
+    font-weight: 700;
+    color: $text-muted;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+
+  &__empty {
+    padding: $space-sm $space-md;
+    font-size: $font-size-xs;
+    color: $text-subtle;
+    font-style: italic;
+  }
+}
+
+// ── Zustand-Badge (Einzelobjekte) ─────────────────────────────────────────────
+.condition--gut         { color: $gruen; font-weight: 600; }
+.condition--in_wartung  { color: $gelb;  font-weight: 600; }
+.condition--defekt      { color: $error; font-weight: 600; }
+.condition--ausgemustert{ color: $text-subtle; }
+
+// ── Datum-Status (MHD, Prüfdaten) ────────────────────────────────────────────
+.date-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+
+  &--overdue { color: $error;  font-weight: 600; }
+  &--soon    { color: $gelb;   font-weight: 600; }
+}
+
+// ── Checkbox + Hinweis (Einzelobjekt-Tracking) ───────────────────────────────
+.check-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  font-size: $font-size-sm;
+  color: $text;
+  margin-top: $space-sm;
+
+  input[type="checkbox"] { flex-shrink: 0; margin-top: 2px; }
+}
+
+.check-hint {
+  font-size: $font-size-xs;
+  color: $text-muted;
+  margin-top: 4px;
+  padding-left: 24px;
+}
+
+// ── Zweispaltig-Grid im Modal ─────────────────────────────────────────────────
+.form-grid--2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: $space-sm;
+}
+
+// ── EAN-Suchergebnis ──────────────────────────────────────────────────────────
+.ean-result {
+  margin-top: $space-sm;
+  padding: $space-sm $space-md;
+  border-radius: $radius-md;
+  font-size: $font-size-sm;
+
+  &--found {
+    background: $gruen-hell;
+    border: 1px solid $gruen;
+    color: $gruen;
+  }
+
+  &--error {
+    background: $rot-hell;
+    border: 1px solid $rot;
+    color: $error;
+  }
+
+  &__btn {
+    margin-top: $space-sm;
+  }
+}
+
+// ── QR-Kamera-Scanner ────────────────────────────────────────────────────────
+.scan-reader {
+  width: 100%;
+  min-height: 260px;
+  border-radius: $radius-md;
+  overflow: hidden;
+  background: $bg-card;
+}
+
+.scan-hint {
+  margin-top: $space-sm;
+  font-size: $font-size-xs;
+  color: $text-muted;
+  text-align: center;
+}
+
+.scan-no-camera {
+  padding: $space-md;
+  text-align: center;
+  color: $error;
+  font-size: $font-size-sm;
+}
+
+// ── Scan-Detailansicht ────────────────────────────────────────────────────────
+.scan-card {
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: $space-sm;
+}
+
+.scan-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: $space-sm;
+  font-size: $font-size-sm;
+  padding: $space-xs 0;
+  border-bottom: 1px solid $border;
+
+  &:last-child { border-bottom: none; }
+
+  &__label { color: $text-muted; flex-shrink: 0; }
+  &__value  { font-weight: 600; text-align: right; }
+}
+
+// ── Responsive ────────────────────────────────────────────────────────────────
+@media (max-width: 768px) {
+  .lager-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .lager-sidebar {
+    position: static;
+  }
+
+  .form-grid--2 {
+    grid-template-columns: 1fr;
+  }
+}

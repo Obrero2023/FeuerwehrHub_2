@@ -1,0 +1,96 @@
+services:
+
+  # ── Datenbank ─────────────────────────────────────────────────────────────────
+  # Für externe Datenbank: postgres-Service hier entfernen und DB_HOST in .env setzen.
+  postgres:
+    image: postgres:17-alpine
+    container_name: ${CONTAINER_DB:-feuerwehrhub-db}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${DB_NAME:-feuerwehrhub}
+      POSTGRES_USER:     ${DB_USER:-feuerwehrhub}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-feuerwehrhub} -d ${DB_NAME:-feuerwehrhub}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+      - /run/postgresql
+    networks:
+      - ff-net
+
+  # ── Backend ───────────────────────────────────────────────────────────────────
+  backend:
+    image: ghcr.io/obrero2023/FeuerwehrHub_2-backend:latest
+    container_name: ${CONTAINER_BACKEND:-feuerwehrhub-backend}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST:              ${DB_HOST:-postgres}
+      DB_PORT:              ${DB_PORT:-5432}
+      DB_NAME:              ${DB_NAME:-feuerwehrhub}
+      DB_USER:              ${DB_USER:-feuerwehrhub}
+      DB_PASSWORD:          ${DB_PASSWORD}
+      APP_HOST:             ${APP_HOST:-0.0.0.0}
+      APP_PORT:             ${APP_PORT:-3000}
+      JWT_SECRET:           ${JWT_SECRET}
+      ENCRYPTION_KEY:       ${ENCRYPTION_KEY:-}
+      JWT_EXPIRY_HOURS:     ${JWT_EXPIRY_HOURS:-8}
+      FF_NAME:              ${FF_NAME:-Freiwillige Feuerwehr}
+      DATA_DIR:             /data
+      FRONTEND_URL:         ${FRONTEND_URL:-http://localhost}
+      LOGIN_MAX_ATTEMPTS:   ${LOGIN_MAX_ATTEMPTS:-5}
+      LOCKOUT_MINUTES:      ${LOCKOUT_MINUTES:-15}
+    volumes:
+      - ff-data:/data
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    networks:
+      - ff-net
+
+  # ── Frontend ──────────────────────────────────────────────────────────────────
+  frontend:
+    image: ghcr.io/obrero2023/FeuerwehrHub_2-frontend:latest
+    container_name: ${CONTAINER_FRONTEND:-feuerwehrhub-frontend}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      - backend
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    networks:
+      - ff-net
+
+networks:
+  ff-net:
+    driver: bridge
+
+volumes:
+  ff-data:
+  pg-data:

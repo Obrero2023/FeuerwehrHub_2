@@ -1,0 +1,175 @@
+@use 'variables' as *;
+
+// ── Mitgliederliste ───────────────────────────────────────────────────────────
+.member-row {
+  cursor: pointer;
+
+  &:nth-child(even) { background: $bg-card-hover; }
+  &:hover           { background: $rot-subtle; }
+}
+
+// ── Detail-Header ─────────────────────────────────────────────────────────────
+.member-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: $space-sm;
+}
+
+.member-detail-title {
+  font-size: $font-size-lg;
+  font-weight: 700;
+  color: $text;
+}
+
+// ── Schmale Karten (Stammdaten) ───────────────────────────────────────────────
+.card--narrow {
+  max-width: 600px;
+}
+
+// ── Leer-Zustand (padding-only) ───────────────────────────────────────────────
+.p-empty {
+  padding: $space-md;
+}
+
+// ── Notfallkontakte ───────────────────────────────────────────────────────────
+.notfall-header {
+  display: flex;
+  gap: 12px;
+  padding: 6px 16px;
+  background: $bg-card-hover;
+  border-bottom: 1px solid $border;
+}
+
+.notfall-row {
+  display: flex;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid $border;
+
+  &:last-child { border-bottom: none; }
+  &:hover      { background: $bg-card-hover; }
+}
+
+// ── Anwesenheits-Statistik ────────────────────────────────────────────────────
+.att-stats {
+  display: flex;
+  gap: $space-md;
+  flex-wrap: wrap;
+  padding: $space-md;
+}
+
+.att-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 80px;
+
+  &__value {
+    font-size: $font-size-xl;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+
+  &__label {
+    font-size: $font-size-xs;
+    color: $text-muted;
+    margin-top: 2px;
+  }
+}
+
+.att-status {
+  &--present { color: $gruen; }
+  &--absent  { color: $rot; }
+  &--excused { color: $gelb; }
+}
+
+// ── Anwesenheit Add-Form ──────────────────────────────────────────────────────
+.att-add-form {
+  padding: $space-md;
+  background: $bg-card-hover;
+  border-bottom: 1px solid $border;
+}
+
+// ── Tabellen ──────────────────────────────────────────────────────────────────
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: $font-size-sm;
+
+  th {
+    text-align: left;
+    padding: 8px 16px;
+    font-size: $font-size-xs;
+    font-weight: 700;
+    color: $text-muted;
+    background: $bg-card-hover;
+    border-bottom: 1px solid $border;
+  }
+
+  td {
+    padding: 10px 16px;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid $border;
+
+    &:last-child { border-bottom: none; }
+  }
+}
+
+.data-row {
+  &:nth-child(even) { background: $bg-card-hover; }
+  &:hover           { background: $rot-subtle; }
+
+  &--past { opacity: 0.5; }
+}
+
+// ── Termine ───────────────────────────────────────────────────────────────────
+.termin-location {
+  font-size: $font-size-xs;
+  color: $text-muted;
+  margin-top: 2px;
+}
+
+// ── Zuweisung Modal ───────────────────────────────────────────────────────────
+.assign-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  cursor: pointer;
+  font-size: $font-size-sm;
+}
+
+.assign-checkbox {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.assign-member-list {
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid $border;
+  border-radius: $radius-md;
+  padding: 4px $space-sm;
+}
+
+// ── Termintyp-Badge ───────────────────────────────────────────────────────────
+.typ-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: $radius-pill;
+  font-size: $font-size-2xs;
+  font-weight: 600;
+}
+
+// ── Farb-Input ────────────────────────────────────────────────────────────────
+.color-input {
+  height: 38px;
+  padding: 2px 6px;
+  border: 1px solid $border;
+  border-radius: $radius-md;
+  cursor: pointer;
+}
