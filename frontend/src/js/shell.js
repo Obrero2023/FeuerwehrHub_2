@@ -138,7 +138,7 @@ function buildShell() {
     { page: 'vehicle-checklist', label: 'Prüfungsübersicht', icon: icon('truck', 16) },
     { page: 'hlf1-inspection', label: 'HLF-1', icon: icon('truck', 16) },
     { page: 'hlf2-inspection', label: 'HLF-2', icon: icon('truck', 16) },
-    { page: 'mtf-inspection', label: 'MTF', icon: icon('truck', 16) },
+    { page: 'mtf-inspection', label: 'MTW', icon: icon('truck', 16) },
     { page: 'vehicle-checklist', label: 'Prüfungsübersicht', icon: icon('truck', 16) },
   ];
 
