@@ -14,6 +14,7 @@ const MODULE_ACCENTS = {
   einsatzberichte: '#e63022',
   personal:        '#16a34a',
   fahrzeuge:       '#2563eb',
+  fahrzeug_checklist: '#0891b2',
   verein:          '#7c3aed',
 };
 
@@ -29,6 +30,7 @@ const PAGE_MODULE = {
   termine:         'personal',
   zeiterfassung:   'personal',
   vehicles:        'fahrzeuge',
+  'vehicle-inspection': 'fahrzeugpruefung',
   verein:          'verein',
 };
 
@@ -36,6 +38,7 @@ const MODULE_COLORS = {
   lager:           { c: 'var(--lager-c)',    hell: 'var(--lager-hell)' },
   personal:        { c: 'var(--personal-c)', hell: 'var(--personal-hell)' },
   fahrzeuge:       { c: 'var(--fahrzeug-c)', hell: 'var(--fahrzeug-hell)' },
+  fahrzeugpruefung: { c: 'var(--fahrzeug_checklist-c)', hell: 'var(--fahrzeug_checklist-hell)' },
   einsatzberichte: { c: 'var(--einsatz-c)',  hell: 'var(--einsatz-hell)' },
   verein:          { c: 'var(--verein-c)',   hell: 'var(--verein-hell)' },
 };
@@ -131,6 +134,13 @@ function buildShell() {
     { page: 'vehicles', label: 'Übersicht', icon: icon('truck', 16) },
   ];
 
+  const fahrzeugchecklistItems = [
+    { page: 'vehicle-inspection', label: 'Prüfungsübersicht', icon: icon('check-circle', 16) },
+    { page: 'hlf1-inspection', label: 'HLF-1', icon: icon('truck', 16) },
+    { page: 'hlf2-inspection', label: 'HLF-2', icon: icon('truck', 16) },
+    { page: 'mtf-inspection', label: 'MTF', icon: icon('truck', 16) },
+  ];
+
   const einsaetzeItems = [
     { page: 'incidents',      label: 'Einsatzberichte', icon: icon('file-text', 16) },
     { page: 'dienstberichte', label: 'Dienstberichte',  icon: icon('book-open', 16) },
@@ -173,6 +183,7 @@ function buildShell() {
         ${showModule('lager.read', 'lager')           ? buildNavItem('lager',           'Lager',    lagerItems)    : ''}
         ${showModule('personal', 'personal')           ? buildNavItem('personal',        'Personal', personalItems) : ''}
         ${showModule('fahrzeuge', 'fahrzeuge')         ? buildNavItem('fahrzeuge',       'Technik & Geräte',fahrzeugeItems): ''}
+        ${showModule('fahrzeugpruefung', 'fahrzeugpruefung') ? buildNavItem('fahrzeugpruefung', 'Fahrzeugprüfung', fahrzeugchecklistItems) : ''}
         ${showModule('einsatzberichte.read', 'einsatzberichte') ? buildNavItem('einsatzberichte', 'Einsätze', einsaetzeItems) : ''}
         ${showModule('verein', 'verein')               ? buildNavItem('verein',          'Verein',   vereinItems)   : ''}
 
