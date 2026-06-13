@@ -2,7 +2,7 @@ import { api } from '../api.js';
 import { renderShell, setShellInfo } from '../shell.js';
 import { icon, renderIcons } from '../icons.js';
 
-export async function rendervehicle_checklist() {
+export async function rendervehiclechecklist() {
     console.log('Fahrzeugprüfung geladen');
   const [settings, user] = await Promise.all([api.getSettings(), api.me()]);
   setShellInfo(settings?.ff_name, user, settings?.modules);
