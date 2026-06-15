@@ -31,6 +31,10 @@ const PAGE_MODULE = {
   zeiterfassung:   'personal',
   vehicles:        'fahrzeuge',
   'vehicle-inspection': 'fahrzeugpruefung',
+  'vehicle_checklist':  'fahrzeugpruefung',
+  'hlf1-inspection':    'fahrzeugpruefung',
+  'hlf2-inspection':    'fahrzeugpruefung',
+  'mtf-inspection':     'fahrzeugpruefung',
   verein:          'verein',
 };
 
@@ -139,7 +143,6 @@ function buildShell() {
     { page: 'hlf1-inspection', label: 'HLF-1', icon: icon('truck', 16) },
     { page: 'hlf2-inspection', label: 'HLF-2', icon: icon('truck', 16) },
     { page: 'mtf-inspection', label: 'MTF', icon: icon('truck', 16) },
-    { page: 'vehicle_checklist', label: 'Prüfungsübersicht', icon: icon('truck', 16) },
   ];
 
   const einsaetzeItems = [
