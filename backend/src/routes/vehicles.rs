@@ -1597,7 +1597,8 @@ pub async fn submit_inspection(
     Json(body): Json<InspectionSubmitBody>,
 ) -> AppResult<Json<serde_json::Value>> {
     body.validate()?;
-    let user_name = claims.name.clone().unwrap_or_else(|| "Unbekannt".to_string());
+    //let user_name = claims.name.clone().unwrap_or_else(|| "Unbekannt".to_string());
+    let user_name = claims.sub.to_string();
 
     // Alte Ergebnisse für dieses Fahrzeug löschen
     sqlx::query("DELETE FROM vehicle_inspection_results WHERE vehicle_id = $1")
