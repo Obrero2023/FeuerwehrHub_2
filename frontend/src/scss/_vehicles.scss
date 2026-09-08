@@ -255,8 +255,12 @@
   gap: 12px;
   padding: 8px 12px;
   border: 1px solid $border;
-  border-radius: $radius;
+  border-radius: $radius-sm;
   background: $bg-card-hover;
+  -webkit-border-radius: $radius-sm;
+  -moz-border-radius: $radius-sm;
+  -ms-border-radius: $radius-sm;
+  -o-border-radius: $radius-sm;
 }
 
 .inspection-label {
