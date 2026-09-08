@@ -1443,6 +1443,198 @@ pub async fn defects_from_checklist(
     Ok(Json(serde_json::json!({ "created": entries.len() })))
 }
 
+// ── Fahrzeugprüfung: Inspektionsobjekte ────────────────────────────────────────
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct InspectionObject {
+    pub id:             Uuid,
+    pub vehicle_type:   String,
+    pub key:            String,
+    pub label:          String,
+    pub sort_order:     i32,
+    pub created_at:     DateTime<Utc>,
+}
+
+#[derive(Deserialize, Validate)]
+pub struct InspectionObjectBody {
+    #[validate(length(min = 1, max = 20))]
+    pub vehicle_type:   Option<String>,
+    #[validate(length(min = 1, max = 20))]
+    pub key:            String,
+    #[validate(length(min = 1, max = 200))]
+    pub label:          String,
+    pub sort_order:     Option<i32>,
+}
+
+pub async fn list_inspection_objects(
+    State(state): State<AppState>,
+) -> AppResult<Json<Vec<InspectionObject>>> {
+    let rows = sqlx::query_as::<_, InspectionObject>(
+        "SELECT id, vehicle_type, key, label, sort_order, created_at
+         FROM vehicle_inspection_objects ORDER BY vehicle_type, sort_order ASC, key ASC"
+    )
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows))
+}
+
+pub async fn list_inspection_objects_by_type(
+    State(state): State<AppState>,
+    Path(vtype): Path<String>,
+) -> AppResult<Json<Vec<InspectionObject>>> {
+    let rows = sqlx::query_as::<_, InspectionObject>(
+        "SELECT id, vehicle_type, key, label, sort_order, created_at
+         FROM vehicle_inspection_objects WHERE vehicle_type = $1
+         ORDER BY sort_order ASC, key ASC"
+    )
+    .bind(&vtype)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows))
+}
+
+pub async fn create_inspection_object(
+    State(state): State<AppState>,
+    Json(body): Json<InspectionObjectBody>,
+) -> AppResult<Json<InspectionObject>> {
+    body.validate()?;
+    let vtype = body.vehicle_type.unwrap_or_else(|| "hlf1".to_string());
+    let key = body.key.trim().to_string();
+    if key.is_empty() {
+        return Err(AppError::BadRequest("Key darf nicht leer sein".into()));
+    }
+    let label = body.label.trim().to_string();
+    if label.is_empty() {
+        return Err(AppError::BadRequest("Label darf nicht leer sein".into()));
+    }
+
+    let row = sqlx::query_as::<_, InspectionObject>(
+        "INSERT INTO vehicle_inspection_objects (vehicle_type, key, label, sort_order)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, vehicle_type, key, label, sort_order, created_at"
+    )
+    .bind(&vtype)
+    .bind(&key)
+    .bind(&label)
+    .bind(body.sort_order.unwrap_or(0))
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        if e.to_string().contains("duplicate key") || e.to_string().contains("unique") {
+            AppError::BadRequest(format!("Objekt '{}' existiert bereits für Typ '{}'", key, vtype))
+        } else {
+            AppError::from(e)
+        }
+    })?;
+
+    Ok(Json(row))
+}
+
+pub async fn delete_inspection_object(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> AppResult<Json<serde_json::Value>> {
+    let r = sqlx::query("DELETE FROM vehicle_inspection_objects WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
+    if r.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+    Ok(Json(serde_json::json!({ "message": "Objekt gelöscht" })))
+}
+
+// ── Fahrzeugprüfung: Ergebnisse ────────────────────────────────────────────────
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct InspectionResult {
+    pub id:                 Uuid,
+    pub vehicle_id:         Uuid,
+    pub inspection_object_id: Uuid,
+    pub checked:            bool,
+    pub defect:             bool,
+    pub defect_text:        Option<String>,
+    pub checked_by:         Option<Uuid>,
+    pub checked_by_name:    Option<String>,
+    pub created_at:         DateTime<Utc>,
+}
+
+#[derive(Deserialize, Validate)]
+pub struct InspectionResultBody {
+    pub inspection_object_id: Option<Uuid>,
+    pub checked:               Option<bool>,
+    pub defect:                Option<bool>,
+    #[validate(length(max = 2000))]
+    pub defect_text:           Option<String>,
+}
+
+#[derive(Deserialize, Validate)]
+pub struct InspectionSubmitBody {
+    pub vehicle_id: Uuid,
+    pub results:    Vec<InspectionResultBody>,
+}
+
+pub async fn list_inspection_results(
+    State(state): State<AppState>,
+    Path(vehicle_id): Path<Uuid>,
+) -> AppResult<Json<Vec<InspectionResult>>> {
+    let rows = sqlx::query_as::<_, InspectionResult>(
+        "SELECT id, vehicle_id, inspection_object_id, checked, defect, defect_text,
+                checked_by, checked_by_name, created_at
+         FROM vehicle_inspection_results
+         WHERE vehicle_id = $1
+         ORDER BY created_at DESC"
+    )
+    .bind(vehicle_id)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows))
+}
+
+pub async fn submit_inspection(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<InspectionSubmitBody>,
+) -> AppResult<Json<serde_json::Value>> {
+    body.validate()?;
+    let user_name = claims.name.clone().unwrap_or_else(|| "Unbekannt".to_string());
+
+    // Alte Ergebnisse für dieses Fahrzeug löschen
+    sqlx::query("DELETE FROM vehicle_inspection_results WHERE vehicle_id = $1")
+        .bind(body.vehicle_id)
+        .execute(&state.db)
+        .await?;
+
+    let mut inserted = 0;
+    for r in &body.results {
+        let obj_id = r.inspection_object_id
+            .ok_or_else(|| AppError::BadRequest("inspection_object_id fehlt".into()))?;
+
+        sqlx::query(
+            "INSERT INTO vehicle_inspection_results
+             (vehicle_id, inspection_object_id, checked, defect, defect_text, checked_by, checked_by_name)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)"
+        )
+        .bind(body.vehicle_id)
+        .bind(obj_id)
+        .bind(r.checked.unwrap_or(true))
+        .bind(r.defect.unwrap_or(false))
+        .bind(&r.defect_text)
+        .bind(claims.sub)
+        .bind(&user_name)
+        .execute(&state.db)
+        .await?;
+        inserted += 1;
+    }
+
+    Ok(Json(serde_json::json!({
+        "message": "Prüfung gespeichert",
+        "inserted": inserted,
+        "vehicle_id": body.vehicle_id,
+        "checked_by": user_name
+    })))
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 
 pub fn router(state: AppState) -> Router<AppState> {
@@ -1468,7 +1660,11 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/:id/checklist-templates/:tid",             delete(delete_template))
         .route("/:id/checklists",                           get(list_checklists).post(create_checklist))
         .route("/:id/checklists/:cid",                      get(get_checklist).delete(delete_checklist))
-        .route("/:id/defects-from-checklist",               post(defects_from_checklist))
+        .route("/:id/inspection-results",               get(list_inspection_results))
+        .route("/:id/inspection-submit",                post(submit_inspection))
+        .route("/inspection-objects",                     get(list_inspection_objects).post(create_inspection_object))
+        .route("/inspection-objects/:id",               delete(delete_inspection_object))
+        .route("/inspection-objects/type/:vtype",         get(list_inspection_objects_by_type))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_module("fahrzeuge")))
         .route_layer(middleware::from_fn_with_state(state, require_auth))
 }
