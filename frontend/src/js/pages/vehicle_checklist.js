@@ -48,7 +48,7 @@ export async function rendervehiclechecklist() {
             <span class="inspection-status" id="ts-status">Nicht geprüft</span>
           </div>
         </div>
-        <p>Hier werden die Inspektionen und Prüfungen für HLF-1 verwaltet.</p>
+        <p>Hier werden die Inspektionen und Prüfungen für HLF-1 verwaltet Test.</p>
       </div>
     </div>
     <div id="tab-hlf2" class="tab-panel" style="display:${activeTab === 'hlf2' ? 'block' : 'none'}">
