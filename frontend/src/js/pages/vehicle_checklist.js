@@ -32,6 +32,22 @@ export async function rendervehiclechecklist() {
     <div id="tab-hlf1" class="tab-panel" style="display:${activeTab === 'hlf1' ? 'block' : 'none'}">
       <div class="content-card">
         <h3>HLF-1 Inspektionen</h3>
+        <div class="inspection-checklist">
+          <div class="inspection-item">
+            <label class="inspection-label">
+              <input type="checkbox" class="inspection-checkbox" id="pa-check">
+              PA (Pumpenprüfung) prüfen
+            </label>
+            <span class="inspection-status" id="pa-status">Nicht geprüft</span>
+          </div>
+          <div class="inspection-item">
+            <label class="inspection-label">
+              <input type="checkbox" class="inspection-checkbox" id="ts-check">
+              TS (Tragkraftspritze) prüfen
+            </label>
+            <span class="inspection-status" id="ts-status">Nicht geprüft</span>
+          </div>
+        </div>
         <p>Hier werden die Inspektionen und Prüfungen für HLF-1 verwaltet.</p>
       </div>
     </div>
@@ -67,4 +83,23 @@ export async function rendervehiclechecklist() {
   });
 
   renderIcons(content);
+
+  // PA / TS Prüf-Handling (HLF-1)
+  const paCheckbox = document.getElementById('pa-check');
+  const paStatus = document.getElementById('pa-status');
+  if (paCheckbox && paStatus) {
+    paCheckbox.addEventListener('change', () => {
+      paStatus.textContent = paCheckbox.checked ? 'Geprüft' : 'Nicht geprüft';
+      paStatus.classList.toggle('inspection-status--done', paCheckbox.checked);
+    });
+  }
+
+  const tsCheckbox = document.getElementById('ts-check');
+  const tsStatus = document.getElementById('ts-status');
+  if (tsCheckbox && tsStatus) {
+    tsCheckbox.addEventListener('change', () => {
+      tsStatus.textContent = tsCheckbox.checked ? 'Geprüft' : 'Nicht geprüft';
+      tsStatus.classList.toggle('inspection-status--done', tsCheckbox.checked);
+    });
+  }
 }
