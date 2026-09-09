@@ -2,11 +2,11 @@ use axum::{
     extract::{Path, State},
     middleware,
     response::Response,
-    routing::{delete, get, post, put},
+    routing::{delete, get, post},
     Extension, Json, Router,
 };
 use axum::body::Body;
-use axum::headers::{CONTENT_DISPOSITION, CONTENT_TYPE};
+use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use validator::Validate;
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
@@ -1671,7 +1671,7 @@ pub async fn create_inspection_protocol(
         return Err(AppError::BadRequest("Keine Prüfungsobjekte angegeben".into()));
     }
 
-    let year = Utc::now().year();
+    let year = Utc::now().year_ce();
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM vehicle_inspection_protocols
          WHERE vehicle_id = $1 AND inspection_date >= $2 AND inspection_date < $3"
@@ -1683,7 +1683,7 @@ pub async fn create_inspection_protocol(
     .await?;
     let protocol_number = format!("{}-{:03}", year, count + 1);
 
-    let user_name = claims.name.clone().unwrap_or_else(|| "Unbekannt".to_string());
+    let user_name = claims.username.clone().unwrap_or_else(|| "Unbekannt".to_string());
 
     let protocol = sqlx::query_as::<_, InspectionProtocol>(
         "INSERT INTO vehicle_inspection_protocols
@@ -1723,7 +1723,7 @@ pub async fn create_inspection_protocol(
         items.push(protocol_item);
     }
 
-    Ok(InspectionProtocolDetail { protocol, items })
+    Ok(axum::Json(InspectionProtocolDetail { protocol, items }))
 }
 
 pub async fn get_inspection_protocol(
@@ -1871,13 +1871,13 @@ pub async fn generate_inspection_protocol_pdf(
             item.id.to_string()[0..8].to_string(),
             item.inspection_object_id.to_string()[0..8].to_string(),
             status_text.to_string(),
-            item.defect_text.as_deref().unwrap_or(""),
+            item.defect_text.as_deref().unwrap_or("").to_string(),
             item.created_at.format("%d.%m.%Y %H:%M").to_string(),
         ]
     }).collect();
 
     let pdf_bytes = crate::pdf::PdfBuilder::new(format!("Inspektionsprotokoll {}", protocol.protocol_number))
-        .heading(format("Inspektionsprotokoll {}", protocol.protocol_number))
+        .heading(format!("Inspektionsprotokoll {}", protocol.protocol_number))
         .key_value("Fahrzeug-ID", protocol.vehicle_id.to_string())
         .key_value("Datum", protocol.inspection_date.format("%d.%m.%Y").to_string())
         .key_value("Prüfer", protocol.inspected_by_name.as_deref().unwrap_or("Unbekannt"))
@@ -1899,6 +1899,8 @@ pub async fn generate_inspection_protocol_pdf(
         .body(Body::from(pdf_bytes))
         .unwrap())
 }
+
+let user_name = claims.username.clone().unwrap_or_else(|| "Unbekannt".to_string());
 
 pub async fn submit_inspection(
     State(state): State<AppState>,
