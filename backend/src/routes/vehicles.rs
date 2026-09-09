@@ -8,7 +8,7 @@ use axum::{
 use axum::body::Body;
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use validator::Validate;
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -1683,7 +1683,7 @@ pub async fn create_inspection_protocol(
     .await?;
     let protocol_number = format!("{}-{:03}", year, count + 1);
 
-    let user_name = claims.username.clone().unwrap_or_else(|| "Unbekannt".to_string());
+    let user_name = claims.username.clone();
 
     let protocol = sqlx::query_as::<_, InspectionProtocol>(
         "INSERT INTO vehicle_inspection_protocols
@@ -1968,7 +1968,7 @@ pub async fn submit_inspection(
         "message": "Prüfung gespeichert",
         "inserted": inserted,
         "vehicle_id": body.vehicle_id,
-        "checked_by": claims.username.clone().unwrap_or_else(|| "Unbekannt".to_string()),
+        "checked_by": claims.username.clone(),
         "protocol_id": protocol.id,
         "protocol_number": protocol.protocol_number
     })))
