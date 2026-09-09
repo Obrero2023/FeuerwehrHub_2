@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, State},
     middleware,
     response::Response,
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Extension, Json, Router,
 };
 use axum::body::Body;
@@ -1671,7 +1671,7 @@ pub async fn create_inspection_protocol(
         return Err(AppError::BadRequest("Keine Prüfungsobjekte angegeben".into()));
     }
 
-    let year = Utc::now().year_ce();
+    let year = Utc::now().year();
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM vehicle_inspection_protocols
          WHERE vehicle_id = $1 AND inspection_date >= $2 AND inspection_date < $3"
@@ -1968,7 +1968,7 @@ pub async fn submit_inspection(
         "message": "Prüfung gespeichert",
         "inserted": inserted,
         "vehicle_id": body.vehicle_id,
-        "checked_by": user_name,
+        "checked_by": claims.username.clone().unwrap_or_else(|| "Unbekannt".to_string()),
         "protocol_id": protocol.id,
         "protocol_number": protocol.protocol_number
     })))
