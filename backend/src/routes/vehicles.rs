@@ -1900,8 +1900,6 @@ pub async fn generate_inspection_protocol_pdf(
         .unwrap())
 }
 
-let user_name = claims.username.clone().unwrap_or_else(|| "Unbekannt".to_string());
-
 pub async fn submit_inspection(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
