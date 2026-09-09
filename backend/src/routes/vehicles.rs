@@ -1,9 +1,12 @@
 use axum::{
     extract::{Path, State},
     middleware,
+    response::Response,
     routing::{delete, get, post, put},
     Extension, Json, Router,
 };
+use axum::body::Body;
+use axum::headers::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use validator::Validate;
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
@@ -1574,6 +1577,56 @@ pub struct InspectionSubmitBody {
     pub results:    Vec<InspectionResultBody>,
 }
 
+// ── Fahrzeugprüfung: Protokolle ────────────────────────────────────
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct InspectionProtocol {
+    pub id:                  Uuid,
+    pub vehicle_id:          Uuid,
+    pub protocol_number:     String,
+    pub inspected_by:        Option<Uuid>,
+    pub inspected_by_name:   Option<String>,
+    pub inspection_date:     NaiveDate,
+    pub notes:               Option<String>,
+    pub created_at:          DateTime<Utc>,
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct InspectionProtocolItem {
+    pub id:                  Uuid,
+    pub protocol_id:         Uuid,
+    pub inspection_object_id: Uuid,
+    pub status:              String,
+    pub defect_text:         Option<String>,
+    pub notes:               Option<String>,
+    pub created_at:          DateTime<Utc>,
+}
+
+#[derive(Serialize)]
+pub struct InspectionProtocolDetail {
+    #[serde(flatten)]
+    pub protocol: InspectionProtocol,
+    pub items:    Vec<InspectionProtocolItem>,
+}
+
+#[derive(Deserialize, Validate)]
+pub struct InspectionProtocolItemBody {
+    pub inspection_object_id: Uuid,
+    pub status:               String,  // 'geprüft', 'mangelhaft', 'fehlt'
+    #[validate(length(max = 2000))]
+    pub defect_text:          Option<String>,
+    #[validate(length(max = 2000))]
+    pub notes:                Option<String>,
+}
+
+#[derive(Deserialize, Validate)]
+pub struct InspectionProtocolBody {
+    pub vehicle_id:      Uuid,
+    pub inspection_date: Option<NaiveDate>,
+    pub notes:           Option<String>,
+    pub items:           Vec<InspectionProtocolItemBody>,
+}
+
 pub async fn list_inspection_results(
     State(state): State<AppState>,
     Path(vehicle_id): Path<Uuid>,
@@ -1591,38 +1644,321 @@ pub async fn list_inspection_results(
     Ok(Json(rows))
 }
 
+pub async fn list_inspection_protocols(
+    State(state): State<AppState>,
+    Path(vehicle_id): Path<Uuid>,
+) -> AppResult<Json<Vec<InspectionProtocol>>> {
+    let protocols = sqlx::query_as::<_, InspectionProtocol>(
+        "SELECT id, vehicle_id, protocol_number, inspected_by, inspected_by_name,
+                inspection_date, notes, created_at
+         FROM vehicle_inspection_protocols
+         WHERE vehicle_id = $1
+         ORDER BY created_at DESC"
+    )
+    .bind(vehicle_id)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(protocols))
+}
+
+pub async fn create_inspection_protocol(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<InspectionProtocolBody>,
+) -> AppResult<Json<InspectionProtocolDetail>> {
+    body.validate()?;
+    if body.items.is_empty() {
+        return Err(AppError::BadRequest("Keine Prüfungsobjekte angegeben".into()));
+    }
+
+    let year = Utc::now().year();
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM vehicle_inspection_protocols
+         WHERE vehicle_id = $1 AND inspection_date >= $2 AND inspection_date < $3"
+    )
+    .bind(body.vehicle_id)
+    .bind(format!("{}-01-01", year))
+    .bind(format!("{}-01-01", year + 1))
+    .fetch_one(&state.db)
+    .await?;
+    let protocol_number = format!("{}-{:03}", year, count + 1);
+
+    let user_name = claims.name.clone().unwrap_or_else(|| "Unbekannt".to_string());
+
+    let protocol = sqlx::query_as::<_, InspectionProtocol>(
+        "INSERT INTO vehicle_inspection_protocols
+            (vehicle_id, protocol_number, inspected_by, inspected_by_name, inspection_date, notes)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, vehicle_id, protocol_number, inspected_by, inspected_by_name,
+                   inspection_date, notes, created_at"
+    )
+    .bind(body.vehicle_id)
+    .bind(&protocol_number)
+    .bind(claims.sub)
+    .bind(&user_name)
+    .bind(body.inspection_date.unwrap_or_else(|| chrono::Utc::now().date_naive()))
+    .bind(&body.notes)
+    .fetch_one(&state.db)
+    .await?;
+
+    let mut items = Vec::new();
+    for item in &body.items {
+        let status = match item.status.as_str() {
+            "geprüft" | "mangelhaft" | "fehlt" => item.status.as_str(),
+            _ => return Err(AppError::BadRequest(format!("Ungültiger Status: {}", item.status))),
+        };
+        let protocol_item = sqlx::query_as::<_, InspectionProtocolItem>(
+            "INSERT INTO vehicle_inspection_protocol_items
+                (protocol_id, inspection_object_id, status, defect_text, notes)
+             VALUES ($1, $2, $3, $4, $5)
+             RETURNING id, protocol_id, inspection_object_id, status, defect_text, notes, created_at"
+        )
+        .bind(protocol.id)
+        .bind(item.inspection_object_id)
+        .bind(status)
+        .bind(&item.defect_text)
+        .bind(&item.notes)
+        .fetch_one(&state.db)
+        .await?;
+        items.push(protocol_item);
+    }
+
+    Ok(InspectionProtocolDetail { protocol, items })
+}
+
+pub async fn get_inspection_protocol(
+    State(state): State<AppState>,
+    Path((vehicle_id, pid)): Path<(Uuid, Uuid)>,
+) -> AppResult<Json<InspectionProtocolDetail>> {
+    let protocol = sqlx::query_as::<_, InspectionProtocol>(
+        "SELECT id, vehicle_id, protocol_number, inspected_by, inspected_by_name,
+                inspection_date, notes, created_at
+         FROM vehicle_inspection_protocols
+         WHERE id = $1 AND vehicle_id = $2"
+    )
+    .bind(pid).bind(vehicle_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let items = sqlx::query_as::<_, InspectionProtocolItem>(
+        "SELECT id, protocol_id, inspection_object_id, status, defect_text, notes, created_at
+         FROM vehicle_inspection_protocol_items
+         WHERE protocol_id = $1
+         ORDER BY created_at ASC"
+    )
+    .bind(pid)
+    .fetch_all(&state.db)
+    .await?;
+
+    Ok(Json(InspectionProtocolDetail { protocol, items }))
+}
+
+pub async fn delete_inspection_protocol(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((vehicle_id, pid)): Path<(Uuid, Uuid)>,
+) -> AppResult<Json<serde_json::Value>> {
+    let result = sqlx::query(
+        "DELETE FROM vehicle_inspection_protocols WHERE id = $1 AND vehicle_id = $2"
+    )
+    .bind(pid).bind(vehicle_id)
+    .execute(&state.db)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+    Ok(Json(serde_json::json!({ "message": "Protokoll gelöscht" })))
+}
+
+pub async fn list_inspection_protocol_items(
+    State(state): State<AppState>,
+    Path((vehicle_id, pid)): Path<(Uuid, Uuid)>,
+) -> AppResult<Json<Vec<InspectionProtocolItem>>> {
+    let items = sqlx::query_as::<_, InspectionProtocolItem>(
+        "SELECT id, protocol_id, inspection_object_id, status, defect_text, notes, created_at
+         FROM vehicle_inspection_protocol_items
+         WHERE protocol_id = $1
+         ORDER BY created_at ASC"
+    )
+    .bind(pid)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(items))
+}
+
+pub async fn get_inspection_evaluation(
+    State(state): State<AppState>,
+    Path(vehicle_id): Path<Uuid>,
+) -> AppResult<Json<serde_json::Value>> {
+    let protocols = sqlx::query_as::<_, InspectionProtocol>(
+        "SELECT id, vehicle_id, protocol_number, inspected_by, inspected_by_name,
+                inspection_date, notes, created_at
+         FROM vehicle_inspection_protocols
+         WHERE vehicle_id = $1
+         ORDER BY created_at DESC"
+    )
+    .bind(vehicle_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let mut protocol_summaries = Vec::new();
+    for p in &protocols {
+        let items = sqlx::query_as::<_, InspectionProtocolItem>(
+            "SELECT id, protocol_id, inspection_object_id, status, defect_text, notes, created_at
+             FROM vehicle_inspection_protocol_items
+             WHERE protocol_id = $1"
+        )
+        .bind(p.id)
+        .fetch_all(&state.db)
+        .await?;
+
+        let ok_count = items.iter().filter(|i| i.status == "geprüft").count() as i64;
+        let mangel_count = items.iter().filter(|i| i.status == "mangelhaft").count() as i64;
+        let fehlt_count = items.iter().filter(|i| i.status == "fehlt").count() as i64;
+
+        protocol_summaries.push(serde_json::json!({
+            "protocol": p,
+            "ok_count": ok_count,
+            "mangel_count": mangel_count,
+            "fehlt_count": fehlt_count,
+            "items": items,
+        }));
+    }
+
+    Ok(Json(serde_json::json!({
+        "vehicle_id": vehicle_id,
+        "protocols": protocol_summaries,
+        "total_protocols": protocols.len(),
+    })))
+}
+
+pub async fn generate_inspection_protocol_pdf(
+    State(state): State<AppState>,
+    Path((vehicle_id, pid)): Path<(Uuid, Uuid)>,
+) -> Result<Response, AppError> {
+    let protocol = sqlx::query_as::<_, InspectionProtocol>(
+        "SELECT id, vehicle_id, protocol_number, inspected_by, inspected_by_name,
+                inspection_date, notes, created_at
+         FROM vehicle_inspection_protocols
+         WHERE id = $1 AND vehicle_id = $2"
+    )
+    .bind(pid).bind(vehicle_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let items = sqlx::query_as::<_, InspectionProtocolItem>(
+        "SELECT id, protocol_id, inspection_object_id, status, defect_text, notes, created_at
+         FROM vehicle_inspection_protocol_items
+         WHERE protocol_id = $1
+         ORDER BY created_at ASC"
+    )
+    .bind(pid)
+    .fetch_all(&state.db)
+    .await?;
+
+    let font_bytes = crate::pdf::load_font_bytes();
+
+    let rows: Vec<Vec<String>> = items.iter().map(|item| {
+        let status_text = match item.status.as_str() {
+            "geprüft" => "Geprüft",
+            "mangelhaft" => "Mangelhaft",
+            "fehlt" => "Fehlt",
+            _ => &item.status,
+        };
+        vec![
+            item.id.to_string()[0..8].to_string(),
+            item.inspection_object_id.to_string()[0..8].to_string(),
+            status_text.to_string(),
+            item.defect_text.as_deref().unwrap_or(""),
+            item.created_at.format("%d.%m.%Y %H:%M").to_string(),
+        ]
+    }).collect();
+
+    let pdf_bytes = crate::pdf::PdfBuilder::new(format!("Inspektionsprotokoll {}", protocol.protocol_number))
+        .heading(format("Inspektionsprotokoll {}", protocol.protocol_number))
+        .key_value("Fahrzeug-ID", protocol.vehicle_id.to_string())
+        .key_value("Datum", protocol.inspection_date.format("%d.%m.%Y").to_string())
+        .key_value("Prüfer", protocol.inspected_by_name.as_deref().unwrap_or("Unbekannt"))
+        .separator()
+        .key_value("Gesamt", &items.len().to_string())
+        .table(
+            vec!["Protokoll-ID", "Status", "Mangeltext", "Prüfdatum"],
+            rows,
+            vec![30.0, 30.0, 60.0, 30.0],
+        )
+        .build(&font_bytes)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("{e}")))?;
+
+    let filename = format!("Inspektionsprotokoll_{}.pdf", protocol.protocol_number);
+
+    Ok(Response::builder()
+        .header(CONTENT_TYPE, "application/pdf")
+        .header(CONTENT_DISPOSITION, format!("attachment; filename=\"{filename}\""))
+        .body(Body::from(pdf_bytes))
+        .unwrap())
+}
+
 pub async fn submit_inspection(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<InspectionSubmitBody>,
 ) -> AppResult<Json<serde_json::Value>> {
     body.validate()?;
-    //let user_name = claims.name.clone().unwrap_or_else(|| "Unbekannt".to_string());
-    let user_name = claims.sub.to_string();
 
-    // Alte Ergebnisse für dieses Fahrzeug löschen
-    sqlx::query("DELETE FROM vehicle_inspection_results WHERE vehicle_id = $1")
-        .bind(body.vehicle_id)
-        .execute(&state.db)
-        .await?;
+    // Protokollnummer generieren
+    let year = Utc::now().year();
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM vehicle_inspection_protocols
+         WHERE vehicle_id = $1 AND inspection_date >= $2 AND inspection_date < $3"
+    )
+    .bind(body.vehicle_id)
+    .bind(format!("{}-01-01", year))
+    .bind(format!("{}-01-01", year + 1))
+    .fetch_one(&state.db)
+    .await?;
+    let protocol_number = format!("{}-{:03}", year, count + 1);
+
+    let protocol = sqlx::query_as::<_, InspectionProtocol>(
+        "INSERT INTO vehicle_inspection_protocols
+            (vehicle_id, protocol_number, inspected_by, inspected_by_name, inspection_date, notes)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, vehicle_id, protocol_number, inspected_by, inspected_by_name,
+                   inspection_date, notes, created_at"
+    )
+    .bind(body.vehicle_id)
+    .bind(&protocol_number)
+    .bind(claims.sub)
+    .bind(&claims.username)
+    .bind(chrono::Utc::now().date_naive())
+    .bind(None::<String>)
+    .fetch_one(&state.db)
+    .await?;
 
     let mut inserted = 0;
     for r in &body.results {
         let obj_id = r.inspection_object_id
             .ok_or_else(|| AppError::BadRequest("inspection_object_id fehlt".into()))?;
+        let checked = r.checked.unwrap_or(false);
+        let defect = r.defect.unwrap_or(false);
+        let status = if !checked {
+            "fehlt"
+        } else if defect {
+            "mangelhaft"
+        } else {
+            "geprüft"
+        };
 
         sqlx::query(
-            "INSERT INTO vehicle_inspection_results
-             (vehicle_id, inspection_object_id, checked, defect, defect_text, checked_by, checked_by_name)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)"
+            "INSERT INTO vehicle_inspection_protocol_items
+             (protocol_id, inspection_object_id, status, defect_text)
+             VALUES ($1, $2, $3, $4)"
         )
-        .bind(body.vehicle_id)
+        .bind(protocol.id)
         .bind(obj_id)
-        .bind(r.checked.unwrap_or(true))
-        .bind(r.defect.unwrap_or(false))
+        .bind(status)
         .bind(&r.defect_text)
-        .bind(claims.sub)
-        .bind(&user_name)
         .execute(&state.db)
         .await?;
         inserted += 1;
@@ -1632,7 +1968,9 @@ pub async fn submit_inspection(
         "message": "Prüfung gespeichert",
         "inserted": inserted,
         "vehicle_id": body.vehicle_id,
-        "checked_by": user_name
+        "checked_by": user_name,
+        "protocol_id": protocol.id,
+        "protocol_number": protocol.protocol_number
     })))
 }
 
@@ -1663,6 +2001,11 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/:id/checklists/:cid",                      get(get_checklist).delete(delete_checklist))
         .route("/:id/inspection-results",               get(list_inspection_results))
         .route("/:id/inspection-submit",                post(submit_inspection))
+        .route("/:id/inspection-protocols",           get(list_inspection_protocols).post(create_inspection_protocol))
+        .route("/:id/inspection-protocols/:pid",      get(get_inspection_protocol).delete(delete_inspection_protocol))
+        .route("/:id/inspection-protocols/:pid/items",  get(list_inspection_protocol_items))
+        .route("/:id/inspection-protocols/:pid/pdf",    get(generate_inspection_protocol_pdf))
+        .route("/:id/inspection-evaluation",           get(get_inspection_evaluation))
         .route("/inspection-objects",                     get(list_inspection_objects).post(create_inspection_object))
         .route("/inspection-objects/:id",               delete(delete_inspection_object))
         .route("/inspection-objects/type/:vtype",         get(list_inspection_objects_by_type))
