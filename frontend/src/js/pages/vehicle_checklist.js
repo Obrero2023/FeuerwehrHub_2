@@ -629,6 +629,11 @@ function openEquipmentModal(equipId) {
       }
 
       try {
+        // Remove empty id field (created when creating new equipment)
+        if (body.id === "") {
+          delete body.id;
+        }
+
         if (isEdit) {
           await api.updateEquipment(currentVehicleId, equipId, body);
           toast("Gerät aktualisiert");
@@ -744,15 +749,102 @@ async function loadEvaluation() {
 async function viewProtocol(protocolId) {
   try {
     const vid = selectedVehicleIds["auswertung"];
-    const detail = await api.getInspectionProtocol(
-      vid,
-      protocolId,
-    );
-    // Show in modal or redirect to detail view
-    toast(
-      "Protokoll " + detail.protocol.protocol_number + " geladen",
-      "success",
-    );
+    const protocolDetail = await api.getInspectionProtocol(vid, protocolId);
+
+    // Inspection-Objects des Fahrzeugs laden, um Label zu übersetzen
+    const vehicle = await api.getVehicle(vid);
+    const vehicleType = vehicle.vehicle_type || "hlf1";
+    const inspectionObjects = await api.listInspectionObjectsByType(vehicleType);
+    const objectLabelMap = new Map();
+    inspectionObjects.forEach((obj) => {
+      objectLabelMap.set(obj.key, esc(obj.label));
+    });
+
+    const STATUS_LABELS = {
+      geprüft: "OK",
+      mangelhaft: "Mangel",
+      fehlt: "Fehlt",
+    };
+
+    const statusClass = {
+      geprüft: "text-success",
+      mangelhaft: "text-danger",
+      fehlt: "text-muted",
+    };
+
+    const rows = protocolDetail.items
+      .map((item) => {
+        // Label anhand inspection_object_id suchen (Kürzel)
+        const objKey = item.inspection_object_id.toString().substring(0, 8).toLowerCase();
+        const label = objectLabelMap.get(objKey) || `Objekt ${objKey}`;
+        const status = STATUS_LABELS[item.status] || item.status;
+        const cls = statusClass[item.status] || "text-muted";
+        return `
+                    <tr>
+                        <td>${label}</td>
+                        <td><span class="${cls} fw-semibold text-xs">${status}</span></td>
+                        <td>${esc(item.defect_text || "")}</td>
+                        <td>${esc(item.notes || "")}</td>
+                    </tr>`;
+      })
+      .join("");
+
+    const modal = document.getElementById("protocol-detail-modal");
+    if (modal) modal.remove();
+
+    const div = document.createElement("div");
+    div.innerHTML = `
+                <div class="modal-overlay" id="protocol-detail-modal">
+                    <div class="modal modal--lg">
+                        <div class="modal__header">
+                            <h3>Prüfung ${esc(protocolDetail.protocol.protocol_number)}</h3>
+                            <button class="modal__close" id="btn-close-protocol-detail">${icon("x", 14)}</button>
+                        </div>
+                        <div class="modal__body">
+                            <div class="form-grid--2 mb-md">
+                                <div class="form-group">
+                                    <label>Fahrzeug</label>
+                                    <div class="field-output__value">${esc(vehicle.name)}</div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Datum</label>
+                                    <div class="field-output__value">${esc(formatDate(protocolDetail.protocol.inspection_date))}</div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Prüfer</label>
+                                    <div class="field-output__value">${esc(protocolDetail.protocol.inspected_by_name || "–")}</div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Protokoll-Nr.</label>
+                                    <div class="field-output__value">${esc(protocolDetail.protocol.protocol_number)}</div>
+                                </div>
+                            </div>
+                            ${protocolDetail.protocol.notes ? `<div class="detail-notes mb-md">${esc(protocolDetail.protocol.notes)}</div>` : ""}
+                            <div class="table-wrapper">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Prüfobjekt</th>
+                                            <th>Status</th>
+                                            <th>Mangelbeschreibung</th>
+                                            <th>Notiz</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${rows}</tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="modal__footer">
+                            <button class="btn btn--primary" id="btn-close-protocol-detail">Schließen</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+    document.body.appendChild(div.firstElementChild);
+    renderIcons(document.getElementById("protocol-detail-modal"));
+
+    const closeModal = () => document.getElementById("protocol-detail-modal")?.remove();
+    document.getElementById("btn-close-protocol-detail").addEventListener("click", closeModal);
   } catch (e) {
     toast("Fehler: " + e.message, "error");
   }
