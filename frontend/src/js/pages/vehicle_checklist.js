@@ -4,7 +4,7 @@ import { icon, renderIcons } from "../icons.js";
 import { formatDate, esc } from "../utils.js";
 import { toast } from "../toast.js";
 
-let selectedVehicleId = null;
+const selectedVehicleIds = {};
 let selectedVehicleType = "hlf1";
 let inspectionObjects = [];
 let currentProtocol = null;
@@ -50,10 +50,6 @@ export async function rendervehiclechecklist() {
 
         <div id="tab-hlf1" class="tab-panel" style="display:${activeTab === "hlf1" ? "block" : "none"}">
             <div class="content-card">
-                <div class="form-row" style="margin-bottom: 1rem;">
-                    <label>Fahrzeug auswählen</label>
-                    <select id="vehicle-select-hlf1" class="input" style="width: 100%; max-width: 400px;"></select>
-                </div>
                 <div id="inspection-objects-hlf1" class="inspection-checklist-wrap" style="display: none;">
                     <h3>Prüfungsobjekte</h3>
                     <div id="objects-list-hlf1" class="inspection-objects-list"></div>
@@ -61,15 +57,15 @@ export async function rendervehiclechecklist() {
                         <button class="btn btn--primary" id="btn-submit-inspection-hlf1">${icon("save", 14)} Prüfung speichern</button>
                     </div>
                 </div>
+                <div id="equipment-hlf1" style="display: none; margin-top: 1.5rem;">
+                    <h3>Geräte / Beladung</h3>
+                    <div id="equipment-list-hlf1" class="data-table-wrap"><p class="wrap-loading">Lade Geräte...</p></div>
+                </div>
             </div>
         </div>
 
         <div id="tab-hlf2" class="tab-panel" style="display:${activeTab === "hlf2" ? "block" : "none"}">
             <div class="content-card">
-                <div class="form-row" style="margin-bottom: 1rem;">
-                    <label>Fahrzeug auswählen</label>
-                    <select id="vehicle-select-hlf2" class="input" style="width: 100%; max-width: 400px;"></select>
-                </div>
                 <div id="inspection-objects-hlf2" class="inspection-checklist-wrap" style="display: none;">
                     <h3>Prüfungsobjekte</h3>
                     <div id="objects-list-hlf2" class="inspection-objects-list"></div>
@@ -77,21 +73,25 @@ export async function rendervehiclechecklist() {
                         <button class="btn btn--primary" id="btn-submit-inspection-hlf2">${icon("save", 14)} Prüfung speichern</button>
                     </div>
                 </div>
+                <div id="equipment-hlf2" style="display: none; margin-top: 1.5rem;">
+                    <h3>Geräte / Beladung</h3>
+                    <div id="equipment-list-hlf2" class="data-table-wrap"><p class="wrap-loading">Lade Geräte...</p></div>
+                </div>
             </div>
         </div>
 
         <div id="tab-mtf" class="tab-panel" style="display:${activeTab === "mtf" ? "block" : "none"}">
             <div class="content-card">
-                <div class="form-row" style="margin-bottom: 1rem;">
-                    <label>Fahrzeug auswählen</label>
-                    <select id="vehicle-select-mtf" class="input" style="width: 100%; max-width: 400px;"></select>
-                </div>
                 <div id="inspection-objects-mtf" class="inspection-checklist-wrap" style="display: none;">
                     <h3>Prüfungsobjekte</h3>
                     <div id="objects-list-mtf" class="inspection-objects-list"></div>
                     <div class="form-actions" style="margin-top: 1rem;">
                         <button class="btn btn--primary" id="btn-submit-inspection-mtf">${icon("save", 14)} Prüfung speichern</button>
                     </div>
+                </div>
+                <div id="equipment-mtf" style="display: none; margin-top: 1.5rem;">
+                    <h3>Geräte / Beladung</h3>
+                    <div id="equipment-list-mtf" class="data-table-wrap"><p class="wrap-loading">Lade Geräte...</p></div>
                 </div>
             </div>
         </div>
@@ -114,10 +114,6 @@ export async function rendervehiclechecklist() {
 
         <div id="tab-auswertung" class="tab-panel" style="display:${activeTab === "auswertung" ? "block" : "none"}">
             <div class="content-card">
-                <div class="form-row" style="margin-bottom: 1rem;">
-                    <label>Fahrzeug auswählen</label>
-                    <select id="vehicle-select-auswertung" class="input" style="width: 100%; max-width: 400px;"></select>
-                </div>
                 <div id="evaluation-wrap" style="display: none;">
                     <h3>Prüfprotokolle</h3>
                     <div id="protocols-list" class="data-table-wrap"><p class="wrap-loading">Lade Protokolle...</p></div>
@@ -158,26 +154,33 @@ export async function rendervehiclechecklist() {
 
   // Initial load based on active tab
   if (activeTab === "hlf1" || activeTab === "hlf2" || activeTab === "mtf") {
-    loadVehiclesForType(activeTab);
+    await loadVehiclesForType(activeTab);
   } else if (activeTab === "geraete") {
-    loadVehiclesForEquipment();
+    await loadVehiclesForEquipment();
   } else if (activeTab === "auswertung") {
-    loadVehiclesForEvaluation();
+    await loadVehiclesForEvaluation();
   }
 
-  // Setup event listeners for vehicle selectors
-  setupVehicleSelector("hlf1");
-  setupVehicleSelector("hlf2");
-  setupVehicleSelector("mtf");
+  // Setup event listeners for vehicle selector (only Geräte Anlegen)
   setupVehicleSelector("geraete");
-  setupVehicleSelector("auswertung");
 }
 
 async function loadVehiclesForType(type) {
   try {
-    const vehicles = await api.getVehicles();
-    const filtered = vehicles.filter((v) => v.vehicle_type === type);
-    renderVehicleSelect(type, filtered);
+    const vehicles = (await api.getVehicles()).filter(
+      (v) => v.vehicle_type === type,
+    );
+    renderVehicleSelect(type, vehicles);
+    if (vehicles.length) {
+      selectedVehicleIds[type] = vehicles[0].id;
+      await loadInspectionObjects(type);
+      await loadEquipment(type, vehicles[0]);
+    } else {
+      const wrap = document.getElementById(`inspection-objects-${type}`);
+      if (wrap) wrap.style.display = "none";
+      const eqWrap = document.getElementById(`equipment-${type}`);
+      if (eqWrap) eqWrap.style.display = "none";
+    }
   } catch (e) {
     toast("Fehler beim Laden der Fahrzeuge: " + e.message, "error");
   }
@@ -187,6 +190,8 @@ async function loadVehiclesForEquipment() {
   try {
     const vehicles = await api.getVehicles();
     renderVehicleSelect("geraete", vehicles);
+    const vid = selectedVehicleIds["geraete"];
+    if (vid) await loadEquipment(vid);
   } catch (e) {
     toast("Fehler beim Laden der Fahrzeuge: " + e.message, "error");
   }
@@ -194,8 +199,16 @@ async function loadVehiclesForEquipment() {
 
 async function loadVehiclesForEvaluation() {
   try {
-    const vehicles = await api.getVehicles();
+    const vehicles = (await api.getVehicles()).filter(
+      (v) => v.vehicle_type === "mtf",
+    );
     renderVehicleSelect("auswertung", vehicles);
+    if (vehicles.length) {
+      selectedVehicleIds["auswertung"] = vehicles[0].id;
+      await loadEvaluation();
+    } else {
+      hideEvaluation();
+    }
   } catch (e) {
     toast("Fehler beim Laden der Fahrzeuge: " + e.message, "error");
   }
@@ -215,8 +228,11 @@ function renderVehicleSelect(tabPrefix, vehicles) {
   });
 
   // Restore previous selection if exists
-  if (selectedVehicleId) {
-    select.value = selectedVehicleId;
+  const previousId = selectedVehicleIds[tabPrefix];
+  if (previousId && vehicles.some((v) => v.id === previousId)) {
+    select.value = previousId;
+  } else if (vehicles.length) {
+    select.value = vehicles[0].id;
   }
 }
 
@@ -225,8 +241,8 @@ function setupVehicleSelector(tabPrefix) {
   if (!select) return;
 
   select.addEventListener("change", async (e) => {
-    selectedVehicleId = e.target.value;
-    if (!selectedVehicleId) {
+    selectedVehicleIds[tabPrefix] = e.target.value;
+    if (!selectedVehicleIds[tabPrefix]) {
       hideInspectionObjects(tabPrefix);
       hideEquipment();
       hideEvaluation();
@@ -235,8 +251,15 @@ function setupVehicleSelector(tabPrefix) {
 
     if (tabPrefix === "hlf1" || tabPrefix === "hlf2" || tabPrefix === "mtf") {
       await loadInspectionObjects(tabPrefix);
+      const vehicles = (await api.getVehicles()).filter(
+        (v) => v.vehicle_type === tabPrefix,
+      );
+      const vehicle = vehicles.find(
+        (v) => v.id === selectedVehicleIds[tabPrefix],
+      );
+      if (vehicle) await loadEquipment(tabPrefix, vehicle);
     } else if (tabPrefix === "geraete") {
-      await loadEquipment();
+      await loadEquipment(selectedVehicleIds["geraete"]);
     } else if (tabPrefix === "auswertung") {
       await loadEvaluation();
     }
@@ -264,6 +287,7 @@ async function loadInspectionObjects(type) {
     inspectionObjects = objects;
     const listId = `objects-list-${type}`;
     const wrapId = `inspection-objects-${type}`;
+    const vid = selectedVehicleIds[type];
 
     const list = document.getElementById(listId);
     const wrap = document.getElementById(wrapId);
@@ -279,13 +303,13 @@ async function loadInspectionObjects(type) {
 
     // Load existing protocol for this vehicle if any
     let existingItems = [];
-    if (selectedVehicleId) {
+    if (vid) {
       try {
-        const protocols = await api.getInspectionProtocols(selectedVehicleId);
+        const protocols = await api.getInspectionProtocols(vid);
         if (protocols.length > 0) {
           const latest = protocols[0];
           const items = await api.getInspectionProtocolItems(
-            selectedVehicleId,
+            vid,
             latest.id,
           );
           existingItems = items;
@@ -339,7 +363,8 @@ async function loadInspectionObjects(type) {
 }
 
 async function submitInspection(type) {
-  if (!selectedVehicleId) {
+  const vehicleId = selectedVehicleIds[type];
+  if (!vehicleId) {
     toast("Bitte wählen Sie zuerst ein Fahrzeug aus.", "error");
     return;
   }
@@ -365,8 +390,8 @@ async function submitInspection(type) {
       });
     });
 
-    const result = await api.createInspectionProtocol(selectedVehicleId, {
-      vehicle_id: selectedVehicleId,
+    const result = await api.createInspectionProtocol(vehicleId, {
+      vehicle_id: vehicleId,
       items: items,
     });
 
@@ -382,21 +407,24 @@ async function submitInspection(type) {
   }
 }
 
-async function loadEquipment() {
-  if (!selectedVehicleId) {
-    hideEquipment();
+async function loadEquipment(vehicleId, tabPrefix) {
+  const wrapId = tabPrefix ? `equipment-${tabPrefix}` : "equipment-wrap";
+  const listId = tabPrefix ? `equipment-list-${tabPrefix}` : "equipment-list";
+  const wrap = document.getElementById(wrapId);
+  const list = document.getElementById(listId);
+  if (!wrap || !list) return;
+
+  const vid = vehicleId || selectedVehicleIds["geraete"];
+  if (!vid) {
+    wrap.style.display = "none";
     return;
   }
 
   try {
-    const wrap = document.getElementById("equipment-wrap");
-    const list = document.getElementById("equipment-list");
-    if (!wrap || !list) return;
-
     list.innerHTML = '<p class="wrap-loading">Lade Geräte...</p>';
     wrap.style.display = "block";
 
-    const items = await api.getEquipment(selectedVehicleId);
+    const items = await api.getEquipment(vid);
 
     if (!items.length) {
       list.innerHTML =
@@ -404,13 +432,72 @@ async function loadEquipment() {
       return;
     }
 
-    const EQ_STATUS_LABELS = {
-      ok: "In Ordnung",
-      defekt: "Defekt",
-      ausgebaut: "Ausgebaut",
-    };
+    list.innerHTML = renderEquipmentTable(items, !!tabPrefix);
 
-    list.innerHTML = `
+    if (tabPrefix) {
+      // Anzeige-Tab (HLF-1/2/MTF): keine Aktionen
+    } else {
+      // Geräte-Anlegen-Reiter: Aktionen binden
+      list.querySelectorAll('[data-action="edit-equip"]').forEach((btn) => {
+        btn.addEventListener("click", () => openEquipmentModal(btn.dataset.id));
+      });
+      list.querySelectorAll('[data-action="del-equip"]').forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Gerät wirklich löschen?")) return;
+          try {
+            await api.deleteEquipment(vid, btn.dataset.id);
+            toast("Gerät gelöscht");
+            loadEquipment(vid);
+          } catch (e) {
+            toast(e.message, "error");
+          }
+        });
+      });
+
+      const btnNew = document.getElementById("btn-new-equipment");
+      if (btnNew) {
+        const newBtn = btnNew.cloneNode(true);
+        btnNew.parentNode.replaceChild(newBtn, btnNew);
+        newBtn.addEventListener("click", () => openEquipmentModal(null));
+      }
+    }
+  } catch (e) {
+    toast("Fehler beim Laden der Geräte: " + e.message, "error");
+  }
+}
+
+function renderEquipmentTable(items, showActions) {
+  const EQ_STATUS_LABELS = {
+    ok: "In Ordnung",
+    defekt: "Defekt",
+    ausgebaut: "Ausgebaut",
+  };
+
+  const rows = items
+    .map((e) => {
+      const due = isEquipmentDue(e.next_inspection);
+      const dueClass = due ? ' class="table-row--due"' : "";
+      return `
+                        <tr${dueClass}>
+                            <td class="fw-semibold">${esc(e.name)}</td>
+                            <td class="text-muted">${esc(e.serial_number || "–")}</td>
+                            <td class="text-muted">${esc(e.manufacturer || "–")}</td>
+                            <td class="text-muted">${e.year_built || "–"}</td>
+                            <td>${ampelDot(e.next_inspection)}</td>
+                            <td class="text-muted">${e.next_inspection ? formatDate(e.next_inspection) : "–"}</td>
+                            <td><span class="eq-status eq-status--${e.status}">${EQ_STATUS_LABELS[e.status] || e.status}</span></td>
+                            ${showActions ? `
+                            <td>
+                                <div class="btn-group">
+                                    <button class="btn btn--outline btn--sm" data-action="edit-equip" data-id="${e.id}" title="Bearbeiten">${icon("edit", 12)}</button>
+                                    <button class="btn btn--outline btn--sm btn--danger" data-action="del-equip" data-id="${e.id}" title="Löschen">${icon("trash-2", 12)}</button>
+                                </div>
+                            </td>` : '<td></td>'}
+                        </tr>`;
+    })
+    .join("");
+
+  return `
             <table class="data-table">
                 <thead>
                     <tr>
@@ -418,63 +505,24 @@ async function loadEquipment() {
                         <th>Seriennummer</th>
                         <th>Hersteller</th>
                         <th>Baujahr</th>
+                        <th style="width:28px"></th>
                         <th>Nächste Prüfung</th>
                         <th>Status</th>
                         <th></th>
                     </tr>
                 </thead>
-                <tbody>
-                    ${items
-                      .map(
-                        (e) => `
-                        <tr>
-                            <td class="fw-semibold">${esc(e.name)}</td>
-                            <td class="text-muted">${esc(e.serial_number || "–")}</td>
-                            <td class="text-muted">${esc(e.manufacturer || "–")}</td>
-                            <td class="text-muted">${e.year_built || "–"}</td>
-                            <td class="text-muted">${e.next_inspection ? formatDate(e.next_inspection) : "–"}</td>
-                            <td><span class="eq-status eq-status--${e.status}">${EQ_STATUS_LABELS[e.status] || e.status}</span></td>
-                            <td>
-                                <div class="btn-group">
-                                    <button class="btn btn--outline btn--sm" data-action="edit-equip" data-id="${e.id}" title="Bearbeiten">${icon("edit", 12)}</button>
-                                    <button class="btn btn--outline btn--sm btn--danger" data-action="del-equip" data-id="${e.id}" title="Löschen">${icon("trash-2", 12)}</button>
-                                </div>
-                            </td>
-                        </tr>
-                    `,
-                      )
-                      .join("")}
-                </tbody>
+                <tbody>${rows}</tbody>
             </table>
         `;
+}
 
-    // Bind actions
-    list.querySelectorAll('[data-action="edit-equip"]').forEach((btn) => {
-      btn.addEventListener("click", () => openEquipmentModal(btn.dataset.id));
-    });
-    list.querySelectorAll('[data-action="del-equip"]').forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        if (!confirm("Gerät wirklich löschen?")) return;
-        try {
-          await api.deleteEquipment(selectedVehicleId, btn.dataset.id);
-          toast("Gerät gelöscht");
-          loadEquipment();
-        } catch (e) {
-          toast(e.message, "error");
-        }
-      });
-    });
-
-    // Setup new equipment button
-    const btnNew = document.getElementById("btn-new-equipment");
-    if (btnNew) {
-      const newBtn = btnNew.cloneNode(true);
-      btnNew.parentNode.replaceChild(newBtn, btnNew);
-      newBtn.addEventListener("click", () => openEquipmentModal(null));
-    }
-  } catch (e) {
-    toast("Fehler beim Laden der Geräte: " + e.message, "error");
-  }
+function isEquipmentDue(nextInspection) {
+  if (!nextInspection) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const nd = new Date(nextInspection);
+  const diffDays = Math.round((nd - today) / 86400000);
+  return diffDays <= 14;
 }
 
 function openEquipmentModal(equipId) {
@@ -573,16 +621,23 @@ function openEquipmentModal(equipId) {
       if (body.last_inspection === "") body.last_inspection = null;
       if (body.next_inspection === "") body.next_inspection = null;
 
+      // Robust: Fahrzeug-ID aus dem Dropdown des "Geräte Anlegen"-Reiters lesen
+      const currentVehicleId = document.getElementById("vehicle-select-geraete")?.value;
+      if (!currentVehicleId) {
+        toast("Kein Fahrzeug ausgewählt.", "error");
+        return;
+      }
+
       try {
         if (isEdit) {
-          await api.updateEquipment(selectedVehicleId, equipId, body);
+          await api.updateEquipment(currentVehicleId, equipId, body);
           toast("Gerät aktualisiert");
         } else {
-          await api.createEquipment(selectedVehicleId, body);
+          await api.createEquipment(currentVehicleId, body);
           toast("Gerät hinzugefügt");
         }
         modal.remove();
-        loadEquipment();
+        loadEquipment(currentVehicleId);
       } catch (e) {
         toast(e.message, "error");
       }
@@ -591,7 +646,8 @@ function openEquipmentModal(equipId) {
 
 async function loadEquipmentData(equipId) {
   try {
-    const items = await api.getEquipment(selectedVehicleId);
+    const vid = selectedVehicleIds["geraete"];
+    const items = await api.getEquipment(vid);
     const item = items.find((e) => e.id === equipId);
     if (!item) return;
 
@@ -611,7 +667,8 @@ async function loadEquipmentData(equipId) {
 }
 
 async function loadEvaluation() {
-  if (!selectedVehicleId) {
+  const vid = selectedVehicleIds["auswertung"];
+  if (!vid) {
     hideEvaluation();
     return;
   }
@@ -624,7 +681,7 @@ async function loadEvaluation() {
     list.innerHTML = '<p class="wrap-loading">Lade Protokolle...</p>';
     wrap.style.display = "block";
 
-    const data = await api.getInspectionEvaluation(selectedVehicleId);
+    const data = await api.getInspectionEvaluation(vid);
 
     if (!data.protocols?.length) {
       list.innerHTML =
@@ -686,8 +743,9 @@ async function loadEvaluation() {
 
 async function viewProtocol(protocolId) {
   try {
+    const vid = selectedVehicleIds["auswertung"];
     const detail = await api.getInspectionProtocol(
-      selectedVehicleId,
+      vid,
       protocolId,
     );
     // Show in modal or redirect to detail view
@@ -702,8 +760,9 @@ async function viewProtocol(protocolId) {
 
 function downloadProtocol(protocolId) {
   // Use direct download via fetch with blob
+  const vid = selectedVehicleIds["auswertung"];
   fetch(
-    `/api/vehicles/${selectedVehicleId}/inspection-protocols/${protocolId}/pdf`,
+    `/api/vehicles/${vid}/inspection-protocols/${protocolId}/pdf`,
     {
       credentials: "include",
     },

@@ -650,6 +650,8 @@ export const api = {
     request("GET", `/vehicles/${vid}/inspection-protocols/${pid}/pdf`),
   getInspectionEvaluation: (vid) =>
     request("GET", `/vehicles/${vid}/inspection-evaluation`),
+  listInspectionObjectsByType: (type) =>
+    request("GET", `/vehicles/inspection-objects/type/${type}`),
 
   // Checklisten-Vorlagen
   getTemplates: (vid) => request("GET", `/vehicles/${vid}/checklist-templates`),

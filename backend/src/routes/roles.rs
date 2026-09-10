@@ -19,6 +19,7 @@ use crate::{
 const KNOWN_MODULES: &[&str] = &[
     "lager.read", "lager", "lager.approve",
     "personal", "fahrzeuge",
+    "fahrzeugpruefung",
     "einsatzberichte.read", "einsatzberichte", "einsatzberichte.approve",
     "verein",
 ];
