@@ -77,3 +77,9 @@ tr:hover td { background: $bg-card-hover; }
   td { background: rgba(231, 76, 60, 0.06); }
   &:hover td { background: rgba(231, 76, 60, 0.1); }
 }
+
+/* Zeile für Geräte mit fälliger Prüfung */
+.table-row--due {
+  td { background: rgba(231, 76, 60, 0.04); }
+  &:hover td { background: rgba(231, 76, 60, 0.08); }
+}
