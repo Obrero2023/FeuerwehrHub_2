@@ -525,6 +525,18 @@ function isEquipmentDue(nextInspection) {
   return diffDays <= 14;
 }
 
+function ampelDot(nextDate) {
+  if (!nextDate) return '<span class="text-muted">•</span>';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const nd = new Date(nextDate);
+  const diffDays = Math.round((nd - today) / 86400000);
+  if (diffDays < 0)  return '<span class="required" title="Überfällig">●</span>';
+  if (diffDays <= 14) return '<span class="required" title="Sehr bald fällig">●</span>';
+  if (diffDays <= 60) return '<span class="text-warning" title="Bald fällig">●</span>';
+  return '<span class="text-success" title="OK">●</span>';
+}
+
 function openEquipmentModal(equipId) {
   // Simple modal implementation
   const isEdit = !!equipId;
