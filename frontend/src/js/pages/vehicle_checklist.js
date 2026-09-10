@@ -8,6 +8,12 @@ const selectedVehicleIds = {};
 let selectedVehicleType = "hlf1";
 let inspectionObjects = [];
 let currentProtocol = null;
+let availableVehicleTypes = new Set();
+
+function renderTypeTab(key, label, activeTab) {
+  if (!availableVehicleTypes.has(key)) return "";
+  return `<button class="tab-btn${activeTab === key ? " tab-btn--active" : ""}" data-tab="${key}">${icon("truck", 14)} ${label}</button>`;
+}
 
 export async function rendervehiclechecklist() {
   console.log("Fahrzeugprüfung geladen");
@@ -16,15 +22,22 @@ export async function rendervehiclechecklist() {
   renderShell("fahrzeugpruefung");
 
   const hash = window.location.hash || "#/vehicle_checklist";
-  const activeTab = hash.includes("hlf2-inspection")
-    ? "hlf2"
-    : hash.includes("mtf-inspection")
-      ? "mtf"
-      : hash.includes("geraete")
-        ? "geraete"
-        : hash.includes("auswertung")
-          ? "auswertung"
-          : "hlf1";
+
+  // Fahrzeugtypen ermitteln, die tatsächlich Fahrzeuge haben
+  const allVehicles = await api.getVehicles();
+  const vehicleTypesWithVehicles = new Set(allVehicles.map((v) => v.vehicle_type));
+
+  // Bestimme die verfügbaren Fahrzeugtypen und den aktiven Tab
+  availableVehicleTypes = vehicleTypesWithVehicles;
+  let activeTab = "geraete";
+  if (hash.includes("hlf2-inspection") && vehicleTypesWithVehicles.has("hlf2")) activeTab = "hlf2";
+  else if (hash.includes("mtf-inspection") && vehicleTypesWithVehicles.has("mtf")) activeTab = "mtf";
+  else if (hash.includes("hlf1-inspection") && vehicleTypesWithVehicles.has("hlf1")) activeTab = "hlf1";
+  else if (hash.includes("geraete")) activeTab = "geraete";
+  else if (hash.includes("auswertung")) activeTab = "auswertung";
+  else if (vehicleTypesWithVehicles.has("hlf1")) activeTab = "hlf1";
+  else if (vehicleTypesWithVehicles.has("hlf2")) activeTab = "hlf2";
+  else if (vehicleTypesWithVehicles.has("mtf")) activeTab = "mtf";
 
   if (activeTab === "hlf2") selectedVehicleType = "hlf2";
   else if (activeTab === "mtf") selectedVehicleType = "mtf";
@@ -41,9 +54,9 @@ export async function rendervehiclechecklist() {
         </div>
 
         <div class="tab-bar" id="inspection-tabs">
-            <button class="tab-btn${activeTab === "hlf1" ? " tab-btn--active" : ""}" data-tab="hlf1">${icon("truck", 14)} HLF-1</button>
-            <button class="tab-btn${activeTab === "hlf2" ? " tab-btn--active" : ""}" data-tab="hlf2">${icon("truck", 14)} HLF-2</button>
-            <button class="tab-btn${activeTab === "mtf" ? " tab-btn--active" : ""}" data-tab="mtf">${icon("truck", 14)} MTF</button>
+            ${renderTypeTab("hlf1", "HLF-1", activeTab)}
+            ${renderTypeTab("hlf2", "HLF-2", activeTab)}
+            ${renderTypeTab("mtf", "MTF", activeTab)}
             <button class="tab-btn${activeTab === "geraete" ? " tab-btn--active" : ""}" data-tab="geraete">${icon("package", 14)} Geräte Anlegen</button>
             <button class="tab-btn${activeTab === "auswertung" ? " tab-btn--active" : ""}" data-tab="auswertung">${icon("file-text", 14)} Auswertung</button>
         </div>
