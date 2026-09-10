@@ -178,7 +178,6 @@ export async function rendervehiclechecklist() {
   setupVehicleSelector("hlf2");
   setupVehicleSelector("mtf");
   setupVehicleSelector("geraete");
-  setupVehicleSelector("geraete");
 }
 
 async function loadVehiclesForType(type) {
@@ -215,9 +214,7 @@ async function loadVehiclesForEquipment() {
 
 async function loadVehiclesForEvaluation() {
   try {
-    const vehicles = (await api.getVehicles()).filter(
-      (v) => v.vehicle_type === "mtf",
-    );
+    const vehicles = await api.getVehicles();
     renderVehicleSelect("auswertung", vehicles);
     if (vehicles.length) {
       selectedVehicleIds["auswertung"] = vehicles[0].id;
