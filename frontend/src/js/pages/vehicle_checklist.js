@@ -186,10 +186,10 @@ export async function rendervehiclechecklist() {
     loadVehiclesForEvaluation();
   }
 
-  // Setup event listeners for vehicle selectors (alle verfügbaren HLF-Tabs + Geräte)
-  if (availableVehicleTypes.has("hlf1")) setupVehicleSelector("hlf1");
-  if (availableVehicleTypes.has("hlf2")) setupVehicleSelector("hlf2");
-  if (availableVehicleTypes.has("mtf")) setupVehicleSelector("mtf");
+  // Setup event listeners for vehicle selectors (alle HLF-Tabs + Geräte)
+  setupVehicleSelector("hlf1");
+  setupVehicleSelector("hlf2");
+  setupVehicleSelector("mtf");
   setupVehicleSelector("geraete");
 }
 
