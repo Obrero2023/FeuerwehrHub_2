@@ -50,6 +50,10 @@ export async function rendervehiclechecklist() {
 
         <div id="tab-hlf1" class="tab-panel" style="display:${activeTab === "hlf1" ? "block" : "none"}">
             <div class="content-card">
+                <div class="form-row" style="margin-bottom: 1rem;">
+                    <label>Fahrzeug auswählen</label>
+                    <select id="vehicle-select-hlf1" class="input" style="width: 100%; max-width: 400px;"></select>
+                </div>
                 <div id="inspection-objects-hlf1" class="inspection-checklist-wrap" style="display: none;">
                     <h3>Prüfungsobjekte</h3>
                     <div id="objects-list-hlf1" class="inspection-objects-list"></div>
@@ -66,6 +70,10 @@ export async function rendervehiclechecklist() {
 
         <div id="tab-hlf2" class="tab-panel" style="display:${activeTab === "hlf2" ? "block" : "none"}">
             <div class="content-card">
+                <div class="form-row" style="margin-bottom: 1rem;">
+                    <label>Fahrzeug auswählen</label>
+                    <select id="vehicle-select-hlf2" class="input" style="width: 100%; max-width: 400px;"></select>
+                </div>
                 <div id="inspection-objects-hlf2" class="inspection-checklist-wrap" style="display: none;">
                     <h3>Prüfungsobjekte</h3>
                     <div id="objects-list-hlf2" class="inspection-objects-list"></div>
@@ -82,6 +90,10 @@ export async function rendervehiclechecklist() {
 
         <div id="tab-mtf" class="tab-panel" style="display:${activeTab === "mtf" ? "block" : "none"}">
             <div class="content-card">
+                <div class="form-row" style="margin-bottom: 1rem;">
+                    <label>Fahrzeug auswählen</label>
+                    <select id="vehicle-select-mtf" class="input" style="width: 100%; max-width: 400px;"></select>
+                </div>
                 <div id="inspection-objects-mtf" class="inspection-checklist-wrap" style="display: none;">
                     <h3>Prüfungsobjekte</h3>
                     <div id="objects-list-mtf" class="inspection-objects-list"></div>
@@ -154,14 +166,18 @@ export async function rendervehiclechecklist() {
 
   // Initial load based on active tab
   if (activeTab === "hlf1" || activeTab === "hlf2" || activeTab === "mtf") {
-    await loadVehiclesForType(activeTab);
+    loadVehiclesForType(activeTab);
   } else if (activeTab === "geraete") {
-    await loadVehiclesForEquipment();
+    loadVehiclesForEquipment();
   } else if (activeTab === "auswertung") {
-    await loadVehiclesForEvaluation();
+    loadVehiclesForEvaluation();
   }
 
-  // Setup event listeners for vehicle selector (only Geräte Anlegen)
+  // Setup event listeners for vehicle selectors (alle HLF-Tabs + Geräte)
+  setupVehicleSelector("hlf1");
+  setupVehicleSelector("hlf2");
+  setupVehicleSelector("mtf");
+  setupVehicleSelector("geraete");
   setupVehicleSelector("geraete");
 }
 
