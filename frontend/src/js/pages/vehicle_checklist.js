@@ -335,7 +335,18 @@ async function loadInspectionObjects(type) {
       }
     }
 
-    list.innerHTML = objects
+    // Geräte des Fahrzeugs laden (für Status-Selection)
+    let equipmentItems = [];
+    if (vid) {
+      try {
+        equipmentItems = await api.getEquipment(vid);
+      } catch (e) {
+        console.warn("Could not load equipment:", e);
+      }
+    }
+
+    // Prüfungsobjekte rendern
+    const objectsHtml = objects
       .map((obj) => {
         const existing = existingItems.find(
           (i) => i.inspection_object_id === obj.id,
@@ -363,6 +374,48 @@ async function loadInspectionObjects(type) {
       })
       .join("");
 
+    // Geräte mit Status-Selection rendern
+    const equipmentHtml = equipmentItems
+      .map((eq) => {
+        const existing = existingItems.find(
+          (i) => i.equipment_id === eq.id,
+        );
+        const status = existing?.status || "geprüft";
+        const note = existing?.notes || existing?.defect_text || "";
+
+        return `
+                <div class="inspection-object-item" data-equip-id="${eq.id}">
+                    <div class="inspection-object-header">
+                        <span class="inspection-object-label">${esc(eq.name)}</span>
+                        <span class="inspection-object-status inspection-object-status--${status}">${capitalize(status)}</span>
+                    </div>
+                    <div class="inspection-object-status-select">
+                        <label><input type="radio" name="equip-status-${eq.id}" value="geprüft" ${status === "geprüft" ? "checked" : ""}> Geprüft</label>
+                        <label><input type="radio" name="equip-status-${eq.id}" value="mangelhaft" ${status === "mangelhaft" ? "checked" : ""}> Mangelhaft</label>
+                        <label><input type="radio" name="equip-status-${eq.id}" value="fehlt" ${status === "fehlt" ? "checked" : ""}> Fehlt</label>
+                    </div>
+                    <div class="inspection-object-textarea">
+                        <label>Notiz</label>
+                        <textarea class="input" name="equip-note-${eq.id}" rows="2" placeholder="Optional: Notiz">${esc(note)}</textarea>
+                    </div>
+                </div>
+            `;
+      })
+      .join("");
+
+    list.innerHTML = `
+            <div class="mb-lg">
+                <h4>Prüfungsobjekte</h4>
+                ${objectsHtml}
+            </div>
+            ${equipmentItems.length ? `
+            <div class="mb-lg">
+                <h4>Geräte / Beladung</h4>
+                ${equipmentHtml}
+            </div>
+            ` : ''}
+        `;
+
     wrap.style.display = "block";
 
     // Setup submit button
@@ -386,6 +439,7 @@ async function submitInspection(type) {
   }
 
   try {
+    // Inspektionsobjekte sammeln
     const items = [];
     inspectionObjects.forEach((obj) => {
       const statusRadio = document.querySelector(
@@ -403,6 +457,22 @@ async function submitInspection(type) {
         inspection_object_id: obj.id,
         status: statusRadio.value,
         defect_text: defectText || null,
+      });
+    });
+
+    // Geräte sammeln (equipment_id + status + notes)
+    const equipmentRadios = document.querySelectorAll(
+      '[name^="equip-status-"]',
+    );
+    equipmentRadios.forEach((radio) => {
+      const equipId = radio.name.replace("equip-status-", "");
+      const noteInput = document.querySelector(
+        `textarea[name="equip-note-${equipId}"]`,
+      );
+      items.push({
+        equipment_id: equipId,
+        status: radio.value,
+        notes: noteInput?.value?.trim() || null,
       });
     });
 

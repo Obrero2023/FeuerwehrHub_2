@@ -1596,6 +1596,7 @@ pub struct InspectionProtocolItem {
     pub id:                  Uuid,
     pub protocol_id:         Uuid,
     pub inspection_object_id: Uuid,
+    pub equipment_id:        Option<Uuid>,
     pub status:              String,
     pub defect_text:         Option<String>,
     pub notes:               Option<String>,
@@ -1611,7 +1612,8 @@ pub struct InspectionProtocolDetail {
 
 #[derive(Deserialize, Validate)]
 pub struct InspectionProtocolItemBody {
-    pub inspection_object_id: Uuid,
+    pub inspection_object_id: Option<Uuid>,
+    pub equipment_id:         Option<Uuid>,
     pub status:               String,  // 'geprüft', 'mangelhaft', 'fehlt'
     #[validate(length(max = 2000))]
     pub defect_text:          Option<String>,
@@ -1707,14 +1709,17 @@ pub async fn create_inspection_protocol(
             "geprüft" | "mangelhaft" | "fehlt" => item.status.as_str(),
             _ => return Err(AppError::BadRequest(format!("Ungültiger Status: {}", item.status))),
         };
+        // Equipment-ID optional speichern
+        let equipment_id = item.equipment_id;
         let protocol_item = sqlx::query_as::<_, InspectionProtocolItem>(
             "INSERT INTO vehicle_inspection_protocol_items
-                (protocol_id, inspection_object_id, status, defect_text, notes)
-             VALUES ($1, $2, $3, $4, $5)
-             RETURNING id, protocol_id, inspection_object_id, status, defect_text, notes, created_at"
+                (protocol_id, inspection_object_id, equipment_id, status, defect_text, notes)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             RETURNING id, protocol_id, inspection_object_id, equipment_id, status, defect_text, notes, created_at"
         )
         .bind(protocol.id)
         .bind(item.inspection_object_id)
+        .bind(equipment_id)
         .bind(status)
         .bind(&item.defect_text)
         .bind(&item.notes)
@@ -1742,7 +1747,7 @@ pub async fn get_inspection_protocol(
     .ok_or(AppError::NotFound)?;
 
     let items = sqlx::query_as::<_, InspectionProtocolItem>(
-        "SELECT id, protocol_id, inspection_object_id, status, defect_text, notes, created_at
+        "SELECT id, protocol_id, inspection_object_id, equipment_id, status, defect_text, notes, created_at
          FROM vehicle_inspection_protocol_items
          WHERE protocol_id = $1
          ORDER BY created_at ASC"
@@ -1776,7 +1781,7 @@ pub async fn list_inspection_protocol_items(
     Path((vehicle_id, pid)): Path<(Uuid, Uuid)>,
 ) -> AppResult<Json<Vec<InspectionProtocolItem>>> {
     let items = sqlx::query_as::<_, InspectionProtocolItem>(
-        "SELECT id, protocol_id, inspection_object_id, status, defect_text, notes, created_at
+        "SELECT id, protocol_id, inspection_object_id, equipment_id, status, defect_text, notes, created_at
          FROM vehicle_inspection_protocol_items
          WHERE protocol_id = $1
          ORDER BY created_at ASC"
@@ -1805,7 +1810,7 @@ pub async fn get_inspection_evaluation(
     let mut protocol_summaries = Vec::new();
     for p in &protocols {
         let items = sqlx::query_as::<_, InspectionProtocolItem>(
-            "SELECT id, protocol_id, inspection_object_id, status, defect_text, notes, created_at
+            "SELECT id, protocol_id, inspection_object_id, equipment_id, status, defect_text, notes, created_at
              FROM vehicle_inspection_protocol_items
              WHERE protocol_id = $1"
         )
@@ -1849,7 +1854,7 @@ pub async fn generate_inspection_protocol_pdf(
     .ok_or(AppError::NotFound)?;
 
     let items = sqlx::query_as::<_, InspectionProtocolItem>(
-        "SELECT id, protocol_id, inspection_object_id, status, defect_text, notes, created_at
+        "SELECT id, protocol_id, inspection_object_id, equipment_id, status, defect_text, notes, created_at
          FROM vehicle_inspection_protocol_items
          WHERE protocol_id = $1
          ORDER BY created_at ASC"
