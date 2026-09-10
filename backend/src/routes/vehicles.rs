@@ -1596,6 +1596,7 @@ pub struct InspectionProtocolItem {
     pub id:                  Uuid,
     pub protocol_id:         Uuid,
     pub inspection_object_id: Uuid,
+    pub equipment_id:        Option<Uuid>,
     pub status:              String,
     pub defect_text:         Option<String>,
     pub notes:               Option<String>,
