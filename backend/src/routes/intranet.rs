@@ -5,7 +5,7 @@ use axum::{
     http::header,
     middleware,
     response::Response,
-    routing::{delete, get, post, put},
+    routing::{delete, get, post},
     Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -156,65 +156,6 @@ pub async fn list_entries(
 }
 
 // ── Handler: Link-Eintrag erstellen ──────────────────────────────────────
-
-#[derive(Deserialize, Validate)]
-pub struct UpdateLinkEntry {
-    #[validate(length(min = 1, max = 200))]
-    pub title: String,
-    #[validate(url)]
-    pub url: String,
-    pub description: Option<String>,
-    pub role_ids: Option<Vec<Uuid>>,
-}
-
-pub async fn update_link_entry(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<UpdateLinkEntry>,
-) -> AppResult<Json<IntranetEntry>> {
-    body.validate()?;
-
-    // Prüfen ob Eintrag existiert und ob es ein Datei-Eintrag ist
-    let row = sqlx::query_as::<_, (String, Option<String>)>(
-        "SELECT entry_type, file_path FROM intranet_entries WHERE id = $1"
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(AppError::NotFound)?;
-
-    if row.1.is_some() {
-        // Eintrag ist eine Datei → kann nicht bearbeitet werden
-        return Err(AppError::BadRequest("Datei-Einträge können nicht bearbeitet werden".into()));
-    }
-
-    let updated = sqlx::query_as::<_, IntranetEntry>(
-        "UPDATE intranet_entries
-         SET title = $1, url = $2, description = $3, updated_at = NOW()
-         WHERE id = $4
-         RETURNING id, title, entry_type, url, file_name, mime_type, file_size,
-                   description, published_by, published_by_name, published_at"
-    )
-    .bind(body.title.trim())
-    .bind(body.url.trim())
-    .bind(body.description.unwrap_or_default())
-    .bind(id)
-    .fetch_one(&state.db)
-    .await?;
-
-    // Rollen-Zuordnungen neu setzen
-    sqlx::query("DELETE FROM intranet_entry_roles WHERE entry_id = $1")
-        .bind(id)
-        .execute(&state.db)
-        .await?;
-    save_entry_roles(&state.db, id, body.role_ids).await?;
-
-    audit::log(&state.db, Some(claims.sub), &claims.username, "INTENTRY_UPDATED",
-        Some("intranet_entries"), Some(id), None).await;
-
-    Ok(Json(updated))
-}
 
 pub async fn create_link_entry(
     State(state): State<AppState>,
@@ -475,11 +416,11 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/:id/download", get(download_file))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
-    // Nur Admin/Superuser oder User mit "intranet"-Berechtigung können erstellen/bearbeiten/löschen
+    // Nur Admin/Superuser oder User mit "intranet"-Berechtigung können erstellen/löschen
     let protected = Router::new()
         .route("/", post(create_link_entry))
         .route("/file", post(create_file_entry.layer(DefaultBodyLimit::max(100 * 1024 * 1024))))
-        .route("/:id", put(update_link_entry).delete(delete_entry))
+        .route("/:id", delete(delete_entry))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_module("intranet")))
         .route_layer(middleware::from_fn_with_state(state, require_auth));
 
