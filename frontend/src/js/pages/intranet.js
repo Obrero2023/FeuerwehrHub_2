@@ -148,7 +148,7 @@ export async function renderIntranet() {
   });
 
   // Helper: Event-Listener für Formular-Buttons (nach renderForm() neu anbringen)
-  const attachFormListeners = () => {
+  function attachFormListeners() {
     document.getElementById('btn-cancel-entry')?.addEventListener('click', () => {
       document.getElementById('intranet-create-form').style.display = 'none';
       document.getElementById('intranet-grid').style.display = 'block';
@@ -192,7 +192,7 @@ export async function renderIntranet() {
       document.getElementById('intranet-grid').style.display = 'block';
       await loadIntranet();
     });
-  };
+  }
 
   async function loadIntranet() {
     const grid = document.getElementById('intranet-grid');
