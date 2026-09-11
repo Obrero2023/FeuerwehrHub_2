@@ -24,6 +24,7 @@ import { renderClock } from './pages/clock.js';
 import { renderScanView } from './pages/scan.js';
 import { renderDatenschutz } from './pages/datenschutz.js';
 import { renderDienstReports } from './pages/dienst-reports.js';
+import { renderIntranet } from './pages/intranet.js';
 
 // Routen registrieren
 registerRoute('#/login',     renderLogin);
@@ -50,6 +51,7 @@ registerRoute('#/zeiterfassung', renderPersonal,  'personal');
 registerRoute('#/clock',         renderClock);
 registerRoute('#/datenschutz',     renderDatenschutz);
 registerRoute('#/dienstberichte', renderDienstReports);
+registerRoute('#/intranet', renderIntranet);
 
 // Scan-Route (dynamisch, tokenbasiert)
 registerScanRoute(renderScanView);

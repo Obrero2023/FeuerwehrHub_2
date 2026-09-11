@@ -395,6 +395,37 @@ export const api = {
   deleteVereinPost: (id) => request("DELETE", `/verein/posts/${id}`),
 
   getDocuments: () => request("GET", "/verein/dokumente"),
+
+  // Intranet
+  getIntranet: (params) => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(params || {})) {
+      if (v != null && v !== "") p.append(k, v);
+    }
+    return request("GET", `/intranet?${p}`);
+  },
+  createIntranetLink: (body) => request("POST", "/intranet", body),
+  createIntranetFile: (file, title, description) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("title", title);
+    formData.append("description", description || "");
+    return fetch(`${BASE}/intranet/file`, {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    }).then(async (res) => {
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+      return data;
+    });
+  },
+  deleteIntranet: (id) => request("DELETE", `/intranet/${id}`),
+  downloadIntranet: (id) => {
+    return fetch(`${BASE}/intranet/${id}/download`, {
+      credentials: "include",
+    });
+  },
   deleteDocument: (id) => request("DELETE", `/verein/dokumente/${id}`),
   downloadDocument: (id) => {
     return fetch(`${BASE}/verein/dokumente/${id}/download`, {

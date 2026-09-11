@@ -16,6 +16,7 @@ const MODULE_ACCENTS = {
   fahrzeuge:       '#2563eb',
   fahrzeug_checklist: '#0891b2',
   verein:          '#7c3aed',
+  intranet:        '#0891b2',
 };
 
 const PAGE_MODULE = {
@@ -36,6 +37,7 @@ const PAGE_MODULE = {
   'hlf2-inspection':    'fahrzeugpruefung',
   'mtf-inspection':     'fahrzeugpruefung',
   verein:          'verein',
+  intranet:        'intranet',
 };
 
 const MODULE_COLORS = {
@@ -45,6 +47,7 @@ const MODULE_COLORS = {
   fahrzeugpruefung: { c: 'var(--fahrzeug_checklist-c)', hell: 'var(--fahrzeug_checklist-hell)' },
   einsatzberichte: { c: 'var(--einsatz-c)',  hell: 'var(--einsatz-hell)' },
   verein:          { c: 'var(--verein-c)',   hell: 'var(--verein-hell)' },
+  intranet:        { c: 'var(--intranet-c)', hell: 'var(--intranet-hell)' },
 };
 
 export function setShellInfo(name, user, modules) {
@@ -61,6 +64,12 @@ export function canAccess(user, permission) {
 
 function showModule(minPerm, moduleKey) {
   if (!canAccess(currentUser, minPerm)) return false;
+  const anyEnabled = Object.values(activeModules).some(v => v);
+  return !anyEnabled || !!activeModules[moduleKey];
+}
+
+// Wie showModule, aber ohne Berechtigungsprüfung — Module die für alle eingeloggten User sichtbar sein sollen
+function showModulePublic(moduleKey) {
   const anyEnabled = Object.values(activeModules).some(v => v);
   return !anyEnabled || !!activeModules[moduleKey];
 }
@@ -157,6 +166,10 @@ function buildShell() {
     { page: 'verein', label: 'Vereinsverwaltung', icon: icon('landmark', 16) },
   ];
 
+  const intranetItems = [
+    { page: 'intranet', label: 'Intranet', icon: icon('globe', 16) },
+  ];
+
   return `
     <div class="app-shell" style="--accent: ${accent}">
 
@@ -190,6 +203,7 @@ function buildShell() {
         ${showModule('fahrzeugpruefung', 'fahrzeugpruefung') ? buildNavItem('fahrzeugpruefung', 'Fahrzeugprüfung', fahrzeugchecklistItems) : ''}
         ${showModule('einsatzberichte.read', 'einsatzberichte') ? buildNavItem('einsatzberichte', 'Einsätze', einsaetzeItems) : ''}
         ${showModule('verein', 'verein')               ? buildNavItem('verein',          'Verein',   vereinItems)   : ''}
+        ${showModulePublic('intranet')         ? buildNavItem('intranet',        'Intranet', intranetItems) : ''}
 
         <div class="topnav__spacer"></div>
 

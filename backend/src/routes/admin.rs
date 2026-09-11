@@ -459,6 +459,7 @@ pub async fn update_permissions(
         "personal", "fahrzeuge",
         "einsatzberichte.read", "einsatzberichte", "einsatzberichte.approve",
         "verein",
+        "intranet",
     ];
     let permissions: Vec<String> = body.permissions
         .into_iter()
