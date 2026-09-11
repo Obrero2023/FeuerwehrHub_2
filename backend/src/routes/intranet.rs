@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path as FilePath;
 use tokio::fs;
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::{
     audit,
@@ -141,7 +142,7 @@ pub async fn create_file_entry(
                 if bytes.len() > 100 * 1024 * 1024 {
                     return Err(AppError::BadRequest("Datei zu groß (max. 100 MB)".into()));
                 }
-                file_data = Some((bytes, filename, mime));
+                file_data = Some((bytes.to_vec(), filename, mime));
             }
             _ => {}
         }
