@@ -175,6 +175,28 @@ pub async fn update_link_entry(
 ) -> AppResult<Json<IntranetEntry>> {
     body.validate()?;
 
+    // Nur Admin/Superuser oder User mit "intranet"-Berechtigung dürfen bearbeiten
+    if !claims.is_admin_or_above() {
+        let has_perm: bool = sqlx::query_scalar(
+            "SELECT $1 = ANY(
+                SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
+                FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
+                UNION
+                SELECT unnest(fr.permissions)
+                FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
+             )"
+        )
+        .bind("intranet")
+        .bind(claims.sub)
+        .fetch_one(&state.db)
+        .await
+        .unwrap_or(false);
+
+        if !has_perm {
+            return Err(AppError::Forbidden);
+        }
+    }
+
     // Prüfen ob Eintrag existiert und ob es ein Datei-Eintrag ist
     let row = sqlx::query_as::<_, (String, Option<String>)>(
         "SELECT entry_type, file_path FROM intranet_entries WHERE id = $1"
