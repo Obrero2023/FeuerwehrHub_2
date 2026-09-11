@@ -429,7 +429,6 @@ export const api = {
       credentials: "include",
     });
   },
-  updateIntranetEntry: (id, body) => request("PUT", `/intranet/${id}`, body),
   deleteDocument: (id) => request("DELETE", `/verein/dokumente/${id}`),
   downloadDocument: (id) => {
     return fetch(`${BASE}/verein/dokumente/${id}/download`, {
