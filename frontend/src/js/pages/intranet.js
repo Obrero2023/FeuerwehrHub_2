@@ -31,6 +31,31 @@ export async function renderIntranet() {
   // Form HTML wird dynamisch eingefügt
 
   let selectedType = null;
+  let allRoles = [];
+
+  // Rollen für die Sichtbarkeits-Auswahl laden
+  if (canWrite) {
+    allRoles = await api.getRoles().catch(() => []);
+  }
+
+  // Helper: gecheckte Rollen-IDs aus dem Formular lesen
+  const getSelectedRoleIds = () => {
+    const checks = document.querySelectorAll('#entry-role-checks input:checked');
+    if (checks.length === 0) return [];
+    return [...checks].map(cb => cb.value);
+  };
+
+  // Checkbox-Gruppe für Rollen rendern
+  const buildRoleChecks = () => {
+    const container = document.getElementById('entry-role-checks');
+    if (!container || !allRoles.length) return;
+    container.innerHTML = allRoles.map(r => `
+      <label class="check-label">
+        <input type="checkbox" class="entry-role-check" value="${r.id}" checked />
+        ${esc(r.name)}
+      </label>
+    `).join('');
+  };
 
   // Create form toggling
   const formEl = document.getElementById('intranet-create-form');
@@ -66,6 +91,10 @@ export async function renderIntranet() {
             <small class="text-subtle">Max. 100 MB</small>
           </div>
         </div>
+        <div class="form-group">
+          <label>Sichtbar für Rollen <small class="text-subtle">(Standard: alle)</small></label>
+          <div id="entry-role-checks" class="admin-check-list"></div>
+        </div>
         <div class="btn-group mt-md">
           <button class="btn btn--primary" id="btn-save-entry">Speichern</button>
           <button class="btn btn--outline" id="btn-cancel-entry">Abbrechen</button>
@@ -73,6 +102,9 @@ export async function renderIntranet() {
       </div>
     </div>
   `;
+
+  // Role checkboxes render after DOM element exists
+  buildRoleChecks();
 
   document.getElementById('btn-new-entry')?.addEventListener('click', () => {
     formEl.style.display = 'block';
@@ -109,11 +141,13 @@ export async function renderIntranet() {
     const desc = document.getElementById('entry-desc').value.trim();
     if (!title) { toast('Titel erforderlich', 'error'); return; }
 
+    const role_ids = getSelectedRoleIds();
+
     if (selectedType === 'link') {
       const url = document.getElementById('entry-url').value.trim();
       if (!url) { toast('URL erforderlich', 'error'); return; }
       try {
-        await api.createIntranetLink({ title, url, description: desc });
+        await api.createIntranetLink({ title, url, description: desc, role_ids });
         toast('Link gespeichert');
       } catch (e) { toast(e.message, 'error'); return; }
     } else if (selectedType === 'file') {
@@ -121,7 +155,7 @@ export async function renderIntranet() {
       const file = fileInput.files[0];
       if (!file) { toast('Datei erforderlich', 'error'); return; }
       try {
-        await api.createIntranetFile(file, title, desc);
+        await api.createIntranetFile(file, title, desc, role_ids);
         toast('Datei hochgeladen');
       } catch (e) { toast(e.message, 'error'); return; }
     } else {

@@ -405,11 +405,14 @@ export const api = {
     return request("GET", `/intranet?${p}`);
   },
   createIntranetLink: (body) => request("POST", "/intranet", body),
-  createIntranetFile: (file, title, description) => {
+  createIntranetFile: (file, title, description, role_ids) => {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("title", title);
     formData.append("description", description || "");
+    if (role_ids !== undefined) {
+      formData.append("role_ids", JSON.stringify(role_ids || []));
+    }
     return fetch(`${BASE}/intranet/file`, {
       method: "POST",
       credentials: "include",

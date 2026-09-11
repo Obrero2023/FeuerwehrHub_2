@@ -9,6 +9,7 @@ use axum::{
     Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
 use std::path::Path as FilePath;
 use tokio::fs;
 use uuid::Uuid;
@@ -45,27 +46,116 @@ pub struct CreateLinkEntry {
     #[validate(url)]
     pub url:         String,
     pub description: Option<String>,
+    pub role_ids:    Option<Vec<Uuid>>,
 }
 
-// ── Handler: Alle Einträge laden (lesen) ────────────────────────────────
+// ── Helper: Rollen des Nutzers ermitteln ──────────────────────────────────
+
+/// Alle Rollen-IDs des Nutzers: Primärrolle (users.role_id) + Zusatzfunktionen
+async fn user_role_ids(db: &PgPool, user_id: Uuid) -> Vec<Uuid> {
+    sqlx::query_scalar::<_, Uuid>(
+        "SELECT r.id FROM roles r WHERE r.id = (SELECT u.role_id FROM users u WHERE u.id = $1)
+         UNION
+         SELECT uf.role_id FROM user_functions uf WHERE uf.user_id = $1"
+    )
+    .bind(user_id)
+    .fetch_all(db)
+    .await
+    .unwrap_or_default()
+}
+
+/// Prüft ob ein Eintrag für die gegebenen Rollen sichtbar ist.
+/// Einträge ohne Rollen-Zuordnung sind für alle sichtbar.
+async fn entry_visible_to(db: &PgPool, entry_id: Uuid, role_ids: &[Uuid]) -> bool {
+    sqlx::query_scalar::<_, bool>(
+        "SELECT NOT EXISTS (
+            SELECT 1 FROM intranet_entry_roles er
+            WHERE er.entry_id = $1
+        )
+        OR EXISTS (
+            SELECT 1 FROM intranet_entry_roles er
+            WHERE er.entry_id = $1 AND er.role_id = ANY($2::uuid[])
+        )"
+    )
+    .bind(entry_id)
+    .bind(role_ids)
+    .fetch_one(db)
+    .await
+    .unwrap_or(false)
+}
+
+/// Rollen-Zuordnungen für einen Intranet-Eintrag speichern.
+/// `None` → alle Rollen aus der Tabelle (Default).
+/// `Some(leeres Array)` → nur Admin/Superuser (keine Rolle).
+async fn save_entry_roles(db: &PgPool, entry_id: Uuid, role_ids: Option<Vec<Uuid>>) -> AppResult<()> {
+    let insert_all = "INSERT INTO intranet_entry_roles (entry_id, role_id)
+                       SELECT $1, id FROM roles ON CONFLICT DO NOTHING";
+    let insert_specific = "INSERT INTO intranet_entry_roles (entry_id, role_id)
+                           SELECT $1, unnest($2::uuid[]) ON CONFLICT DO NOTHING";
+
+    match role_ids {
+        None => {
+            sqlx::query(insert_all).bind(entry_id).execute(db).await?;
+        }
+        Some(ids) if ids.is_empty() => {
+            // Keine Rolle ausgewählt → nur Admin/Superuser sehen den Eintrag
+        }
+        Some(ids) => {
+            sqlx::query(insert_specific)
+                .bind(entry_id)
+                .bind(&ids)
+                .execute(db)
+                .await?;
+        }
+    }
+
+    Ok(())
+}
+
+// ── Handler: Alle Einträge laden (lesen) ──────────────────────────────────
 
 pub async fn list_entries(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
 ) -> AppResult<Json<Vec<IntranetEntry>>> {
     // Intranet-Modul muss aktiv sein oder User braucht intranet-Berechtigung
-    let rows = sqlx::query_as::<_, IntranetEntry>(
-        "SELECT id, title, entry_type, url, file_name, mime_type, file_size,
-                description, published_by, published_by_name, published_at
-         FROM intranet_entries
-         ORDER BY published_at DESC"
-    )
-    .fetch_all(&state.db)
-    .await?;
+    let rows = if claims.is_admin_or_above() {
+        sqlx::query_as::<_, IntranetEntry>(
+            "SELECT id, title, entry_type, url, file_name, mime_type, file_size,
+                    description, published_by, published_by_name, published_at
+             FROM intranet_entries
+             ORDER BY published_at DESC"
+        )
+        .fetch_all(&state.db)
+        .await?
+    } else {
+        let role_ids = user_role_ids(&state.db, claims.sub).await;
+
+        sqlx::query_as::<_, IntranetEntry>(
+            "SELECT e.id, e.title, e.entry_type, e.url, e.file_name,
+                    e.mime_type, e.file_size, e.description,
+                    e.published_by, e.published_by_name, e.published_at
+             FROM intranet_entries e
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM intranet_entry_roles er
+                 WHERE er.entry_id = e.id
+             )
+             OR EXISTS (
+                 SELECT 1 FROM intranet_entry_roles er
+                 WHERE er.entry_id = e.id
+                 AND er.role_id = ANY($1::uuid[])
+             )
+             ORDER BY e.published_at DESC"
+        )
+        .bind(&role_ids)
+        .fetch_all(&state.db)
+        .await?
+    };
 
     Ok(Json(rows))
 }
 
-// ── Handler: Link-Eintrag erstellen ─────────────────────────────────────
+// ── Handler: Link-Eintrag erstellen ──────────────────────────────────────
 
 pub async fn create_link_entry(
     State(state): State<AppState>,
@@ -112,13 +202,16 @@ pub async fn create_link_entry(
     .fetch_one(&state.db)
     .await?;
 
+    // Rollen-Sichtbarkeit speichern
+    save_entry_roles(&state.db, row.id, body.role_ids).await?;
+
     audit::log(&state.db, Some(claims.sub), &claims.username, "INTENTRY_CREATED",
         Some("intranet_entries"), Some(row.id), None).await;
 
     Ok(Json(row))
 }
 
-// ── Handler: Datei-Entry erstellen ──────────────────────────────────────
+// ── Handler: Datei-Entry erstellen ────────────────────────────────────────
 
 pub async fn create_file_entry(
     State(state): State<AppState>,
@@ -127,6 +220,7 @@ pub async fn create_file_entry(
 ) -> AppResult<Json<IntranetEntry>> {
     let mut title: Option<String> = None;
     let mut description: Option<String> = None;
+    let mut roles_json: Option<String> = None;
     let mut file_data: Option<(Vec<u8>, String, String)> = None; // (bytes, filename, mime)
 
     while let Some(field) = multipart.next_field().await
@@ -135,6 +229,7 @@ pub async fn create_file_entry(
         match field.name() {
             Some("title") => { title = field.text().await.ok(); }
             Some("description") => { description = field.text().await.ok(); }
+            Some("role_ids") => { roles_json = field.text().await.ok(); }
             Some("file") => {
                 let filename = field.file_name().unwrap_or("datei").to_string();
                 let mime = field.content_type().unwrap_or("application/octet-stream").to_string();
@@ -147,6 +242,9 @@ pub async fn create_file_entry(
             _ => {}
         }
     }
+
+    let role_ids: Option<Vec<Uuid>> = roles_json
+        .and_then(|s| serde_json::from_str::<Vec<Uuid>>(&s).ok());
 
     let (bytes, filename, mime) = file_data.ok_or_else(|| AppError::BadRequest("Keine Datei hochgeladen".into()))?;
 
@@ -205,6 +303,9 @@ pub async fn create_file_entry(
     .bind(claims.username.clone())
     .fetch_one(&state.db)
     .await?;
+
+    // Rollen-Sichtbarkeit speichern
+    save_entry_roles(&state.db, row.id, role_ids).await?;
 
     audit::log(&state.db, Some(claims.sub), &claims.username, "INTENTRY_FILE_UPLOADED",
         Some("intranet_entries"), Some(row.id), None).await;
@@ -280,6 +381,14 @@ pub async fn download_file(
     .fetch_optional(&state.db)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    // Sichtbarkeitsprüfung für Nicht-Admins
+    if !claims.is_admin_or_above() {
+        let role_ids = user_role_ids(&state.db, claims.sub).await;
+        if !entry_visible_to(&state.db, id, &role_ids).await {
+            return Err(AppError::Forbidden);
+        }
+    }
 
     let path = FilePath::new(&state.config.data_dir)
         .join("intranet")
