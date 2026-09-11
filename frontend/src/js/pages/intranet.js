@@ -135,64 +135,61 @@ export async function renderIntranet() {
   // Initialisieren
   selectedType = null;
   renderForm();
-  attachFormListeners();
 
   // Neue Eintrag-Button
   document.getElementById('btn-new-entry')?.addEventListener('click', () => {
     editingId = null;
     selectedType = null;
     renderForm();
-    attachFormListeners();
     document.getElementById('intranet-create-form').style.display = 'block';
     document.getElementById('intranet-grid').style.display = 'none';
   });
 
-  // Helper: Event-Listener für Formular-Buttons (nach renderForm() neu anbringen)
-  const attachFormListeners = () => {
-    document.getElementById('btn-cancel-entry')?.addEventListener('click', () => {
-      document.getElementById('intranet-create-form').style.display = 'none';
-      document.getElementById('intranet-grid').style.display = 'block';
-    });
+  // Abbrechen
+  document.getElementById('btn-cancel-entry')?.addEventListener('click', () => {
+    document.getElementById('intranet-create-form').style.display = 'none';
+    document.getElementById('intranet-grid').style.display = 'block';
+  });
 
-    document.getElementById('btn-save-entry')?.addEventListener('click', async () => {
-      const title = document.getElementById('entry-title').value.trim();
-      const desc = document.getElementById('entry-desc').value.trim();
-      if (!title) { toast('Titel erforderlich', 'error'); return; }
+  // Speichern (Erstellen oder Aktualisieren)
+  document.getElementById('btn-save-entry')?.addEventListener('click', async () => {
+    const title = document.getElementById('entry-title').value.trim();
+    const desc = document.getElementById('entry-desc').value.trim();
+    if (!title) { toast('Titel erforderlich', 'error'); return; }
 
-      const role_ids = getSelectedRoleIds();
+    const role_ids = getSelectedRoleIds();
 
-      if (editingId) {
-        // Update
-        try {
-          const urlInput = document.getElementById('entry-url');
-          const url = urlInput?.value.trim() || '';
-          await api.updateIntranetEntry(editingId, { title, url, description: desc, role_ids });
-          toast('Eintrag aktualisiert');
-        } catch (e) { toast(e.message, 'error'); return; }
-      } else if (selectedType === 'link') {
-        const url = document.getElementById('entry-url')?.value.trim();
-        if (!url) { toast('URL erforderlich', 'error'); return; }
-        try {
-          await api.createIntranetLink({ title, url, description: desc, role_ids });
-          toast('Link gespeichert');
-        } catch (e) { toast(e.message, 'error'); return; }
-      } else if (selectedType === 'file') {
-        const fileInput = document.getElementById('entry-file');
-        const file = fileInput?.files[0];
-        if (!file) { toast('Datei erforderlich', 'error'); return; }
-        try {
-          await api.createIntranetFile(file, title, desc, role_ids);
-          toast('Datei hochgeladen');
-        } catch (e) { toast(e.message, 'error'); return; }
-      } else {
-        toast('Typ auswählen', 'error');
-        return;
-      }
-      document.getElementById('intranet-create-form').style.display = 'none';
-      document.getElementById('intranet-grid').style.display = 'block';
-      await loadIntranet();
-    });
-  };
+    if (editingId) {
+      // Update
+      try {
+        const urlInput = document.getElementById('entry-url');
+        const url = urlInput?.value.trim() || '';
+        await api.updateIntranetEntry(editingId, { title, url, description: desc, role_ids });
+        toast('Eintrag aktualisiert');
+      } catch (e) { toast(e.message, 'error'); return; }
+    } else if (selectedType === 'link') {
+      const url = document.getElementById('entry-url')?.value.trim();
+      if (!url) { toast('URL erforderlich', 'error'); return; }
+      try {
+        await api.createIntranetLink({ title, url, description: desc, role_ids });
+        toast('Link gespeichert');
+      } catch (e) { toast(e.message, 'error'); return; }
+    } else if (selectedType === 'file') {
+      const fileInput = document.getElementById('entry-file');
+      const file = fileInput?.files[0];
+      if (!file) { toast('Datei erforderlich', 'error'); return; }
+      try {
+        await api.createIntranetFile(file, title, desc, role_ids);
+        toast('Datei hochgeladen');
+      } catch (e) { toast(e.message, 'error'); return; }
+    } else {
+      toast('Typ auswählen', 'error');
+      return;
+    }
+    document.getElementById('intranet-create-form').style.display = 'none';
+    document.getElementById('intranet-grid').style.display = 'block';
+    await loadIntranet();
+  });
 
   async function loadIntranet() {
     const grid = document.getElementById('intranet-grid');
@@ -232,7 +229,7 @@ export async function renderIntranet() {
 
       renderIcons(grid);
 
-      // Lösch-Buttons (funktioniert für Link- und DateiEinträge)
+      // Lösch-Buttons
       grid.querySelectorAll('.btn-delete-entry').forEach(btn => {
         btn.addEventListener('click', async (e) => {
           e.stopPropagation();
@@ -246,22 +243,16 @@ export async function renderIntranet() {
         });
       });
 
-      // Bearbeiten-Buttons (nur für Links)
+      // Bearbeiten-Buttons
       grid.querySelectorAll('.btn-edit-entry').forEach(btn => {
         btn.addEventListener('click', async (e) => {
           e.stopPropagation();
           const id = btn.dataset.id;
-          const entry = entriesCache.find(en => en.id === id);
-          if (!entry || entry.entry_type === 'file') {
-            toast('Nur Link-Einträge können bearbeitet werden');
-            return;
-          }
           editingId = id;
           selectedType = null;
           renderForm();
-          attachFormListeners();
           document.getElementById('intranet-create-form').style.display = 'block';
-          document.getElementById('intranet-grid').style.display = 'none';
+          document.getElementById('intranet-grid').style.display = 'block';
         });
       });
 
