@@ -430,6 +430,7 @@ export const api = {
     });
   },
   updateIntranetEntry: (id, body) => request("PUT", `/intranet/${id}`, body),
+  updateIntranetFileEntry: (id, body) => request("PUT", `/intranet/${id}/file`, body),
   deleteDocument: (id) => request("DELETE", `/verein/dokumente/${id}`),
   downloadDocument: (id) => {
     return fetch(`${BASE}/verein/dokumente/${id}/download`, {

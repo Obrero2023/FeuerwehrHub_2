@@ -83,7 +83,7 @@ export async function renderIntranet() {
             <label>URL</label>
             <input type="url" id="entry-url" value="${esc(entryData.url || '')}" placeholder="https://..." />
           </div>` : ''}
-          ${(!isEdit || !isFile) ? `
+          ${!isEdit ? `
           <div class="form-group">
             <label>Typ</label>
             <div class="btn-group">
@@ -91,13 +91,13 @@ export async function renderIntranet() {
               <button class="btn btn--outline" id="btn-type-file">Datei</button>
             </div>
           </div>
-          <div id="type-link-fields" style="display:${isEdit && !isFile ? 'none' : 'block'}">
+          <div id="type-link-fields" style="display:block">
             <div class="form-group">
               <label>URL</label>
               <input type="url" id="entry-url" placeholder="https://..." />
             </div>
           </div>
-          <div id="type-file-fields" style="display:${isEdit && !isFile ? 'none' : 'block'}">
+          <div id="type-file-fields" style="display:block">
             <div class="form-group">
               <label>Datei</label>
               <input type="file" id="entry-file" />
@@ -164,9 +164,17 @@ export async function renderIntranet() {
       if (editingId) {
         // Update
         try {
-          const urlInput = document.getElementById('entry-url');
-          const url = urlInput?.value.trim() || '';
-          await api.updateIntranetEntry(editingId, { title, url, description: desc, role_ids });
+          const entry = entriesCache.find(en => en.id === editingId);
+          const isFile = entry?.entry_type === 'file';
+          if (isFile) {
+            // Datei-Eintrag: URL und Typ nicht ändern
+            await api.updateIntranetFileEntry(editingId, { title, description: desc, role_ids });
+          } else {
+            // Link-Eintrag: URL aktualisieren
+            const urlInput = document.getElementById('entry-url');
+            const url = urlInput?.value.trim() || '';
+            await api.updateIntranetEntry(editingId, { title, url, description: desc, role_ids });
+          }
           toast('Eintrag aktualisiert');
         } catch (e) { toast(e.message, 'error'); return; }
       } else if (selectedType === 'link') {
@@ -208,7 +216,7 @@ export async function renderIntranet() {
       }
       grid.innerHTML = entriesCache.map(e => {
         const isFile = e.entry_type === 'file';
-        const canEdit = canWrite && !isFile;
+        const canEdit = canWrite;
         return `
           <div class="intranet-card" data-id="${e.id}">
             <div class="intranet-card__corner"></div>
@@ -246,16 +254,11 @@ export async function renderIntranet() {
         });
       });
 
-      // Bearbeiten-Buttons (nur für Links)
+      // Bearbeiten-Buttons (für Links und Dateien)
       grid.querySelectorAll('.btn-edit-entry').forEach(btn => {
         btn.addEventListener('click', async (e) => {
           e.stopPropagation();
           const id = btn.dataset.id;
-          const entry = entriesCache.find(en => en.id === id);
-          if (!entry || entry.entry_type === 'file') {
-            toast('Nur Link-Einträge können bearbeitet werden');
-            return;
-          }
           editingId = id;
           selectedType = null;
           renderForm();
