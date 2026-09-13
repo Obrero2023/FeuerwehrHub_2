@@ -120,6 +120,7 @@ async fn main() -> anyhow::Result<()> {
         .nest("/api/personal",      routes::personal::router(state.clone()))
         .nest("/api/personal",      routes::termine::personal_router(state.clone()))
         .nest("/api/vehicles",           routes::vehicles::router(state.clone()))
+        .nest("/api/vehicle-reservations", routes::vehicle_reservation::router(state.clone()))
         .nest("/api/incident-types",     routes::incident_types::router(state.clone()))
         .nest("/api/intranet",           routes::intranet::router(state.clone()))
         .nest("/api/einsatzberichte",    routes::incidents::router(state.clone()))

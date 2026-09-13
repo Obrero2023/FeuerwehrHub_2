@@ -20,6 +20,7 @@ const KNOWN_MODULES: &[&str] = &[
     "lager.read", "lager", "lager.approve",
     "personal", "fahrzeuge",
     "fahrzeugpruefung",
+    "fahrzeugbuchung",
     "einsatzberichte.read", "einsatzberichte", "einsatzberichte.approve",
     "verein",
     "intranet",
