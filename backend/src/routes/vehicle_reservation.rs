@@ -1,14 +1,13 @@
 use axum::{
     extract::{Path, State},
     middleware,
-    response::Response,
     routing::{delete, get, post, put},
     Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
-use chrono::{DateTime, Utc, NaiveDate, NaiveTime};
+use chrono::{DateTime, Datelike, Utc, NaiveDate, NaiveTime};
 
 use crate::{
     auth::middleware::{require_auth, require_module, Claims},
@@ -246,10 +245,7 @@ pub async fn update_reservation(
         None => current_status,
     };
 
-    let reason = body.reason.as_deref().map(|s| s.trim().to_string()).unwrap_or_else(|| {
-        // reason aus bestehendem Datensatz holen wenn nicht übergeben
-        String::new()
-    });
+    let reason = body.reason.as_ref().map(|r| r.trim().to_string());
 
     // Update mit COALESCE: nur übergebene Felder ändern, andere bleiben unverändert
     let result = sqlx::query(
@@ -263,7 +259,7 @@ pub async fn update_reservation(
              updated_at = NOW()
          WHERE id = $7"
     )
-    .bind(body.reason.as_ref().map(|r| r.trim().to_string()))
+    .bind(reason)
     .bind(body.start_date)
     .bind(body.end_date)
     .bind(body.start_time)
