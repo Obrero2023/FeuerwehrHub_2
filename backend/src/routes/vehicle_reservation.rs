@@ -44,8 +44,8 @@ pub struct CreateReservationBody {
     pub reason:          String,
     pub start_date:      NaiveDate,
     pub end_date:        NaiveDate,
-    pub start_time:      Option<NaiveTime>,
-    pub end_time:        Option<NaiveTime>,
+    pub start_time:      Option<String>,
+    pub end_time:        Option<String>,
 }
 
 #[derive(Deserialize, Validate)]
@@ -53,8 +53,8 @@ pub struct UpdateReservationBody {
     pub reason:          Option<String>,
     pub start_date:      Option<NaiveDate>,
     pub end_date:        Option<NaiveDate>,
-    pub start_time:      Option<NaiveTime>,
-    pub end_time:        Option<NaiveTime>,
+    pub start_time:      Option<String>,
+    pub end_time:        Option<String>,
     pub status:          Option<String>,
 }
 
@@ -133,10 +133,15 @@ pub async fn create_reservation(
         return Err(AppError::BadRequest("Fahrzeug nicht gefunden".into()));
     }
 
-    // Zeitkonflikt prüfen
-    let start_t = body.start_time.unwrap_or_else(|| NaiveTime::from_hms_opt(8, 0, 0).unwrap());
-    let end_t   = body.end_time.unwrap_or_else(|| NaiveTime::from_hms_opt(18, 0, 0).unwrap());
+    // Zeit aus String parsen (Format HH:MM → NaiveTime)
+    fn parse_time(s: &str) -> NaiveTime {
+        NaiveTime::parse_from_str(s, "%H:%M").unwrap_or_else(|_| NaiveTime::from_hms_opt(8, 0, 0).unwrap())
+    }
 
+    let start_t = parse_time(body.start_time.as_deref().unwrap_or("08:00"));
+    let end_t   = parse_time(body.end_time.as_deref().unwrap_or("18:00"));
+
+    // Zeitkonflikt prüfen
     let conflict: Option<(Uuid, String)> = sqlx::query_as::<_, (Uuid, String)>(
         "SELECT r.id, v.name FROM vehicle_reservations r
          JOIN vehicles v ON v.id = r.vehicle_id
@@ -247,6 +252,14 @@ pub async fn update_reservation(
 
     let reason = body.reason.as_ref().map(|r| r.trim().to_string());
 
+    // Zeit aus String parsen (Format HH:MM → NaiveTime)
+    fn parse_time(s: &str) -> NaiveTime {
+        NaiveTime::parse_from_str(s, "%H:%M").unwrap_or_else(|_| NaiveTime::from_hms_opt(8, 0, 0).unwrap())
+    }
+
+    let start_time_val = body.start_time.as_deref().map(parse_time).unwrap_or_else(|| NaiveTime::from_hms_opt(8, 0, 0).unwrap());
+    let end_time_val   = body.end_time.as_deref().map(parse_time).unwrap_or_else(|| NaiveTime::from_hms_opt(18, 0, 0).unwrap());
+
     // Update mit COALESCE: nur übergebene Felder ändern, andere bleiben unverändert
     let result = sqlx::query(
         "UPDATE vehicle_reservations
@@ -262,8 +275,8 @@ pub async fn update_reservation(
     .bind(reason)
     .bind(body.start_date)
     .bind(body.end_date)
-    .bind(body.start_time)
-    .bind(body.end_time)
+    .bind(start_time_val)
+    .bind(end_time_val)
     .bind(new_status)
     .bind(id)
     .execute(&state.db)
