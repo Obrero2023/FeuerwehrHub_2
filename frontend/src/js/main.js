@@ -24,7 +24,7 @@ import { renderClock } from './pages/clock.js';
 import { renderScanView } from './pages/scan.js';
 import { renderDatenschutz } from './pages/datenschutz.js';
 import { renderDienstReports } from './pages/dienst-reports.js';
-import { renderIntranet } from './pages/intranet.js';
+import { renderVehicleReservation } from './pages/vehicle_reservation.js';
 
 // Routen registrieren
 registerRoute('#/login',     renderLogin);
@@ -52,6 +52,7 @@ registerRoute('#/clock',         renderClock);
 registerRoute('#/datenschutz',     renderDatenschutz);
 registerRoute('#/dienstberichte', renderDienstReports);
 registerRoute('#/intranet', renderIntranet);
+registerRoute('#/vehicle-reservations', renderVehicleReservation, 'fahrzeugbuchung');
 
 // Scan-Route (dynamisch, tokenbasiert)
 registerScanRoute(renderScanView);
