@@ -15,6 +15,7 @@ const MODULE_ACCENTS = {
   personal:        '#16a34a',
   fahrzeuge:       '#2563eb',
   fahrzeug_checklist: '#0891b2',
+  fahrzeugbuchung: '#8b5cf6',  // violet
   verein:          '#7c3aed',
   intranet:        '#0891b2',
 };
@@ -36,6 +37,7 @@ const PAGE_MODULE = {
   'hlf1-inspection':    'fahrzeugpruefung',
   'hlf2-inspection':    'fahrzeugpruefung',
   'mtf-inspection':     'fahrzeugpruefung',
+  'fahrzeugbuchung': 'fahrzeugbuchung',
   verein:          'verein',
   intranet:        'intranet',
 };

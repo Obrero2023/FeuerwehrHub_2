@@ -337,6 +337,21 @@ export const api = {
   deleteInspection: (vid, iid) =>
     request("DELETE", `/vehicles/${vid}/inspections/${iid}`),
 
+  // Fahrzeugbuchungen
+  getVehicleBookings: (params) => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(params || {})) {
+      if (v != null && v !== "") p.append(k, v);
+    }
+    return request("GET", `/vehicle-bookings?${p}`);
+  },
+  getVehicleBooking: (id) => request("GET", `/vehicle-bookings/${id}`),
+  createVehicleBooking: (body) => request("POST", "/vehicle-bookings", body),
+  updateVehicleBooking: (id, body) =>
+    request("PUT", `/vehicle-bookings/${id}`, body),
+  deleteVehicleBooking: (id) =>
+    request("DELETE", `/vehicle-bookings/${id}`),
+
   // Fahrtenbuch
   getTrips: (vid) => request("GET", `/vehicles/${vid}/trips`),
   createTrip: (vid, body) => request("POST", `/vehicles/${vid}/trips`, body),

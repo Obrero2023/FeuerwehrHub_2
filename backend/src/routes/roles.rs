@@ -23,6 +23,8 @@ const KNOWN_MODULES: &[&str] = &[
     "einsatzberichte.read", "einsatzberichte", "einsatzberichte.approve",
     "verein",
     "intranet",
+    "fahrzeugbuchung",
+    "fahrzeugbuchung.verwalten",
 ];
 
 #[derive(Serialize, sqlx::FromRow)]
