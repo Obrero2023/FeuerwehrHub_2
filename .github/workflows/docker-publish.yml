@@ -2,7 +2,7 @@ name: Build & Publish Docker Images
 
 on:
   push:
-    branches: [main, dev, 'change_*']
+    branches: [main, dev, 'change_*', vehicle_reservation_v2_1]
     tags: ['v*.*.*']
 
 jobs:
