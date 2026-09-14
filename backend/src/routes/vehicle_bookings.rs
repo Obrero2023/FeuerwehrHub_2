@@ -160,7 +160,7 @@ pub async fn create_booking(
             INSERT INTO vehicle_bookings
                 (vehicle_id, user_id, booking_date, time_from, time_to, reason)
             VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING id, vehicle_id, user_id, booking_date, time_from, time_to, reason
+            RETURNING id, vehicle_id, user_id, booking_date, time_from, time_to, reason, created_at
         )
         SELECT i.id, i.vehicle_id, v.name as vehicle_name, i.user_id,
                u.display_name as username, i.booking_date, i.time_from, i.time_to,
