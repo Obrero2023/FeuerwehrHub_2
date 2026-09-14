@@ -47,21 +47,32 @@ export async function renderVehicleBookings() {
     if (loading) { grid.innerHTML = '<div class="empty-state">Lade Buchungen...</div>'; return; }
     if (!bookings.length) { grid.innerHTML = '<div class="empty-state">Keine Buchungen vorhanden.</div>'; return; }
 
+    // Status-Farben für die Liste
+    const statusColors = {
+      'buchung':      '#f5c542',   // gelb
+      'bestaetigt':   '#48bb78',   // grün
+      'abgesagt':     '#e53e3e',   // rot
+    };
+
     grid.innerHTML = `<table class="data-table">
       <thead><tr>
-        <th>Fahrzeug</th><th>Datum</th><th>Von</th><th>Bis</th><th>Grund</th><th>Status</th><th>Buchungs-ID</th>
+        <th>Fahrzeug</th><th>Datum</th><th>Von</th><th>Bis</th><th>Grund</th><th style="color:var(--text-color)">Status</th><th>Buchungs-ID</th>
         ${canManage ? '<th>Aktionen</th>' : ''}
       </tr></thead>
       <tbody>
-        ${bookings.map(b => `
-          <tr data-id="${b.id}">
+        ${bookings.map(b => {
+          const statusColor = statusColors[b.status] || '#6c757d';
+          const bookedBy = b.username || 'Unbekannt';
+          return `
+          <tr data-id="${b.id}" style="--status-color: ${statusColor}">
             <td>${esc(b.vehicle_name || 'Fahrzeug ' + b.vehicle_id)}</td>
             <td>${formatDate(b.booking_date)}</td>
             <td>${b.time_from}</td>
             <td>${b.time_to}</td>
             <td>${esc(b.reason)}</td>
-            <td>${b.status}</td>
+            <td style="color:var(--status-color)">${b.status}</td>
             <td>${b.id}</td>
+            <td style="font-size:0.85em;color:var(--text-muted)">${bookedBy}</td>
             ${canManage ? `<td>
               <button class="btn btn--outline btn--sm btn-edit-booking" data-id="${b.id}">Bearbeiten</button>
               <button class="btn btn--danger btn--sm btn-delete-booking" data-id="${b.id}">Löschen</button>
@@ -120,6 +131,9 @@ export async function renderVehicleBookings() {
             <label>Grund <span class="required">*</span></label>
             <textarea id="bk-reason" rows="3" maxlength="2000" placeholder="Warum wird das Fahrzeug benötigt?"></textarea>
           </div>
+          <div class="form-group" style="font-size:0.9em;color:var(--text-muted);margin-top:12px">
+            <div>Wird gebucht von: <strong>${user?.username || 'Sie'}</strong></div>
+          </div>
           <div class="btn-group mt-md">
             <button class="btn btn--primary" id="btn-save-booking">Speichern</button>
             <button class="btn btn--outline" id="btn-cancel-booking">Abbrechen</button>
@@ -169,6 +183,10 @@ export async function renderVehicleBookings() {
               <option value="abgesagt" ${booking.status === 'abgesagt' ? 'selected' : ''}>Abgesagt</option>
             </select>
           </div>
+          <div class="form-group" style="font-size:0.9em;color:var(--text-muted);margin-top:12px">
+            <div>Gebucht von: <strong>${b.username || 'Unbekannt'}</strong></div>
+            ${b.status_changed_by_name ? `<div>Status zuletzt geändert von: <strong>${b.status_changed_by_name}</strong> am ${formatDate(new Date(b.status_changed_at))}</div>` : ''}
+          </div>
           <div class="btn-group mt-md">
             <button class="btn btn--primary" id="btn-save-booking">Aktualisieren</button>
             <button class="btn btn--outline" id="btn-cancel-booking">Abbrechen</button>
@@ -205,12 +223,34 @@ export async function renderVehicleBookings() {
         reason,
       };
 
+      // Überlappung prüfen
+      try {
+        const overlapResult = await api.checkOverlap({
+          vehicle_id: vehicleId,
+          booking_date: date,
+          time_from: timeFrom,
+          time_to: timeTo
+        });
+
+        if (overlapResult && overlapResult.hasOverlap) {
+          const message = `Dieses Fahrzeug ist bereits gebucht von ${formatDateTime(new Date(overlapResult.existingBooking.time_from))} bis ${formatDateTime(new Date(overlapResult.existingBooking.time_to))} am ${formatDate(new Date(overlapResult.existingBooking.booking_date))}.`;
+          if (!confirm(`${message}\n\nTrotzdem speichern?`)) {
+            return;
+          }
+        }
+      } catch(e) {
+        // Wenn der Endpunkt noch nicht existiert, einfach fortfahren
+        console.warn('Overlap-Check nicht verfügbar:', e.message);
+      }
+
+      const finalData = mode === 'create' ? bookingData : { ...bookingData, status };
+
       try {
         if (mode === 'create') {
-          await api.createVehicleBooking(bookingData);
+          await api.createVehicleBooking(finalData);
           toast('Buchung erstellt');
         } else {
-          await api.updateVehicleBooking(id, { ...bookingData, status });
+          await api.updateVehicleBooking(id, finalData);
           toast('Buchung aktualisiert');
         }
         document.getElementById('booking-create-form').style.display = 'none';

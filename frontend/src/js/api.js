@@ -352,6 +352,8 @@ export const api = {
   deleteVehicleBooking: (id) =>
     request("DELETE", `/vehicle-bookings/${id}`),
 
+  checkOverlap: (params) => request("POST", "/vehicle-bookings/check-overlap", params),
+
   // Fahrtenbuch
   getTrips: (vid) => request("GET", `/vehicles/${vid}/trips`),
   createTrip: (vid, body) => request("POST", `/vehicles/${vid}/trips`, body),

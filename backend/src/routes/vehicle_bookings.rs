@@ -19,17 +19,20 @@ use crate::{
 
 #[derive(Serialize, sqlx::FromRow)]
 pub struct VehicleBooking {
-    pub id:              Uuid,
-    pub vehicle_id:      Uuid,
-    pub vehicle_name:    Option<String>,
-    pub user_id:         Uuid,
-    pub username:        Option<String>,
-    pub booking_date:    NaiveDate,
-    pub time_from:       NaiveTime,
-    pub time_to:         NaiveTime,
-    pub reason:          String,
-    pub status:          String,
-    pub created_at:      chrono::DateTime<Utc>,
+    pub id:                    Uuid,
+    pub vehicle_id:            Uuid,
+    pub vehicle_name:          Option<String>,
+    pub user_id:               Uuid,
+    pub username:              Option<String>,
+    pub booking_date:          NaiveDate,
+    pub time_from:             NaiveTime,
+    pub time_to:               NaiveTime,
+    pub reason:                String,
+    pub status:                String,
+    pub created_at:            chrono::DateTime<Utc>,
+    pub status_changed_by:     Option<Uuid>,
+    pub status_changed_by_name: Option<String>,
+    pub status_changed_at:     Option<chrono::DateTime<Utc>>,
 }
 
 #[derive(Deserialize, Validate)]
@@ -61,10 +64,13 @@ async fn fetch_booking_by_id(db: &sqlx::PgPool, id: Uuid) -> AppResult<VehicleBo
     sqlx::query_as::<_, VehicleBooking>(
         "SELECT b.id, b.vehicle_id, v.name as vehicle_name, b.user_id,
                 u.display_name as username, b.booking_date, b.time_from, b.time_to,
-                b.reason, b.status, b.created_at
+                b.reason, b.status, b.created_at,
+                b.status_changed_by, sc.display_name as status_changed_by_name,
+                b.status_changed_at
          FROM vehicle_bookings b
          JOIN vehicles v ON v.id = b.vehicle_id
          LEFT JOIN users u ON u.id = b.user_id
+         LEFT JOIN users sc ON sc.id = b.status_changed_by
          WHERE b.id = $1"
     )
     .bind(id)
@@ -82,10 +88,13 @@ pub async fn list_bookings(
     let bookings = sqlx::query_as::<_, VehicleBooking>(
         "SELECT b.id, b.vehicle_id, v.name as vehicle_name, b.user_id,
                 u.display_name as username, b.booking_date, b.time_from, b.time_to,
-                b.reason, b.status, b.created_at
+                b.reason, b.status, b.created_at,
+                b.status_changed_by, sc.display_name as status_changed_by_name,
+                b.status_changed_at
          FROM vehicle_bookings b
          JOIN vehicles v ON v.id = b.vehicle_id
          LEFT JOIN users u ON u.id = b.user_id
+         LEFT JOIN users sc ON sc.id = b.status_changed_by
          WHERE 1=1
            AND ($1::uuid IS NULL OR b.vehicle_id = $1)
            AND ($2::date IS NULL OR b.booking_date >= $2)
@@ -164,7 +173,10 @@ pub async fn create_booking(
         )
         SELECT i.id, i.vehicle_id, v.name as vehicle_name, i.user_id,
                u.display_name as username, i.booking_date, i.time_from, i.time_to,
-               i.reason, 'buchung' as status, i.created_at
+               i.reason, 'buchung' as status, i.created_at,
+               NULL::uuid as status_changed_by,
+               NULL::text as status_changed_by_name,
+               NULL::timestamptz as status_changed_at
         FROM inserted i
         JOIN vehicles v ON v.id = i.vehicle_id
         LEFT JOIN users u ON u.id = i.user_id
@@ -184,7 +196,7 @@ pub async fn create_booking(
 
 pub async fn update_booking(
     State(state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateBookingBody>,
 ) -> AppResult<Json<VehicleBooking>> {
@@ -194,15 +206,23 @@ pub async fn update_booking(
         }
     }
 
+    // Status-Änderung protokollieren
+    let status_changed_by = body.status.as_ref().map(|s| claims.sub);
+    let status_changed_at = chrono::Utc::now();
+
     sqlx::query(
         "UPDATE vehicle_bookings
          SET reason = COALESCE($1, reason),
              status = COALESCE($2, status),
+             status_changed_by = COALESCE($3, status_changed_by),
+             status_changed_at = COALESCE($4, status_changed_at),
              updated_at = NOW()
-         WHERE id = $3"
+         WHERE id = $5"
     )
     .bind(&body.reason)
     .bind(&body.status)
+    .bind(&status_changed_by)
+    .bind(&status_changed_at)
     .bind(id)
     .execute(&state.db)
     .await?;
@@ -227,12 +247,65 @@ pub async fn delete_booking(
     Ok(Json(serde_json::json!({ "message": "Buchung gelöscht" })))
 }
 
+// ── Overlap-Check ──────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct OverlapCheckBody {
+    pub vehicle_id:    Uuid,
+    pub booking_date:  NaiveDate,
+    pub time_from:     NaiveTime,
+    pub time_to:       NaiveTime,
+}
+
+#[derive(Serialize)]
+pub struct OverlapCheckResponse {
+    pub has_overlap:     bool,
+    pub existing_booking: Option<VehicleBooking>,
+}
+
+pub async fn check_overlap(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Json(body): Json<OverlapCheckBody>,
+) -> AppResult<Json<OverlapCheckResponse>> {
+    let existing = sqlx::query_as::<_, VehicleBooking>(
+        "SELECT b.id, b.vehicle_id, v.name as vehicle_name, b.user_id,
+                u.display_name as username, b.booking_date, b.time_from, b.time_to,
+                b.reason, b.status, b.created_at,
+                b.status_changed_by, sc.display_name as status_changed_by_name,
+                b.status_changed_at
+         FROM vehicle_bookings b
+         JOIN vehicles v ON v.id = b.vehicle_id
+         LEFT JOIN users u ON u.id = b.user_id
+         LEFT JOIN users sc ON sc.id = b.status_changed_by
+         WHERE b.vehicle_id = $1
+           AND b.booking_date = $2
+           AND b.status = 'buchung'
+           AND b.time_from < $3
+           AND b.time_to > $4
+         ORDER BY b.time_from ASC
+         LIMIT 1"
+    )
+    .bind(body.vehicle_id)
+    .bind(body.booking_date)
+    .bind(body.time_to)
+    .bind(body.time_from)
+    .fetch_optional(&state.db)
+    .await?;
+
+    Ok(Json(OverlapCheckResponse {
+        has_overlap: existing.is_some(),
+        existing_booking: existing,
+    }))
+}
+
 // ── Router ──────────────────────────────────────────────────────────────
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/", get(list_bookings).post(create_booking))
         .route("/:id", get(get_booking).put(update_booking).delete(delete_booking))
+        .route("/check-overlap", post(check_overlap))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_module("fahrzeugbuchung")))
         .route_layer(middleware::from_fn_with_state(state, require_auth))
 }
