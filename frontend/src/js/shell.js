@@ -15,7 +15,6 @@ const MODULE_ACCENTS = {
   personal:        '#16a34a',
   fahrzeuge:       '#2563eb',
   fahrzeug_checklist: '#0891b2',
-  fahrzeugbuchung: '#059669',
   verein:          '#7c3aed',
   intranet:        '#0891b2',
 };
@@ -37,7 +36,6 @@ const PAGE_MODULE = {
   'hlf1-inspection':    'fahrzeugpruefung',
   'hlf2-inspection':    'fahrzeugpruefung',
   'mtf-inspection':     'fahrzeugpruefung',
-  'vehicle-reservations': 'fahrzeugbuchung',
   verein:          'verein',
   intranet:        'intranet',
 };
@@ -47,7 +45,6 @@ const MODULE_COLORS = {
   personal:        { c: 'var(--personal-c)', hell: 'var(--personal-hell)' },
   fahrzeuge:       { c: 'var(--fahrzeug-c)', hell: 'var(--fahrzeug-hell)' },
   fahrzeugpruefung: { c: 'var(--fahrzeug_checklist-c)', hell: 'var(--fahrzeug_checklist-hell)' },
-  fahrzeugbuchung: { c: 'var(--fahrzeugbuchung-c)', hell: 'var(--fahrzeugbuchung-hell)' },
   einsatzberichte: { c: 'var(--einsatz-c)',  hell: 'var(--einsatz-hell)' },
   verein:          { c: 'var(--verein-c)',   hell: 'var(--verein-hell)' },
   intranet:        { c: 'var(--intranet-c)', hell: 'var(--intranet-hell)' },
@@ -206,10 +203,7 @@ function buildShell() {
         ${showModule('fahrzeugpruefung', 'fahrzeugpruefung') ? buildNavItem('fahrzeugpruefung', 'Fahrzeugprüfung', fahrzeugchecklistItems) : ''}
         ${showModule('einsatzberichte.read', 'einsatzberichte') ? buildNavItem('einsatzberichte', 'Einsätze', einsaetzeItems) : ''}
         ${showModule('verein', 'verein')               ? buildNavItem('verein',          'Verein',   vereinItems)   : ''}
-        ${showModule('fahrzeugbuchung', 'fahrzeugbuchung') ? buildNavItem('fahrzeugbuchung', 'Fahrzeugreservierung', [
-    { page: 'vehicle-reservations', label: 'Reservierungen', icon: icon('calendar', 16) }
-]) : ''}
-${showModulePublic('intranet')         ? buildNavItem('intranet',        'Intranet', intranetItems) : ''}
+        ${showModulePublic('intranet')         ? buildNavItem('intranet',        'Intranet', intranetItems) : ''}
 
         <div class="topnav__spacer"></div>
 

@@ -1957,7 +1957,7 @@ pub async fn submit_inspection(
 
         sqlx::query(
             "INSERT INTO vehicle_inspection_protocol_items
-             (protocol_id, inspection_object_id, status, defect_text)192
+             (protocol_id, inspection_object_id, status, defect_text)
              VALUES ($1, $2, $3, $4)"
         )
         .bind(protocol.id)
