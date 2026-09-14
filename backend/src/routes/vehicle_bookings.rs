@@ -57,8 +57,6 @@ pub struct BookingQuery {
 
 // ── Helper ──────────────────────────────────────────────────────────────
 
-type BoxEncode = Box<dyn sqlx::Encode<'_, sqlx::Postgres> + sqlx::Type<sqlx::Postgres>>;
-
 async fn fetch_booking_by_id(db: &sqlx::PgPool, id: Uuid) -> AppResult<VehicleBooking> {
     sqlx::query_as::<_, VehicleBooking>(
         "SELECT b.id, b.vehicle_id, v.name as vehicle_name, b.user_id,
@@ -81,110 +79,26 @@ pub async fn list_bookings(
     State(state): State<AppState>,
     Query(query): Query<BookingQuery>,
 ) -> AppResult<Json<Vec<VehicleBooking>>> {
-    let mut sql = String::from(
+    let bookings = sqlx::query_as::<_, VehicleBooking>(
         "SELECT b.id, b.vehicle_id, v.name as vehicle_name, b.user_id,
                 u.display_name as username, b.booking_date, b.time_from, b.time_to,
                 b.reason, b.status, b.created_at
          FROM vehicle_bookings b
          JOIN vehicles v ON v.id = b.vehicle_id
          LEFT JOIN users u ON u.id = b.user_id
-         WHERE 1=1"
-    );
-    let mut v1: Option<BoxEncode> = None;
-    let mut v2: Option<BoxEncode> = None;
-    let mut v3: Option<BoxEncode> = None;
-    let mut v4: Option<BoxEncode> = None;
-
-    if let Some(vid) = query.vehicle_id {
-        sql.push_str(" AND b.vehicle_id = $1");
-        v1 = Some(Box::new(vid));
-    }
-    if let Some(date_from) = query.date_from {
-        let idx = v1.is_some() as usize + 1;
-        sql.push_str(&format!(" AND b.booking_date >= ${}", idx));
-        v2 = Some(Box::new(date_from));
-    }
-    if let Some(date_to) = query.date_to {
-        let idx = v1.is_some() as usize + v2.is_some() as usize + 1;
-        sql.push_str(&format!(" AND b.booking_date <= ${}", idx));
-        v3 = Some(Box::new(date_to));
-    }
-    if let Some(status) = query.status {
-        let idx = v1.is_some() as usize + v2.is_some() as usize + v3.is_some() as usize + 1;
-        sql.push_str(&format!(" AND b.status = ${}", idx));
-        v4 = Some(Box::new(status));
-    }
-
-    let query_builder = match (v1, v2, v3, v4) {
-        (Some(a), Some(b), Some(c), Some(d)) => {
-            let q = sqlx::query_as::<_, VehicleBooking>(&sql);
-            let q = q.bind(a);
-            let q = q.bind(b);
-            let q = q.bind(c);
-            q.bind(d)
-        }
-        (Some(a), Some(b), Some(c), None) => {
-            let q = sqlx::query_as::<_, VehicleBooking>(&sql);
-            let q = q.bind(a);
-            let q = q.bind(b);
-            q.bind(c)
-        }
-        (Some(a), Some(b), None, Some(d)) => {
-            let q = sqlx::query_as::<_, VehicleBooking>(&sql);
-            let q = q.bind(a);
-            let q = q.bind(b);
-            q.bind(d)
-        }
-        (Some(a), None, Some(c), Some(d)) => {
-            let q = sqlx::query_as::<_, VehicleBooking>(&sql);
-            let q = q.bind(a);
-            let q = q.bind(c);
-            q.bind(d)
-        }
-        (None, Some(b), Some(c), Some(d)) => {
-            let q = sqlx::query_as::<_, VehicleBooking>(&sql);
-            let q = q.bind(b);
-            let q = q.bind(c);
-            q.bind(d)
-        }
-        (Some(a), Some(b), None, None) => {
-            let q = sqlx::query_as::<_, VehicleBooking>(&sql);
-            let q = q.bind(a);
-            q.bind(b)
-        }
-        (Some(a), None, Some(c), None) => {
-            let q = sqlx::query_as::<_, VehicleBooking>(&sql);
-            let q = q.bind(a);
-            q.bind(c)
-        }
-        (Some(a), None, None, Some(d)) => {
-            let q = sqlx::query_as::<_, VehicleBooking>(&sql);
-            let q = q.bind(a);
-            q.bind(d)
-        }
-        (None, Some(b), Some(c), None) => {
-            let q = sqlx::query_as::<_, VehicleBooking>(&sql);
-            let q = q.bind(b);
-            q.bind(c)
-        }
-        (None, Some(b), None, Some(d)) => {
-            let q = sqlx::query_as::<_, VehicleBooking>(&sql);
-            let q = q.bind(b);
-            q.bind(d)
-        }
-        (None, None, Some(c), Some(d)) => {
-            let q = sqlx::query_as::<_, VehicleBooking>(&sql);
-            let q = q.bind(c);
-            q.bind(d)
-        }
-        (Some(a), None, None, None) => sqlx::query_as::<_, VehicleBooking>(&sql).bind(a),
-        (None, Some(b), None, None) => sqlx::query_as::<_, VehicleBooking>(&sql).bind(b),
-        (None, None, Some(c), None) => sqlx::query_as::<_, VehicleBooking>(&sql).bind(c),
-        (None, None, None, Some(d)) => sqlx::query_as::<_, VehicleBooking>(&sql).bind(d),
-        (None, None, None, None) => sqlx::query_as::<_, VehicleBooking>(&sql),
-    };
-
-    let bookings = query_builder.fetch_all(&state.db).await?;
+         WHERE 1=1
+           AND ($1::uuid IS NULL OR b.vehicle_id = $1)
+           AND ($2::date IS NULL OR b.booking_date >= $2)
+           AND ($3::date IS NULL OR b.booking_date <= $3)
+           AND ($4::text IS NULL OR b.status = $4)
+         ORDER BY b.booking_date ASC, b.time_from ASC, b.vehicle_id ASC"
+    )
+    .bind(query.vehicle_id)
+    .bind(query.date_from)
+    .bind(query.date_to)
+    .bind(query.status)
+    .fetch_all(&state.db)
+    .await?;
 
     Ok(Json(bookings))
 }
@@ -242,18 +156,19 @@ pub async fn create_booking(
     }
 
     let booking = sqlx::query_as::<_, VehicleBooking>(
-        "SELECT b.id, b.vehicle_id, v.name as vehicle_name, b.user_id,
-                u.display_name as username, b.booking_date, b.time_from, b.time_to,
-                b.reason, b.status, b.created_at
-         FROM vehicle_bookings b
-         JOIN vehicles v ON v.id = b.vehicle_id
-         LEFT JOIN users u ON u.id = b.user_id
-         WHERE b.id = (
-             INSERT INTO vehicle_bookings
-                 (vehicle_id, user_id, booking_date, time_from, time_to, reason)
-             VALUES ($1, $2, $3, $4, $5, $6)
-             RETURNING id
-         )"
+        "WITH inserted AS (
+            INSERT INTO vehicle_bookings
+                (vehicle_id, user_id, booking_date, time_from, time_to, reason)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id, vehicle_id, user_id, booking_date, time_from, time_to, reason
+        )
+        SELECT i.id, i.vehicle_id, v.name as vehicle_name, i.user_id,
+               u.display_name as username, i.booking_date, i.time_from, i.time_to,
+               i.reason, 'buchung' as status, i.created_at
+        FROM inserted i
+        JOIN vehicles v ON v.id = i.vehicle_id
+        LEFT JOIN users u ON u.id = i.user_id
+        "
     )
     .bind(body.vehicle_id)
     .bind(claims.sub)
@@ -273,37 +188,24 @@ pub async fn update_booking(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateBookingBody>,
 ) -> AppResult<Json<VehicleBooking>> {
-    let mut parts = Vec::new();
-
-    if body.reason.is_some() {
-        parts.push(format!("reason = ${}", parts.len() + 1));
-    }
-    if body.status.is_some() {
-        if body.status.as_ref().unwrap() != "buchung" && body.status.as_ref().unwrap() != "bestaetigt" && body.status.as_ref().unwrap() != "abgesagt" {
+    if let Some(ref status) = body.status {
+        if status != "buchung" && status != "bestaetigt" && status != "abgesagt" {
             return Err(AppError::BadRequest("Ungültiger Status".into()));
         }
-        parts.push(format!("status = ${}", parts.len() + 1));
     }
 
-    if parts.is_empty() {
-        return Err(AppError::BadRequest("Keine zu aktualisierenden Felder angegeben".into()));
-    }
-
-    let id_idx = parts.len() + 1;
-    parts.push("updated_at = NOW()".to_string());
-
-    let sql = format!("UPDATE vehicle_bookings SET {} WHERE id = ${}", parts.join(", "), id_idx);
-    let mut query = sqlx::query(&sql);
-
-    if let Some(ref r) = body.reason {
-        query = query.bind(r);
-    }
-    if let Some(ref s) = body.status {
-        query = query.bind(s);
-    }
-    query = query.bind(id);
-
-    query.execute(&state.db).await?;
+    sqlx::query(
+        "UPDATE vehicle_bookings
+         SET reason = COALESCE($1, reason),
+             status = COALESCE($2, status),
+             updated_at = NOW()
+         WHERE id = $3"
+    )
+    .bind(&body.reason)
+    .bind(&body.status)
+    .bind(id)
+    .execute(&state.db)
+    .await?;
 
     fetch_booking_by_id(&state.db, id).await.map(Json)
 }
