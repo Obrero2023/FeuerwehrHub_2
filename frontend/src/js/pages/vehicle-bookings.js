@@ -78,7 +78,7 @@ export async function renderVehicleBookings() {
               <button class="btn btn--danger btn--sm btn-delete-booking" data-id="${b.id}">Löschen</button>
             </td>` : ''}
           </tr>
-        `).join('')}
+        `;}).join('')}
       </tbody>
     </table>`;
     renderIcons(grid);
