@@ -4,7 +4,7 @@ use axum::{
     routing::{delete, get, post, put},
     Extension, Json, Router,
 };
-use chrono::{NaiveDate, NaiveTime, Utc};
+use chrono::{NaiveDate, NaiveTime};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 use uuid::Uuid;
