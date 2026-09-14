@@ -47,6 +47,7 @@ const MODULE_COLORS = {
   personal:        { c: 'var(--personal-c)', hell: 'var(--personal-hell)' },
   fahrzeuge:       { c: 'var(--fahrzeug-c)', hell: 'var(--fahrzeug-hell)' },
   fahrzeugpruefung: { c: 'var(--fahrzeug_checklist-c)', hell: 'var(--fahrzeug_checklist-hell)' },
+  fahrzeugbuchung: { c: 'var(--fahrzeugbuchung-c)', hell: 'var(--fahrzeugbuchung-hell)' },
   einsatzberichte: { c: 'var(--einsatz-c)',  hell: 'var(--einsatz-hell)' },
   verein:          { c: 'var(--verein-c)',   hell: 'var(--verein-hell)' },
   intranet:        { c: 'var(--intranet-c)', hell: 'var(--intranet-hell)' },
@@ -172,6 +173,10 @@ function buildShell() {
     { page: 'intranet', label: 'Intranet', icon: icon('globe', 16) },
   ];
 
+  const fahrzeugbuchungItems = [
+    { page: 'fahrzeugbuchung', label: 'Fahrzeugbuchung', icon: icon('calendar', 16) },
+  ];
+
   return `
     <div class="app-shell" style="--accent: ${accent}">
 
@@ -206,6 +211,7 @@ function buildShell() {
         ${showModule('einsatzberichte.read', 'einsatzberichte') ? buildNavItem('einsatzberichte', 'Einsätze', einsaetzeItems) : ''}
         ${showModule('verein', 'verein')               ? buildNavItem('verein',          'Verein',   vereinItems)   : ''}
         ${showModulePublic('intranet')         ? buildNavItem('intranet',        'Intranet', intranetItems) : ''}
+        ${showModule('fahrzeugbuchung', 'fahrzeugbuchung') ? buildNavItem('fahrzeugbuchung', 'Fahrzeugbuchung', fahrzeugbuchungItems) : ''}
 
         <div class="topnav__spacer"></div>
 

@@ -15,8 +15,6 @@ export async function renderVehicleBookings() {
   const canManage = user?.role === 'admin' || user?.role === 'superuser'
     || (user?.permissions || []).includes('fahrzeugbuchung.verwalten');
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'superuser';
-
   content.innerHTML = `
     <div class="page-header">
       <div><h2>Fahrzeugbuchung</h2><p>Buchungen für Fahrzeuge verwalten</p></div>
