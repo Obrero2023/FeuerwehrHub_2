@@ -707,14 +707,6 @@ export const api = {
   defectsFromChecklist: (vid, body) =>
     request("POST", `/vehicles/${vid}/defects-from-checklist`, body),
 
-  // Fahrzeugreservierungen
-  getReservations: () => request("GET", "/vehicle-reservations"),
-  getReservation: (id) => request("GET", `/vehicle-reservations/${id}`),
-  createReservation: (body) => request("POST", "/vehicle-reservations", body),
-  updateReservation: (id, body) => request("PUT", `/vehicle-reservations/${id}`, body),
-  deleteReservation: (id) => request("DELETE", `/vehicle-reservations/${id}`),
-  getReservationStats: () => request("GET", "/vehicle-reservations/stats"),
-
   // Dienstberichte
   listDienstReports: () => request("GET", "/dienstberichte"),
   getDienstReport: (id) => request("GET", `/dienstberichte/${id}`),
