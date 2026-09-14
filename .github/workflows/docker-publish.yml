@@ -2,7 +2,7 @@ name: Build & Publish Docker Images
 
 on:
   push:
-    branches: [main, dev, change_objekts_10]
+    branches: [main, dev, 'change_*', vehicle_reservation_v2_1]
     tags: ['v*.*.*']
 
 jobs:
@@ -51,6 +51,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
+            type=ref,event=branch
 
       - name: Backend — Build & Push
         uses: docker/build-push-action@v6
@@ -75,6 +76,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
+            type=ref,event=branch
 
       - name: Frontend — Build & Push
         uses: docker/build-push-action@v6
