@@ -56,7 +56,7 @@ export async function renderVehicleBookings() {
 
     grid.innerHTML = `<table class="data-table">
       <thead><tr>
-        <th>Fahrzeug</th><th>Datum</th><th>Von</th><th>Bis</th><th>Grund</th><th style="color:var(--text-color)">Status</th><th>Buchungs-ID</th>
+        <th>Fahrzeug</th><th>Datum</th><th>Von</th><th>Bis</th><th>Grund</th><th style="color:var(--text-color)">Status</th><th>Buchungs-ID</th><th>Erstellt von</th><th>Freigegeben von</th>
         ${canManage ? '<th>Aktionen</th>' : ''}
       </tr></thead>
       <tbody>
@@ -72,7 +72,8 @@ export async function renderVehicleBookings() {
             <td>${esc(b.reason)}</td>
             <td style="color:var(--status-color)">${b.status}</td>
             <td>${b.id}</td>
-            <td style="font-size:0.85em;color:var(--text-muted)">${bookedBy}</td>
+            <td style="font-size:0.85em;color:var(--text-muted)">${esc(b.username || 'Unbekannt')}</td>
+            <td style="font-size:0.85em;color:var(--text-muted)">${b.status === 'bestaetigt' && b.status_changed_by_name ? esc(b.status_changed_by_name) : '—'}</td>
             ${canManage ? `<td>
               <button class="btn btn--outline btn--sm btn-edit-booking" data-id="${b.id}">Bearbeiten</button>
               <button class="btn btn--danger btn--sm btn-delete-booking" data-id="${b.id}">Löschen</button>
