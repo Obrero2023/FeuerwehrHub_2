@@ -22,6 +22,8 @@ const MODULE_LABELS = {
   'einsatzberichte.approve': 'Einsatzberichte (Genehmigen)',
   verein:                    'Vereinsverwaltung',
   intranet:                  'Intranet',
+  fahrzeugbuchung:           'Fahrzeugbuchung (Lesen)',
+  'fahrzeugbuchung.verwalten': 'Fahrzeugbuchung (Verwalten)',
 };
 
 export async function renderAdmin() {
@@ -1247,6 +1249,7 @@ const MODULE_DEFS = [
   { key: 'verein',          iconName: 'building',        label: 'Verein',          desc: 'Vorstandsverwaltung, Schwarzes Brett, Dokumentenablage, Briefkopf' },
   { key: 'fahrzeuge',       iconName: 'wrench',          label: 'Technik &amp; Geräte', desc: 'Fahrzeuge, Geräte, Fristen, Prüfungen, Checklisten' },
   { key: 'fahrzeugpruefung',iconName: 'check-square',    label: 'Fahrzeugprüfung', desc: 'Prüfungen, Geräte, Protokolle pro Fahrzeug' },
+  { key: 'fahrzeugbuchung', iconName: 'calendar',        label: 'Fahrzeugbuchung', desc: 'Fahrzeuge buchen und verwalten' },
   { key: 'jugendfeuerwehr', iconName: 'users',           label: 'Jugendfeuerwehr', desc: 'JF-Mitglieder, Termine, Wettbewerbe',                  soon: true },
   { key: 'intranet',        iconName: 'globe',           label: 'Intranet',        desc: 'Links und Dokumente für alle' },
 ];
