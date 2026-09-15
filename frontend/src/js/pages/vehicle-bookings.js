@@ -14,6 +14,7 @@ export async function renderVehicleBookings() {
     || (user?.permissions || []).includes('fahrzeugbuchung');
   const canManage = user?.role === 'admin' || user?.role === 'superuser'
     || (user?.permissions || []).includes('fahrzeugbuchung.verwalten');
+  const userId = user?.id;
 
   content.innerHTML = `
     <div class="page-header">
@@ -57,12 +58,14 @@ export async function renderVehicleBookings() {
     grid.innerHTML = `<table class="data-table">
       <thead><tr>
         <th>Fahrzeug</th><th>Datum</th><th>Von</th><th>Bis</th><th>Grund</th><th style="color:var(--text-color)">Status</th><th>Buchungs-ID</th><th>Gebucht von</th><th>Status gesetzt von</th>
-        ${canManage ? '<th>Aktionen</th>' : ''}
+        ${canManage || userId ? '<th>Aktionen</th>' : ''}
       </tr></thead>
       <tbody>
         ${bookings.map(b => {
           const statusColor = statusColors[b.status] || '#6c757d';
           const bookedBy = b.username || 'Unbekannt';
+          const isOwner = userId && b.user_id === userId;
+          const canDelete = canManage || isOwner;
           return `
           <tr data-id="${b.id}" style="--status-color: ${statusColor}">
             <td>${esc(b.vehicle_name || 'Fahrzeug ' + b.vehicle_id)}</td>
@@ -74,7 +77,7 @@ export async function renderVehicleBookings() {
             <td>${b.id}</td>
             <td style="font-size:0.85em;color:var(--text-muted)">${esc(b.username || 'Unbekannt')}</td>
             <td style="font-size:0.85em;color:var(--text-muted)">${b.status_changed_by_name ? esc(b.status_changed_by_name) : '—'}</td>
-            ${canManage ? `<td>
+            ${canDelete ? `<td>
               <button class="btn btn--outline btn--sm btn-edit-booking" data-id="${b.id}">Bearbeiten</button>
               <button class="btn btn--danger btn--sm btn-delete-booking" data-id="${b.id}">Löschen</button>
             </td>` : ''}

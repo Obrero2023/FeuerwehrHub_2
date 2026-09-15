@@ -206,6 +206,22 @@ pub async fn update_booking(
         }
     }
 
+    // Prüfen ob der User die Buchung besitzt (oder Admin ist)
+    let is_admin = claims.is_admin_or_above();
+
+    if !is_admin {
+        let owner_id: Option<Uuid> = sqlx::query_scalar(
+            "SELECT user_id FROM vehicle_bookings WHERE id = $1"
+        )
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?;
+
+        if owner_id != Some(claims.sub) {
+            return Err(AppError::Forbidden);
+        }
+    }
+
     // Status-Änderung protokollieren
     let status_changed_by = body.status.as_ref().map(|s| claims.sub);
     let status_changed_at = chrono::Utc::now();
@@ -232,13 +248,24 @@ pub async fn update_booking(
 
 pub async fn delete_booking(
     State(state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> AppResult<Json<serde_json::Value>> {
-    let result = sqlx::query("DELETE FROM vehicle_bookings WHERE id = $1")
-        .bind(id)
-        .execute(&state.db)
-        .await?;
+    // Admins/superusers can delete any booking
+    let is_admin = claims.is_admin_or_above();
+
+    let result = if is_admin {
+        sqlx::query("DELETE FROM vehicle_bookings WHERE id = $1")
+            .bind(id)
+            .execute(&state.db)
+            .await?
+    } else {
+        sqlx::query("DELETE FROM vehicle_bookings WHERE id = $1 AND user_id = $2")
+            .bind(id)
+            .bind(claims.sub)
+            .execute(&state.db)
+            .await?
+    };
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
