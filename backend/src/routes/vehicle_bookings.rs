@@ -237,8 +237,16 @@ pub async fn update_booking(
     if body.status.as_deref() == Some("bestaetigt") && body.force != Some(true) {
         // Aktuelle Buchungsdaten (falls sich was ändert) oder vorhandene Werte verwenden
         let cur = sqlx::query_as::<_, VehicleBooking>(
-            "SELECT b.id, b.vehicle_id, b.booking_date, b.time_from, b.time_to
-             FROM vehicle_bookings b WHERE b.id = $1"
+            "SELECT b.id, b.vehicle_id, v.name as vehicle_name, b.user_id,
+                    COALESCE(u.display_name, u.username) as username, b.booking_date, b.time_from, b.time_to,
+                    b.reason, b.status, b.created_at,
+                    b.status_changed_by, COALESCE(sc.display_name, sc.username) as status_changed_by_name,
+                    b.status_changed_at
+             FROM vehicle_bookings b
+             JOIN vehicles v ON v.id = b.vehicle_id
+             LEFT JOIN users u ON u.id = b.user_id
+             LEFT JOIN users sc ON sc.id = b.status_changed_by
+             WHERE b.id = $1"
         )
         .bind(id)
         .fetch_one(&state.db)
