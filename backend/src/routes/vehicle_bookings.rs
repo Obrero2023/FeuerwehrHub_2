@@ -221,7 +221,6 @@ pub async fn update_booking(
         .bind(claims.sub)
         .fetch_one(&state.db)
         .await?
-        .unwrap_or(false)
     };
 
     if !is_admin && !is_verwalten {
@@ -271,7 +270,6 @@ pub async fn delete_booking(
         .bind(claims.sub)
         .fetch_one(&state.db)
         .await?
-        .unwrap_or(false)
     };
 
     let result = if is_verwalten {
