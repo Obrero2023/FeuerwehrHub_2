@@ -312,7 +312,6 @@ export async function renderVehicleBookings() {
         }
       }
     });
-    });
   };
 
   // Event listeners
