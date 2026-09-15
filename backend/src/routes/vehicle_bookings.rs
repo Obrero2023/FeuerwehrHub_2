@@ -63,9 +63,9 @@ pub struct BookingQuery {
 async fn fetch_booking_by_id(db: &sqlx::PgPool, id: Uuid) -> AppResult<VehicleBooking> {
     sqlx::query_as::<_, VehicleBooking>(
         "SELECT b.id, b.vehicle_id, v.name as vehicle_name, b.user_id,
-                u.display_name as username, b.booking_date, b.time_from, b.time_to,
+                COALESCE(u.display_name, u.username) as username, b.booking_date, b.time_from, b.time_to,
                 b.reason, b.status, b.created_at,
-                b.status_changed_by, sc.display_name as status_changed_by_name,
+                b.status_changed_by, COALESCE(sc.display_name, sc.username) as status_changed_by_name,
                 b.status_changed_at
          FROM vehicle_bookings b
          JOIN vehicles v ON v.id = b.vehicle_id
@@ -87,9 +87,9 @@ pub async fn list_bookings(
 ) -> AppResult<Json<Vec<VehicleBooking>>> {
     let bookings = sqlx::query_as::<_, VehicleBooking>(
         "SELECT b.id, b.vehicle_id, v.name as vehicle_name, b.user_id,
-                u.display_name as username, b.booking_date, b.time_from, b.time_to,
+                COALESCE(u.display_name, u.username) as username, b.booking_date, b.time_from, b.time_to,
                 b.reason, b.status, b.created_at,
-                b.status_changed_by, sc.display_name as status_changed_by_name,
+                b.status_changed_by, COALESCE(sc.display_name, sc.username) as status_changed_by_name,
                 b.status_changed_at
          FROM vehicle_bookings b
          JOIN vehicles v ON v.id = b.vehicle_id
@@ -172,7 +172,7 @@ pub async fn create_booking(
             RETURNING id, vehicle_id, user_id, booking_date, time_from, time_to, reason, created_at
         )
         SELECT i.id, i.vehicle_id, v.name as vehicle_name, i.user_id,
-               u.display_name as username, i.booking_date, i.time_from, i.time_to,
+               COALESCE(u.display_name, u.username) as username, i.booking_date, i.time_from, i.time_to,
                i.reason, 'buchung' as status, i.created_at,
                NULL::uuid as status_changed_by,
                NULL::text as status_changed_by_name,
@@ -315,9 +315,9 @@ pub async fn check_overlap(
 ) -> AppResult<Json<OverlapCheckResponse>> {
     let existing = sqlx::query_as::<_, VehicleBooking>(
         "SELECT b.id, b.vehicle_id, v.name as vehicle_name, b.user_id,
-                u.display_name as username, b.booking_date, b.time_from, b.time_to,
+                COALESCE(u.display_name, u.username) as username, b.booking_date, b.time_from, b.time_to,
                 b.reason, b.status, b.created_at,
-                b.status_changed_by, sc.display_name as status_changed_by_name,
+                b.status_changed_by, COALESCE(sc.display_name, sc.username) as status_changed_by_name,
                 b.status_changed_at
          FROM vehicle_bookings b
          JOIN vehicles v ON v.id = b.vehicle_id
