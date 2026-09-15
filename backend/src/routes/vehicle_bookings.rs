@@ -206,20 +206,26 @@ pub async fn update_booking(
         }
     }
 
-    // Prüfen ob der User die Buchung besitzt (oder Admin ist)
+    // Nur Fahrzeugbuchung-Verwalter oder Admins dürfen Buchungen bearbeiten
     let is_admin = claims.is_admin_or_above();
-
-    if !is_admin {
-        let owner_id: Option<Uuid> = sqlx::query_scalar(
-            "SELECT user_id FROM vehicle_bookings WHERE id = $1"
+    let is_verwalten = if is_admin {
+        true
+    } else {
+        sqlx::query_scalar::<_, bool>(
+            "SELECT $1 = ANY(
+                SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
+                FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
+             )"
         )
-        .bind(id)
-        .fetch_optional(&state.db)
-        .await?;
+        .bind("fahrzeugbuchung.verwalten")
+        .bind(claims.sub)
+        .fetch_one(&state.db)
+        .await?
+        .unwrap_or(false)
+    };
 
-        if owner_id != Some(claims.sub) {
-            return Err(AppError::Forbidden);
-        }
+    if !is_admin && !is_verwalten {
+        return Err(AppError::Forbidden);
     }
 
     // Status-Änderung protokollieren
@@ -251,10 +257,24 @@ pub async fn delete_booking(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> AppResult<Json<serde_json::Value>> {
-    // Admins/superusers can delete any booking
     let is_admin = claims.is_admin_or_above();
 
-    let result = if is_admin {
+    // Prüfen ob der User "fahrzeugbuchung.verwalten" hat (oder Admin ist)
+    let is_verwalten = is_admin || {
+        sqlx::query_scalar::<_, bool>(
+            "SELECT $1 = ANY(
+                SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
+                FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
+             )"
+        )
+        .bind("fahrzeugbuchung.verwalten")
+        .bind(claims.sub)
+        .fetch_one(&state.db)
+        .await?
+        .unwrap_or(false)
+    };
+
+    let result = if is_verwalten {
         sqlx::query("DELETE FROM vehicle_bookings WHERE id = $1")
             .bind(id)
             .execute(&state.db)

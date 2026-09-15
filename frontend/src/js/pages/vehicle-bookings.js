@@ -10,8 +10,10 @@ export async function renderVehicleBookings() {
   renderShell('fahrzeugbuchung');
 
   const content = document.getElementById('page-content');
+  // canBook: Buchungen erstellen (Fahrzeugbuchung + Verwalten)
   const canBook = user?.role === 'admin' || user?.role === 'superuser'
     || (user?.permissions || []).includes('fahrzeugbuchung');
+  // canManage: Buchungen bearbeiten/löschen + Status ändern (Verwalten)
   const canManage = user?.role === 'admin' || user?.role === 'superuser'
     || (user?.permissions || []).includes('fahrzeugbuchung.verwalten');
   const userId = user?.id;
@@ -63,7 +65,6 @@ export async function renderVehicleBookings() {
       <tbody>
         ${bookings.map(b => {
           const statusColor = statusColors[b.status] || '#6c757d';
-          const bookedBy = b.username || 'Unbekannt';
           const isOwner = userId && b.user_id === userId;
           const canDelete = canManage || isOwner;
           return `
@@ -78,7 +79,12 @@ export async function renderVehicleBookings() {
             <td style="font-size:0.85em;color:var(--text-muted)">${esc(b.username || 'Unbekannt')}</td>
             <td style="font-size:0.85em;color:var(--text-muted)">${b.status_changed_by_name ? esc(b.status_changed_by_name) : '—'}</td>
             ${canDelete ? `<td>
-              <button class="btn btn--outline btn--sm btn-edit-booking" data-id="${b.id}">Bearbeiten</button>
+              ${canManage ? `<button class="btn btn--outline btn--sm btn-edit-booking" data-id="${b.id}">Bearbeiten</button>` : ''}
+              ${canManage ? `<select class="field field--sm status-select" data-id="${b.id}" title="Status ändern">
+                  <option value="buchung" ${b.status === 'buchung' ? 'selected' : ''}>Buchung</option>
+                  <option value="bestaetigt" ${b.status === 'bestaetigt' ? 'selected' : ''}>Bestätigt</option>
+                  <option value="abgesagt" ${b.status === 'abgesagt' ? 'selected' : ''}>Abgesagt</option>
+                </select>` : ''}
               <button class="btn btn--danger btn--sm btn-delete-booking" data-id="${b.id}">Löschen</button>
             </td>` : ''}
           </tr>
@@ -94,6 +100,20 @@ export async function renderVehicleBookings() {
         try {
           await api.deleteVehicleBooking(btn.dataset.id);
           toast('Buchung gelöscht');
+          await loadBookings();
+        } catch(e) { toast(e.message, 'error'); }
+      });
+    });
+
+    // Status-Änderungs-Buttons für Verwalter
+    grid.querySelectorAll('.status-select').forEach(select => {
+      select.addEventListener('change', async (e) => {
+        const bookingId = e.target.dataset.id;
+        const newStatus = e.target.value;
+        if (!newStatus) return;
+        try {
+          await api.updateVehicleBooking(bookingId, { reason: null, status: newStatus });
+          toast('Status aktualisiert');
           await loadBookings();
         } catch(e) { toast(e.message, 'error'); }
       });
@@ -180,16 +200,17 @@ export async function renderVehicleBookings() {
             <textarea id="bk-reason" rows="3" maxlength="2000">${esc(booking.reason)}</textarea>
           </div>
           <div class="form-group">
+            ${canManage ? `
             <label>Status</label>
             <select id="bk-status">
               <option value="buchung" ${booking.status === 'buchung' ? 'selected' : ''}>Buchung</option>
               <option value="bestaetigt" ${booking.status === 'bestaetigt' ? 'selected' : ''}>Bestätigt</option>
               <option value="abgesagt" ${booking.status === 'abgesagt' ? 'selected' : ''}>Abgesagt</option>
-            </select>
+            </select>` : ''}
           </div>
           <div class="form-group" style="font-size:0.9em;color:var(--text-muted);margin-top:12px">
-            <div>Gebucht von: <strong>${b.username || 'Unbekannt'}</strong></div>
-            ${b.status_changed_by_name ? `<div>Status zuletzt geändert von: <strong>${b.status_changed_by_name}</strong> am ${formatDate(new Date(b.status_changed_at))}</div>` : ''}
+            <div>Gebucht von: <strong>${booking.username || 'Unbekannt'}</strong></div>
+            ${booking.status_changed_by_name ? `<div>Status zuletzt geändert von: <strong>${booking.status_changed_by_name}</strong> am ${formatDate(new Date(booking.status_changed_at))}</div>` : ''}
           </div>
           <div class="btn-group mt-md">
             <button class="btn btn--primary" id="btn-save-booking">Aktualisieren</button>
