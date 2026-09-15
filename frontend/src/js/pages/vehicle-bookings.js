@@ -111,11 +111,25 @@ export async function renderVehicleBookings() {
         const bookingId = e.target.dataset.id;
         const newStatus = e.target.value;
         if (!newStatus) return;
+
         try {
           await api.updateVehicleBooking(bookingId, { reason: null, status: newStatus });
           toast('Status aktualisiert');
           await loadBookings();
-        } catch(e) { toast(e.message, 'error'); }
+        } catch(e) {
+          const isConflict = e.message.includes('Es gibt bereits eine bestätigte Buchung');
+          if (isConflict && confirm(`${e.message}\n\nTrotzdem bestätigen?`)) {
+            try {
+              await api.updateVehicleBooking(bookingId, { reason: null, status: newStatus, force: true });
+              toast('Status aktualisiert');
+              await loadBookings();
+            } catch(e2) { toast(e2.message, 'error'); }
+          } else {
+            toast(e.message, 'error');
+            // Reset select to current value
+            await loadBookings();
+          }
+        }
       });
     });
 
@@ -280,7 +294,24 @@ export async function renderVehicleBookings() {
         }
         document.getElementById('booking-create-form').style.display = 'none';
         await loadBookings();
-      } catch(e) { toast(e.message, 'error'); }
+      } catch(e) {
+        const isConflict = e.message.includes('Es gibt bereits eine bestätigte Buchung');
+        if (isConflict && confirm(`${e.message}\n\nTrotzdem bestätigen?`)) {
+          try {
+            const finalDataForce = { ...finalData, force: true };
+            if (mode === 'create') {
+              await api.createVehicleBooking(finalDataForce);
+            } else {
+              await api.updateVehicleBooking(id, finalDataForce);
+            }
+            toast('Status bestätigt');
+            await loadBookings();
+          } catch(e2) { toast(e2.message, 'error'); }
+        } else {
+          toast(e.message, 'error');
+        }
+      }
+    });
     });
   };
 

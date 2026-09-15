@@ -46,8 +46,13 @@ pub struct VehicleBookingBody {
 
 #[derive(Deserialize)]
 pub struct UpdateBookingBody {
+    pub vehicle_id:      Option<Uuid>,
+    pub booking_date:    Option<NaiveDate>,
+    pub time_from:       Option<NaiveTime>,
+    pub time_to:         Option<NaiveTime>,
     pub reason:          Option<String>,
     pub status:          Option<String>,
+    pub force:           Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -225,6 +230,50 @@ pub async fn update_booking(
 
     if !is_admin && !is_verwalten {
         return Err(AppError::Forbidden);
+    }
+
+    // Wenn Status auf "bestaetigt" gesetzt wird, prüfen ob es in der gleichen
+    // Zeitspanne schon eine bestätigte Buchung gibt (für den Bestätigungsdialog)
+    if body.status.as_deref() == Some("bestaetigt") && body.force != Some(true) {
+        // Aktuelle Buchungsdaten (falls sich was ändert) oder vorhandene Werte verwenden
+        let cur = sqlx::query_as::<_, VehicleBooking>(
+            "SELECT b.id, b.vehicle_id, b.booking_date, b.time_from, b.time_to
+             FROM vehicle_bookings b WHERE b.id = $1"
+        )
+        .bind(id)
+        .fetch_one(&state.db)
+        .await?;
+
+        let check_vehicle_id = body.vehicle_id.unwrap_or(cur.vehicle_id);
+        let check_date       = body.booking_date.unwrap_or(cur.booking_date);
+        let check_from       = body.time_from.unwrap_or(cur.time_from);
+        let check_to         = body.time_to.unwrap_or(cur.time_to);
+
+        let existing: Option<(Uuid, String)> = sqlx::query_as(
+            "SELECT b.id, COALESCE(u.display_name, u.username) as name
+             FROM vehicle_bookings b
+             LEFT JOIN users u ON u.id = b.user_id
+             WHERE b.vehicle_id = $1
+               AND b.booking_date = $2
+               AND b.status = 'bestaetigt'
+               AND b.time_from < $3
+               AND b.time_to > $4
+               AND b.id <> $5"
+        )
+        .bind(check_vehicle_id)
+        .bind(check_date)
+        .bind(check_to)
+        .bind(check_from)
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?;
+
+        if let Some((existing_id, name)) = existing {
+            return Err(AppError::Conflict(format!(
+                "Es gibt bereits eine bestätigte Buchung (ID: {}, Bucher: {}) in diesem Zeitraum.",
+                existing_id, name
+            )));
+        }
     }
 
     // Status-Änderung protokollieren
