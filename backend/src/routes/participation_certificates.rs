@@ -90,25 +90,7 @@ async fn generate_certificate_pdf(
     db: &sqlx::PgPool,
     certificate: &ParticipationCertificate,
 ) -> AppResult<Vec<u8>> {
-    let signature_data = certificate.signed_by
-        .map(|signed_by| {
-            sqlx::query_scalar::<_, Option<String>>(
-                "SELECT signature FROM users WHERE id = $1"
-            )
-            .bind(signed_by)
-            .fetch_one(db)
-        })
-        .transpose()
-        .await?
-        .flatten();
-
-    let signature_bytes = signature_data
-        .and_then(|data| {
-            data.strip_prefix("data:")
-                .and_then(|rest| rest.split_once(";base64,"))
-                .and_then(|(_, encoded)| base64::decode(encoded).ok())
-        });
-
+    // Get ff_name
     let ff_name: Option<String> = sqlx::query_scalar(
         "SELECT value FROM settings WHERE key = 'ff_name'"
     )
@@ -134,28 +116,17 @@ async fn generate_certificate_pdf(
             "Einheitsführer/in",
             certificate.unit_leader_name.clone().unwrap_or_else(|| "—".to_string()),
         )
-        .spacer(6.0);
-
-    if let Some(bytes) = signature_bytes {
-        builder = builder.signature_image(bytes, 45.0, 20.0);
-        builder = builder.key_value(
-            "Unterschrift",
-            certificate.signed_by_name.clone().unwrap_or_default(),
-        );
-    } else {
-        builder = builder.key_value(
+        .spacer(6.0)
+        .key_value(
             "Unterschrift",
             certificate.signed_by_name.clone().unwrap_or_else(|| "—".to_string()),
-        );
-    }
-
-    builder
+        )
         .spacer(4.0)
         .text_block(
             "Diese Bescheinigung wurde digital erstellt und ist ohne Unterschrift nicht gültig."
         )
         .build(&crate::pdf::load_font_bytes())
-        .map_err(|e| AppError::Internal(e.into()))
+        .map_err(|e| AppError::Internal(anyhow::anyhow!(e)))
 }
 
 // ── Routes ───────────────────────────────────────────────────────
