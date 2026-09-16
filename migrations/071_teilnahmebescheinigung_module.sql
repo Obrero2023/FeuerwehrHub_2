@@ -22,11 +22,15 @@ CREATE INDEX idx_participation_certificates_unit_leader ON participation_certifi
 -- Three new roles for Teilnahmebescheinigung-Feuerwehreinsatz
 -- Rolle 1: Admin (volle Rechte: Template hochladen, alle Aktionen)
 INSERT INTO roles (name, permissions, type, level) VALUES
-    ('Teilnahmebescheinigung-Feuerwehreinsatz (Admin)',           ARRAY['teilnahmebescheinigung.admin'],              'dienstgrad',  NULL),
+    ('Teilnahmebescheinigung-Feuerwehreinsatz (Admin)', ARRAY['teilnahmebescheinigung.admin'], 'dienstgrad', NULL)
+ON CONFLICT (name) DO NOTHING;
+
 -- Rolle 2: Schreiben (berechtigt zum Freigeben und Unterschreiben)
 INSERT INTO roles (name, permissions, type, level) VALUES
-    ('Teilnahmebescheinigung-Feuerwehreinsatz (Schreiben)',        ARRAY['teilnahmebescheinigung.schreiben'],         'funktion',    NULL),
+    ('Teilnahmebescheinigung-Feuerwehreinsatz (Schreiben)', ARRAY['teilnahmebescheinigung.schreiben'], 'funktion', NULL)
+ON CONFLICT (name) DO NOTHING;
+
 -- Rolle 3: Lesen (berechtigt, eigene Bescheinigungen zu erstellen)
 INSERT INTO roles (name, permissions, type, level) VALUES
-    ('Teilnahmebescheinigung-Feuerwehreinsatz (Lesen)',            ARRAY['teilnahmebescheinigung.lesen'],              'dienstgrad',  NULL)
+    ('Teilnahmebescheinigung-Feuerwehreinsatz (Lesen)', ARRAY['teilnahmebescheinigung.lesen'], 'dienstgrad', NULL)
 ON CONFLICT (name) DO NOTHING;
