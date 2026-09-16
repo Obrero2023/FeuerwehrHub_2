@@ -1,5 +1,6 @@
 use printpdf::{path::{PaintMode, WindingOrder}, *};
 use std::io::BufWriter;
+use image::load_from_memory;
 
 // A4 in mm (f32 — printpdf Mm wrapper uses f32)
 const PAGE_W: f32 = 210.0;
@@ -184,9 +185,15 @@ impl<'a> PageRenderer<'a> {
     fn draw_image(&mut self, data: &[u8], width: f32, height: f32) {
         self.ensure_space(height + 4.0);
 
-        if let Ok(image) = ImageXObject::from_png(data) {
+        if let Ok(decoded) = load_from_memory(data) {
+            let dyn_img = decoded.to_rgba8();
+            let img = printpdf::Image::from_rgba8(
+                &dyn_img,
+                dyn_img.width(),
+                dyn_img.height(),
+            );
             self.layer().add_image(
-                &image,
+                &img,
                 Mm(MARGIN_L),
                 Mm(self.y - height),
                 Mm(width),
