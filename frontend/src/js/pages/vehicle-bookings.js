@@ -10,10 +10,13 @@ export async function renderVehicleBookings() {
   renderShell('fahrzeugbuchung');
 
   const content = document.getElementById('page-content');
+  // canBook: Buchungen erstellen (Fahrzeugbuchung + Verwalten)
   const canBook = user?.role === 'admin' || user?.role === 'superuser'
     || (user?.permissions || []).includes('fahrzeugbuchung');
+  // canManage: Buchungen bearbeiten/löschen + Status ändern (Verwalten)
   const canManage = user?.role === 'admin' || user?.role === 'superuser'
     || (user?.permissions || []).includes('fahrzeugbuchung.verwalten');
+  const userId = user?.id;
 
   content.innerHTML = `
     <div class="page-header">
@@ -47,27 +50,45 @@ export async function renderVehicleBookings() {
     if (loading) { grid.innerHTML = '<div class="empty-state">Lade Buchungen...</div>'; return; }
     if (!bookings.length) { grid.innerHTML = '<div class="empty-state">Keine Buchungen vorhanden.</div>'; return; }
 
+    // Status-Farben für die Liste
+    const statusColors = {
+      'buchung':      '#f5c542',   // gelb
+      'bestaetigt':   '#48bb78',   // grün
+      'abgesagt':     '#e53e3e',   // rot
+    };
+
     grid.innerHTML = `<table class="data-table">
       <thead><tr>
-        <th>Fahrzeug</th><th>Datum</th><th>Von</th><th>Bis</th><th>Grund</th><th>Status</th><th>Buchungs-ID</th>
-        ${canManage ? '<th>Aktionen</th>' : ''}
+        <th>Fahrzeug</th><th>Datum</th><th>Von</th><th>Bis</th><th>Grund</th><th style="color:var(--text-color)">Status</th><th>Buchungs-ID</th><th>Gebucht von</th><th>Status gesetzt von</th>
+        ${canManage || userId ? '<th>Aktionen</th>' : ''}
       </tr></thead>
       <tbody>
-        ${bookings.map(b => `
-          <tr data-id="${b.id}">
+        ${bookings.map(b => {
+          const statusColor = statusColors[b.status] || '#6c757d';
+          const isOwner = userId && b.user_id === userId;
+          const canDelete = canManage || isOwner;
+          return `
+          <tr data-id="${b.id}" style="--status-color: ${statusColor}">
             <td>${esc(b.vehicle_name || 'Fahrzeug ' + b.vehicle_id)}</td>
             <td>${formatDate(b.booking_date)}</td>
             <td>${b.time_from}</td>
             <td>${b.time_to}</td>
             <td>${esc(b.reason)}</td>
-            <td>${b.status}</td>
+            <td style="color:var(--status-color)">${b.status}</td>
             <td>${b.id}</td>
-            ${canManage ? `<td>
-              <button class="btn btn--outline btn--sm btn-edit-booking" data-id="${b.id}">Bearbeiten</button>
+            <td style="font-size:0.85em;color:var(--text-muted)">${esc(b.username || 'Unbekannt')}</td>
+            <td style="font-size:0.85em;color:var(--text-muted)">${b.status_changed_by_name ? esc(b.status_changed_by_name) : '—'}</td>
+            ${canDelete ? `<td>
+              ${canManage ? `<button class="btn btn--outline btn--sm btn-edit-booking" data-id="${b.id}">Bearbeiten</button>` : ''}
+              ${canManage ? `<select class="field field--sm status-select" data-id="${b.id}" title="Status ändern">
+                  <option value="buchung" ${b.status === 'buchung' ? 'selected' : ''}>Buchung</option>
+                  <option value="bestaetigt" ${b.status === 'bestaetigt' ? 'selected' : ''}>Bestätigt</option>
+                  <option value="abgesagt" ${b.status === 'abgesagt' ? 'selected' : ''}>Abgesagt</option>
+                </select>` : ''}
               <button class="btn btn--danger btn--sm btn-delete-booking" data-id="${b.id}">Löschen</button>
             </td>` : ''}
           </tr>
-        `).join('')}
+        `;}).join('')}
       </tbody>
     </table>`;
     renderIcons(grid);
@@ -81,6 +102,34 @@ export async function renderVehicleBookings() {
           toast('Buchung gelöscht');
           await loadBookings();
         } catch(e) { toast(e.message, 'error'); }
+      });
+    });
+
+    // Status-Änderungs-Buttons für Verwalter
+    grid.querySelectorAll('.status-select').forEach(select => {
+      select.addEventListener('change', async (e) => {
+        const bookingId = e.target.dataset.id;
+        const newStatus = e.target.value;
+        if (!newStatus) return;
+
+        try {
+          await api.updateVehicleBooking(bookingId, { reason: null, status: newStatus });
+          toast('Status aktualisiert');
+          await loadBookings();
+        } catch(e) {
+          const isConflict = e.message.includes('Es gibt bereits eine bestätigte Buchung');
+          if (isConflict && confirm(`${e.message}\n\nTrotzdem bestätigen?`)) {
+            try {
+              await api.updateVehicleBooking(bookingId, { reason: null, status: newStatus, force: true });
+              toast('Status aktualisiert');
+              await loadBookings();
+            } catch(e2) { toast(e2.message, 'error'); }
+          } else {
+            toast(e.message, 'error');
+            // Reset select to current value
+            await loadBookings();
+          }
+        }
       });
     });
 
@@ -119,6 +168,9 @@ export async function renderVehicleBookings() {
           <div class="form-group">
             <label>Grund <span class="required">*</span></label>
             <textarea id="bk-reason" rows="3" maxlength="2000" placeholder="Warum wird das Fahrzeug benötigt?"></textarea>
+          </div>
+          <div class="form-group" style="font-size:0.9em;color:var(--text-muted);margin-top:12px">
+            <div>Wird gebucht von: <strong>${user?.username || 'Sie'}</strong></div>
           </div>
           <div class="btn-group mt-md">
             <button class="btn btn--primary" id="btn-save-booking">Speichern</button>
@@ -162,12 +214,17 @@ export async function renderVehicleBookings() {
             <textarea id="bk-reason" rows="3" maxlength="2000">${esc(booking.reason)}</textarea>
           </div>
           <div class="form-group">
+            ${canManage ? `
             <label>Status</label>
             <select id="bk-status">
               <option value="buchung" ${booking.status === 'buchung' ? 'selected' : ''}>Buchung</option>
               <option value="bestaetigt" ${booking.status === 'bestaetigt' ? 'selected' : ''}>Bestätigt</option>
               <option value="abgesagt" ${booking.status === 'abgesagt' ? 'selected' : ''}>Abgesagt</option>
-            </select>
+            </select>` : ''}
+          </div>
+          <div class="form-group" style="font-size:0.9em;color:var(--text-muted);margin-top:12px">
+            <div>Gebucht von: <strong>${booking.username || 'Unbekannt'}</strong></div>
+            ${booking.status_changed_by_name ? `<div>Status zuletzt geändert von: <strong>${booking.status_changed_by_name}</strong> am ${formatDate(new Date(booking.status_changed_at))}</div>` : ''}
           </div>
           <div class="btn-group mt-md">
             <button class="btn btn--primary" id="btn-save-booking">Aktualisieren</button>
@@ -205,17 +262,55 @@ export async function renderVehicleBookings() {
         reason,
       };
 
+      // Überlappung prüfen
+      try {
+        const overlapResult = await api.checkOverlap({
+          vehicle_id: vehicleId,
+          booking_date: date,
+          time_from: timeFrom,
+          time_to: timeTo
+        });
+
+        if (overlapResult && overlapResult.hasOverlap) {
+          const message = `Dieses Fahrzeug ist bereits gebucht von ${formatDateTime(new Date(overlapResult.existingBooking.time_from))} bis ${formatDateTime(new Date(overlapResult.existingBooking.time_to))} am ${formatDate(new Date(overlapResult.existingBooking.booking_date))}.`;
+          if (!confirm(`${message}\n\nTrotzdem speichern?`)) {
+            return;
+          }
+        }
+      } catch(e) {
+        // Wenn der Endpunkt noch nicht existiert, einfach fortfahren
+        console.warn('Overlap-Check nicht verfügbar:', e.message);
+      }
+
+      const finalData = mode === 'create' ? bookingData : { ...bookingData, status };
+
       try {
         if (mode === 'create') {
-          await api.createVehicleBooking(bookingData);
+          await api.createVehicleBooking(finalData);
           toast('Buchung erstellt');
         } else {
-          await api.updateVehicleBooking(id, { ...bookingData, status });
+          await api.updateVehicleBooking(id, finalData);
           toast('Buchung aktualisiert');
         }
         document.getElementById('booking-create-form').style.display = 'none';
         await loadBookings();
-      } catch(e) { toast(e.message, 'error'); }
+      } catch(e) {
+        const isConflict = e.message.includes('Es gibt bereits eine bestätigte Buchung');
+        if (isConflict && confirm(`${e.message}\n\nTrotzdem bestätigen?`)) {
+          try {
+            const finalDataForce = { ...finalData, force: true };
+            if (mode === 'create') {
+              await api.createVehicleBooking(finalDataForce);
+            } else {
+              await api.updateVehicleBooking(id, finalDataForce);
+            }
+            toast('Status bestätigt');
+            await loadBookings();
+          } catch(e2) { toast(e2.message, 'error'); }
+        } else {
+          toast(e.message, 'error');
+        }
+      }
     });
   };
 
