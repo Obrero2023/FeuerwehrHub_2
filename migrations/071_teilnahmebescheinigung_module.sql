@@ -15,9 +15,9 @@ CREATE TABLE IF NOT EXISTS participation_certificates (
 );
 
 -- Indexes for common queries
-CREATE INDEX idx_participation_certificates_user_id ON participation_certificates(user_id);
-CREATE INDEX idx_participation_certificates_status ON participation_certificates(status);
-CREATE INDEX idx_participation_certificates_unit_leader ON participation_certificates(unit_leader_id);
+CREATE INDEX IF NOT EXISTS idx_participation_certificates_user_id ON participation_certificates(user_id);
+CREATE INDEX IF NOT EXISTS idx_participation_certificates_status ON participation_certificates(status);
+CREATE INDEX IF NOT EXISTS idx_participation_certificates_unit_leader ON participation_certificates(unit_leader_id);
 
 -- Three new roles for Teilnahmebescheinigung-Feuerwehreinsatz
 -- Rolle 1: Admin (volle Rechte: Template hochladen, alle Aktionen)
