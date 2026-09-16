@@ -290,13 +290,21 @@ pub async fn update_booking(
 
     sqlx::query(
         "UPDATE vehicle_bookings
-         SET reason = COALESCE($1, reason),
-             status = COALESCE($2, status),
-             status_changed_by = COALESCE($3, status_changed_by),
-             status_changed_at = COALESCE($4, status_changed_at),
+         SET vehicle_id = COALESCE($1, vehicle_id),
+             booking_date = COALESCE($2, booking_date),
+             time_from = COALESCE($3, time_from),
+             time_to = COALESCE($4, time_to),
+             reason = COALESCE($5, reason),
+             status = COALESCE($6, status),
+             status_changed_by = COALESCE($7, status_changed_by),
+             status_changed_at = COALESCE($8, status_changed_at),
              updated_at = NOW()
-         WHERE id = $5"
+         WHERE id = $9"
     )
+    .bind(body.vehicle_id)
+    .bind(body.booking_date)
+    .bind(body.time_from)
+    .bind(body.time_to)
     .bind(&body.reason)
     .bind(&body.status)
     .bind(&status_changed_by)
