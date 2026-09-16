@@ -16,7 +16,8 @@ export async function renderTeilnahmebescheinigung() {
     || (user?.permissions || []).includes('teilnahmebescheinigung');
   const canSchreiben = user?.role === 'admin' || user?.role === 'superuser'
     || (user?.permissions || []).includes('teilnahmebescheinigung.schreiben');
-  const canAdmin = user?.role === 'admin' || user?.role === 'superuser';
+  const canAdmin = user?.role === 'admin' || user?.role === 'superuser'
+    || (user?.permissions || []).includes('teilnahmebescheinigung.admin');
 
   if (!canRead && !canSchreiben && !canAdmin) {
     content.innerHTML = `
@@ -31,7 +32,6 @@ export async function renderTeilnahmebescheinigung() {
   content.innerHTML = `
     <div class="page-header">
       <div><h2>Teilnahmebescheinigung Feuerwehreinsatz</h2><p>Bescheinigung für Teilnahme an einem Einsatz erstellen</p></div>
-      ${canRead ? '<button class="btn btn--primary" id="btn-new-tc">+ Neue Bescheinigung</button>' : ''}
     </div>
     <div id="tc-create-form" style="display:none"></div>
     <div id="tc-list-wrap"></div>
@@ -104,7 +104,7 @@ export async function renderTeilnahmebescheinigung() {
             <td>${esc(c.unit_leader_name || '—')}</td>
             <td style="color:${statusColor};font-weight:600">${statusLabels[c.status] || c.status}</td>
             <td style="font-size:0.85em;color:var(--text-muted)">${formatDate(c.created_at)}</td>
-            ${canSchreiben || canAdmin ? `<td>
+            ${(canSchreiben || canAdmin || (canRead && c.status === 'signed' && String(c.user_id) === String(userId))) ? `<td>
               ${c.status === 'pending' ? `
                 <select class="field field--sm status-select" data-id="${c.id}">
                   <option value="">— Aktion —</option>

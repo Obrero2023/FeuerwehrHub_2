@@ -1,5 +1,5 @@
 use printpdf::{path::{PaintMode, WindingOrder}, *};
-use std::io::{BufWriter, Cursor};
+use std::io::BufWriter;
 
 // A4 in mm (f32 — printpdf Mm wrapper uses f32)
 const PAGE_W: f32 = 210.0;

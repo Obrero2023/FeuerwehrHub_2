@@ -214,10 +214,10 @@ pub async fn get_certificate_pdf(
     );
     headers.insert(
         axum::http::header::CONTENT_DISPOSITION,
-        axum::http::HeaderValue::from_static(&format!(
+        axum::http::HeaderValue::from_str(&format!(
             "attachment; filename=\"teilnahmebescheinigung-{}.pdf\"",
             id.hyphenated()
-        )),
+        )).map_err(|_| AppError::Internal("Invalid header".into()))?,
     );
 
     Ok((headers, pdf))
