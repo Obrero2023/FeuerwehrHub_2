@@ -26,6 +26,7 @@ import { renderDatenschutz } from './pages/datenschutz.js';
 import { renderDienstReports } from './pages/dienst-reports.js';
 import { renderIntranet } from './pages/intranet.js';
 import { renderVehicleBookings } from './pages/vehicle-bookings.js';
+import { renderTeilnahmebescheinigung } from './pages/teilnahmebescheinigung.js';
 
 // Routen registrieren
 registerRoute('#/login',     renderLogin);
@@ -53,6 +54,7 @@ registerRoute('#/clock',         renderClock);
 registerRoute('#/datenschutz',     renderDatenschutz);
 registerRoute('#/dienstberichte', renderDienstReports);
 registerRoute('#/intranet', renderIntranet);
+registerRoute('#/teilnahmebescheinigung', renderTeilnahmebescheinigung, ['teilnahmebescheinigung.lesen', 'teilnahmebescheinigung.schreiben']);
 registerRoute('#/fahrzeugbuchung', renderVehicleBookings, 'fahrzeugbuchung');
 
 // Scan-Route (dynamisch, tokenbasiert)

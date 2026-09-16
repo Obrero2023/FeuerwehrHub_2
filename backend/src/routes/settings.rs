@@ -28,6 +28,7 @@ pub const KNOWN_MODULES: &[&str] = &[
     "verein",
     "intranet",
     "fahrzeugbuchung",
+    "teilnahmebescheinigung",
 ];
 
 #[derive(Serialize)]

@@ -354,6 +354,27 @@ export const api = {
 
   checkOverlap: (params) => request("POST", "/vehicle-bookings/check-overlap", params),
 
+  // Teilnahmebescheinigungen
+  getParticipationCertificates: (params) => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(params || {})) {
+      if (v != null && v !== "") p.append(k, v);
+    }
+    return request("GET", `/participation-certificates?${p}`);
+  },
+  getParticipationCertificate: (id) => request("GET", `/participation-certificates/${id}`),
+  createParticipationCertificate: (body) => request("POST", "/participation-certificates", body),
+  updateCertificateStatus: (id, body) =>
+    request("PUT", `/participation-certificates/${id}/status`, body),
+
+  // Signaturen
+  uploadSignature: (signature) => request("POST", "/participation-certificates/signature", { signature }),
+  getSignature: () => request("GET", "/participation-certificates/signature"),
+
+  // Teilnahmebescheinigung Template
+  uploadTemplate: (body) => request("POST", "/participation-certificates/template", body),
+  getTemplate: () => request("GET", "/participation-certificates/template"),
+
   // Fahrtenbuch
   getTrips: (vid) => request("GET", `/vehicles/${vid}/trips`),
   createTrip: (vid, body) => request("POST", `/vehicles/${vid}/trips`, body),

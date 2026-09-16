@@ -24,6 +24,9 @@ const MODULE_LABELS = {
   intranet:                  'Intranet',
   fahrzeugbuchung:           'Fahrzeugbuchung (Lesen)',
   'fahrzeugbuchung.verwalten': 'Fahrzeugbuchung (Verwalten)',
+  teilnahmebescheinigung:   'Teilnahmebescheinigung (Lesen)',
+  'teilnahmebescheinigung.schreiben': 'Teilnahmebescheinigung (Schreiben)',
+  'teilnahmebescheinigung.admin':    'Teilnahmebescheinigung (Admin)',
 };
 
 export async function renderAdmin() {
@@ -238,6 +241,26 @@ export async function renderAdmin() {
             <button class="btn btn--primary" id="btn-upload-pdf">PDF hochladen</button>
             <a class="btn btn--outline" href="/api/settings/pdf" target="_blank" id="btn-view-pdf">Aktuelles PDF ansehen</a>
             <button class="btn btn--danger" id="btn-delete-pdf" style="display:none">PDF löschen</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card--no-top">
+        <div class="card__header">Teilnahmebescheinigung Feuerwehreinsatz — Template</div>
+        <div class="card__body">
+          <p class="text-muted text-sm mb-md">
+            Lade das offizielle Formular deiner Feuerwehr für Teilnahmebescheinigungen hoch.
+            Dieses Template wird als Vorlage für alle Bescheinigungen verwendet.
+            Derzeit wird das Template als DOCX unterstützt.
+          </p>
+          <div id="tc-template-status" class="text-sm mb-sm"></div>
+          <div class="form-group">
+            <label>Template-Datei auswählen (DOCX)</label>
+            <input type="file" id="tc-template-input" accept=".docx" />
+          </div>
+          <div class="btn-group mt-sm">
+            <button class="btn btn--primary" id="btn-upload-tc-template">Template hochladen</button>
+            <button class="btn btn--danger" id="btn-delete-tc-template" style="display:none">Template löschen</button>
           </div>
         </div>
       </div>
@@ -618,6 +641,60 @@ export async function renderAdmin() {
       await api.deletePdf();
       toast('PDF-Vorlage gelöscht');
       updatePdfStatus(false);
+    } catch (e) { toast(e.message, 'error'); }
+  });
+
+  // Teilnahmebescheinigung Template-Status anzeigen
+  const updateTcTemplateStatus = async () => {
+    const statusEl = document.getElementById('tc-template-status');
+    const deleteBtn = document.getElementById('btn-delete-tc-template');
+    if (!statusEl) return;
+    try {
+      const result = await api.getSettings();
+      const templatePath = result?.teilnahmebescheinigung_template || '';
+      if (templatePath) {
+        statusEl.innerHTML = `<span class="text-success">${icon('check-circle', 14)} Template ist hinterlegt: ${esc(templatePath)}</span>`;
+        if (deleteBtn) deleteBtn.style.display = '';
+      } else {
+        statusEl.innerHTML = `<span class="text-error">${icon('alert-triangle', 14)} Kein Template hochgeladen</span>`;
+        if (deleteBtn) deleteBtn.style.display = 'none';
+      }
+    } catch (e) {
+      statusEl.innerHTML = `<span class="text-error">Fehler beim Laden des Templates</span>`;
+    }
+    renderIcons(statusEl);
+  };
+
+  updateTcTemplateStatus();
+
+  // Template hochladen
+  document.getElementById('btn-upload-tc-template')?.addEventListener('click', async () => {
+    const file = document.getElementById('tc-template-input').files[0];
+    if (!file) { toast('Keine Datei ausgewählt', 'error'); return; }
+    if (!file.name.toLowerCase().endsWith('.docx')) { toast('Nur DOCX-Dateien erlaubt', 'error'); return; }
+
+    // Lese die Datei als Base64
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const base64Data = e.target.result;
+      try {
+        // Speichere den Dateinamen in der Datenbank
+        await api.uploadTemplate({ template_path: file.name });
+        toast('Template erfolgreich hochgeladen');
+        document.getElementById('tc-template-input').value = '';
+        updateTcTemplateStatus();
+      } catch (e) { toast(e.message, 'error'); }
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Template löschen
+  document.getElementById('btn-delete-tc-template')?.addEventListener('click', async () => {
+    if (!confirm('Template wirklich löschen?')) return;
+    try {
+      await api.uploadTemplate({ template_path: '' });
+      toast('Template gelöscht');
+      updateTcTemplateStatus();
     } catch (e) { toast(e.message, 'error'); }
   });
 
@@ -1250,6 +1327,7 @@ const MODULE_DEFS = [
   { key: 'fahrzeuge',       iconName: 'wrench',          label: 'Technik &amp; Geräte', desc: 'Fahrzeuge, Geräte, Fristen, Prüfungen, Checklisten' },
   { key: 'fahrzeugpruefung',iconName: 'check-square',    label: 'Fahrzeugprüfung', desc: 'Prüfungen, Geräte, Protokolle pro Fahrzeug' },
   { key: 'fahrzeugbuchung', iconName: 'calendar',        label: 'Fahrzeugbuchung', desc: 'Fahrzeuge buchen und verwalten' },
+  { key: 'teilnahmebescheinigung', iconName: 'file-text', label: 'Teilnahmebescheinigung Feuerwehreinsatz', desc: 'Bescheinigungen für Einsatzteilnahme erstellen, freigeben und unterschreiben' },
   { key: 'jugendfeuerwehr', iconName: 'users',           label: 'Jugendfeuerwehr', desc: 'JF-Mitglieder, Termine, Wettbewerbe',                  soon: true },
   { key: 'intranet',        iconName: 'globe',           label: 'Intranet',        desc: 'Links und Dokumente für alle' },
 ];

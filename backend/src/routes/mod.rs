@@ -11,6 +11,7 @@ pub mod integrations;
 pub mod intranet;
 pub mod orders;
 pub mod personal;
+pub mod participation_certificates;
 pub mod roles;
 pub mod selfservice;
 pub mod settings;
