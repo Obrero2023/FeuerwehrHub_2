@@ -24,7 +24,7 @@ const MODULE_LABELS = {
   intranet:                  'Intranet',
   fahrzeugbuchung:           'Fahrzeugbuchung (Lesen)',
   'fahrzeugbuchung.verwalten': 'Fahrzeugbuchung (Verwalten)',
-  teilnahmebescheinigung:   'Teilnahmebescheinigung (Lesen)',
+  teilnahmebescheinigung:    'Teilnahmebescheinigung (Lesen)',
   'teilnahmebescheinigung.schreiben': 'Teilnahmebescheinigung (Schreiben)',
   'teilnahmebescheinigung.admin':    'Teilnahmebescheinigung (Admin)',
 };
