@@ -367,6 +367,23 @@ export const api = {
   updateCertificateStatus: (id, body) =>
     request("PUT", `/participation-certificates/${id}/status`, body),
 
+  downloadCertificatePdf: async (id) => {
+    const res = await fetch(`${BASE}/participation-certificates/${id}/pdf`, {
+      method: "GET",
+      credentials: "include",
+    });
+    if (res.status === 401) {
+      _authenticated = false;
+      window.location.hash = "#/login";
+      return null;
+    }
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.error || `HTTP ${res.status}`);
+    }
+    return res.blob();
+  },
+
   // Signaturen
   uploadSignature: (signature) => request("POST", "/participation-certificates/signature", { signature }),
   getSignature: () => request("GET", "/participation-certificates/signature"),

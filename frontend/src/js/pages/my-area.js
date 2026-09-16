@@ -78,6 +78,10 @@ async function loadProfileTab(user) {
          </div>`
       : '';
 
+    // Prüfen ob User Schreibrechte für Teilnahmebescheinigung hat
+    const hasTeilnahmeSchreiben = user?.role === 'admin' || user?.role === 'superuser'
+      || (user?.permissions || []).includes('teilnahmebescheinigung.schreiben');
+
     wrap.innerHTML = `
       ${updatedByNotice}
 
@@ -97,6 +101,27 @@ async function loadProfileTab(user) {
           <p class="text-muted text-xs" style="margin-top:8px">Benutzername und Anzeigename können unter <a href="#/settings" style="color:var(--rot)">Einstellungen</a> geändert werden.</p>
         </div>
       </div>
+
+      ${hasTeilnahmeSchreiben ? `
+      <div class="card" style="max-width:560px;margin-top:16px">
+        <div class="card__header">${icon('file-pen', 14)} Unterschrift für Teilnahmebescheinigungen</div>
+        <div class="card__body">
+          <p class="text-muted text-sm mb-md">
+            Lade deine eingescannte Unterschrift hoch (PNG/JPG, max. 500 KB, transparent empfohlen).
+            Sie wird automatisch in unterschriebene Teilnahmebescheinigungen eingebunden.
+          </p>
+          <div id="sig-preview" class="admin-preview-row mb-sm"></div>
+          <div class="form-group">
+            <label>Bilddatei auswählen (PNG, JPG)</label>
+            <input type="file" id="sig-upload-input" accept="image/png,image/jpeg" />
+          </div>
+          <div class="btn-group mt-sm">
+            <button class="btn btn--primary" id="btn-upload-sig">Unterschrift speichern</button>
+            <button class="btn btn--outline" id="btn-remove-sig" style="display:none">Unterschrift entfernen</button>
+          </div>
+        </div>
+      </div>
+      ` : ''}
 
       <div class="card" style="max-width:560px;margin-top:16px">
         <div class="card__header">Kontaktdaten</div>
@@ -177,6 +202,65 @@ async function loadProfileTab(user) {
         URL.revokeObjectURL(url);
       } catch (e) { toast(e.message, 'error'); }
     });
+
+    // Signatur-Upload für Teilnahmebescheinigungen (nur bei Schreibrechten)
+    if (hasTeilnahmeSchreiben) {
+      // Existierende Signatur laden
+      try {
+        const sigRes = await api.getSignature();
+        if (sigRes?.signature) {
+          localStorage.setItem('ff_signature', sigRes.signature);
+          renderSignaturePreview(sigRes.signature);
+        }
+      } catch(e) {}
+
+      document.getElementById('sig-upload-input')?.addEventListener('change', async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (file.size > 500 * 1024) {
+          toast('Datei zu groß. Maximal 500 KB.', 'error');
+          return;
+        }
+        if (!file.type.startsWith('image/')) {
+          toast('Ungültiges Dateiformat. Bitte PNG oder JPG wählen.', 'error');
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+          const dataUrl = ev.target?.result;
+          if (!dataUrl) return;
+          try {
+            await api.uploadSignature(dataUrl);
+            localStorage.setItem('ff_signature', dataUrl);
+            renderSignaturePreview(dataUrl);
+            toast('Unterschrift gespeichert');
+          } catch (e) { toast(e.message, 'error'); }
+        };
+        reader.readAsDataURL(file);
+      });
+
+      document.getElementById('btn-remove-sig')?.addEventListener('click', async () => {
+        if (!confirm('Unterschrift wirklich entfernen?')) return;
+        try {
+          await api.uploadSignature('');
+          localStorage.removeItem('ff_signature');
+          document.getElementById('sig-preview').innerHTML = '';
+          document.getElementById('btn-upload-sig').style.display = 'inline-block';
+          document.getElementById('btn-remove-sig').style.display = 'none';
+          toast('Unterschrift entfernt');
+        } catch (e) { toast(e.message, 'error'); }
+      });
+
+      function renderSignaturePreview(dataUrl) {
+        const preview = document.getElementById('sig-preview');
+        if (!preview) return;
+        preview.innerHTML = `<img src="${dataUrl}" style="max-width:200px;max-height:80px;border:1px dashed var(--border);border-radius:4px" alt="Unterschrift-Vorschau" />`;
+        document.getElementById('btn-upload-sig').style.display = 'none';
+        document.getElementById('btn-remove-sig').style.display = 'inline-block';
+      }
+    }
 
   } catch (e) {
     wrap.innerHTML = `<p class="error-msg">${esc(e.message)}</p>`;

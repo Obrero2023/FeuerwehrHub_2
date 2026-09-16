@@ -44,7 +44,7 @@ anyhow = "1"
 thiserror = "1"
 
 # PDF-Generierung
-printpdf = "0.7"
+printpdf = { version = "0.7", features = ["png"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 rand = "0.8"

@@ -112,6 +112,11 @@ export async function renderTeilnahmebescheinigung() {
                   <option value="signed">Unterschreiben</option>
                   <option value="rejected">Ablehnen</option>
                 </select>` : ''}
+              ${c.status === 'signed' ? `
+                <button class="btn btn--sm btn--outline tc-pdf-btn" data-id="${c.id}" data-action="download-pdf">
+                  ${icon('download', 12)} PDF herunterladen
+                </button>
+              ` : ''}
             </td>` : ''}
           </tr>
         `;}).join('')}
@@ -126,17 +131,42 @@ export async function renderTeilnahmebescheinigung() {
         const newStatus = e.target.value;
         if (!newStatus) return;
 
-        // Get signature from user's profile (localStorage)
-        const signature = localStorage.getItem('ff_signature') || '';
+        select.disabled = true;
+        select.innerHTML = '<option>Wird verarbeitet...</option>';
 
         try {
-          const body = {
-            status: newStatus,
-            ...(newStatus === 'signed' && signature ? { signature } : {})
-          };
-          await api.updateCertificateStatus(certId, body);
-          toast('Status aktualisiert');
+          const signature = localStorage.getItem('ff_signature') || '';
+
+          // Wenn Unterschreiben und Signatur vorhanden, zuerst hochladen
+          if (newStatus === 'signed' && signature) {
+            try {
+              await api.uploadSignature(signature);
+            } catch (sigErr) {
+              toast('Unterschrift konnte nicht gespeichert werden', 'error');
+            }
+          }
+
+          await api.updateCertificateStatus(certId, { status: newStatus });
+          toast(newStatus === 'signed' ? 'Unterschrift registriert' : 'Status aktualisiert');
           await loadCertificates();
+        } catch(e) { toast(e.message, 'error'); }
+      });
+    });
+
+    // PDF-Download-Buttons
+    grid.querySelectorAll('.tc-pdf-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const certId = btn.dataset.id;
+        try {
+          const blob = await api.downloadCertificatePdf(certId);
+          if (!blob) return;
+
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `teilnahmebescheinigung-${certId}.pdf`;
+          a.click();
+          URL.revokeObjectURL(url);
         } catch(e) { toast(e.message, 'error'); }
       });
     });

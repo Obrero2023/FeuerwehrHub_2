@@ -1,5 +1,5 @@
 use printpdf::{path::{PaintMode, WindingOrder}, *};
-use std::io::BufWriter;
+use std::io::{BufWriter, Cursor};
 
 // A4 in mm (f32 — printpdf Mm wrapper uses f32)
 const PAGE_W: f32 = 210.0;
@@ -47,6 +47,7 @@ enum Item {
     Spacer { mm: f32 },
     Table { headers: Vec<String>, rows: Vec<Vec<String>>, col_widths: Vec<f32> },
     TextBlock { text: String },
+    Image { data: Vec<u8>, width: f32, height: f32 },
 }
 
 impl PdfBuilder {
@@ -99,6 +100,11 @@ impl PdfBuilder {
         self
     }
 
+    pub fn signature_image(mut self, data: Vec<u8>, width: f32, height: f32) -> Self {
+        self.items.push(Item::Image { data, width, height });
+        self
+    }
+
     pub fn build(self, font_bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
         let (doc, page1, layer1) =
             PdfDocument::new(&self.title, Mm(PAGE_W), Mm(PAGE_H), "Content");
@@ -126,6 +132,7 @@ impl PdfBuilder {
                     renderer.draw_table(headers, rows, col_widths)
                 }
                 Item::TextBlock { text } => renderer.draw_text_block(text),
+                Item::Image { data, width, height } => renderer.draw_image(data, *width, *height),
             }
         }
 
@@ -172,6 +179,22 @@ impl<'a> PageRenderer<'a> {
 
     fn write_line(&self, text: &str, x: f32, y: f32, size: f32) {
         self.layer().use_text(text, size, Mm(x), Mm(y), self.font);
+    }
+
+    fn draw_image(&mut self, data: &[u8], width: f32, height: f32) {
+        self.ensure_space(height + 4.0);
+
+        if let Ok(image) = ImageXObject::from_png(data) {
+            self.layer().add_image(
+                &image,
+                Mm(MARGIN_L),
+                Mm(self.y - height),
+                Mm(width),
+                Mm(height),
+            );
+        }
+
+        self.y -= height + 4.0;
     }
 
     fn draw_title(&mut self, text: &str) {
