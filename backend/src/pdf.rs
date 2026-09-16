@@ -1,6 +1,9 @@
-use printpdf::{path::{PaintMode, WindingOrder}, *};
+use ::image::load_from_memory;
+use printpdf::{
+    path::{PaintMode, WindingOrder},
+    *,
+};
 use std::io::BufWriter;
-use image::load_from_memory;
 
 // A4 in mm (f32 — printpdf Mm wrapper uses f32)
 const PAGE_W: f32 = 210.0;
@@ -183,26 +186,26 @@ impl<'a> PageRenderer<'a> {
     }
 
     fn draw_image(&mut self, data: &[u8], width: f32, height: f32) {
-        self.ensure_space(height + 4.0);
+    self.ensure_space(height + 4.0);
 
-        if let Ok(decoded) = load_from_memory(data) {
-            let dyn_img = decoded.to_rgba8();
-            let img = printpdf::Image::from_rgba8(
-                &dyn_img,
-                dyn_img.width(),
-                dyn_img.height(),
-            );
-            self.layer().add_image(
-                &img,
-                Mm(MARGIN_L),
-                Mm(self.y - height),
-                Mm(width),
-                Mm(height),
-            );
-        }
+    if let Ok(decoded) = load_from_memory(data) {
+        let img = printpdf::Image::from_dynamic_image(&decoded);
 
-        self.y -= height + 4.0;
+        img.add_to_layer(
+            self.layer(),
+            printpdf::ImageTransform {
+                translate_x: Some(Mm(MARGIN_L)),
+                translate_y: Some(Mm(self.y - height)),
+                rotate: None,
+                scale_x: Some(width / decoded.width() as f32),
+                scale_y: Some(height / decoded.height() as f32),
+                dpi: Some(300.0),
+            },
+        );
     }
+
+    self.y -= height + 4.0;
+}
 
     fn draw_title(&mut self, text: &str) {
         self.ensure_space(12.0);

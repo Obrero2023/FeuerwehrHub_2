@@ -97,33 +97,51 @@ async fn generate_certificate_pdf(
     .fetch_optional(db)
     .await?;
 
-    let mut builder = PdfBuilder::new("Teilnahmebescheinigung Feuerwehreinsatz")
+    PdfBuilder::new("Teilnahmebescheinigung Feuerwehreinsatz")
         .heading(ff_name.unwrap_or_else(|| "Feuerwehr".to_string()))
         .sub_heading("Teilnahmebescheinigung Feuerwehreinsatz")
         .text_block(
-            "Hiermit wird bescheinigt, dass der/die unten genannte Einsatzkraft am beschriebenen Einsatz teilgenommen hat."
+            "Hiermit wird bescheinigt, dass der/die unten genannte Einsatzkraft am beschriebenen Einsatz teilgenommen hat.",
         )
         .spacer(4.0)
-        .key_value("Teilnehmer/in", certificate.username.clone().unwrap_or_default())
-        .key_value("Einsatzzeitraum", format!(
-            "{} bis {}",
-            certificate.start_date.format("%d.%m.%Y"),
-            certificate.end_date.format("%d.%m.%Y")
-        ))
-        .key_value("Alarmzeit", certificate.alarm_time.format("%H:%M").to_string())
-        .key_value("Einsatzende", certificate.end_time.format("%H:%M").to_string())
+        .key_value(
+            "Teilnehmer/in",
+            certificate.username.clone().unwrap_or_default(),
+        )
+        .key_value(
+            "Einsatzzeitraum",
+            format!(
+                "{} bis {}",
+                certificate.start_date.format("%d.%m.%Y"),
+                certificate.end_date.format("%d.%m.%Y")
+            ),
+        )
+        .key_value(
+            "Alarmzeit",
+            certificate.alarm_time.format("%H:%M").to_string(),
+        )
+        .key_value(
+            "Einsatzende",
+            certificate.end_time.format("%H:%M").to_string(),
+        )
         .key_value(
             "Einheitsführer/in",
-            certificate.unit_leader_name.clone().unwrap_or_else(|| "—".to_string()),
+            certificate
+                .unit_leader_name
+                .clone()
+                .unwrap_or_else(|| "—".to_string()),
         )
         .spacer(6.0)
         .key_value(
             "Unterschrift",
-            certificate.signed_by_name.clone().unwrap_or_else(|| "—".to_string()),
+            certificate
+                .signed_by_name
+                .clone()
+                .unwrap_or_else(|| "—".to_string()),
         )
         .spacer(4.0)
         .text_block(
-            "Diese Bescheinigung wurde digital erstellt und ist ohne Unterschrift nicht gültig."
+            "Diese Bescheinigung wurde digital erstellt und ist ohne Unterschrift nicht gültig.",
         )
         .build(&crate::pdf::load_font_bytes())
         .map_err(|e| AppError::Internal(anyhow::anyhow!(e)))
@@ -188,7 +206,9 @@ pub async fn get_certificate_pdf(
         axum::http::HeaderValue::from_str(&format!(
             "attachment; filename=\"teilnahmebescheinigung-{}.pdf\"",
             id.hyphenated()
-        )).map_err(|_| AppError::Internal("Invalid header".into()))?,
+        )).map_err(|_| {
+            AppError::Internal(anyhow::anyhow!("Invalid header"))
+        })?,
     );
 
     Ok((headers, pdf))
