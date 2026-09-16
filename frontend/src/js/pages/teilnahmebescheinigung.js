@@ -13,7 +13,7 @@ export async function renderTeilnahmebescheinigung() {
 
   // Berechtigungsprüfung
   const canRead = user?.role === 'admin' || user?.role === 'superuser'
-    || (user?.permissions || []).includes('teilnahmebescheinigung.lesen');
+    || (user?.permissions || []).includes('teilnahmebescheinigung');
   const canSchreiben = user?.role === 'admin' || user?.role === 'superuser'
     || (user?.permissions || []).includes('teilnahmebescheinigung.schreiben');
   const canAdmin = user?.role === 'admin' || user?.role === 'superuser';
@@ -38,9 +38,17 @@ export async function renderTeilnahmebescheinigung() {
   `;
   renderIcons(content);
 
-  // Alle User für den Einheitsführer-Dropdown laden
+  // Alle User für den Einheitsführer-Dropdown laden (nur mit Schreibrechten)
   let allUsers = [];
-  try { allUsers = await api.getUsers().catch(() => []); } catch(e) {}
+  try {
+    const users = await api.getUsers().catch(() => []);
+    // Filtere nur User mit Schreibrechten (oder Admin/Superuser) für Einheitsführer
+    allUsers = users.filter(u =>
+      u.role === 'admin' ||
+      u.role === 'superuser' ||
+      (u.permissions || []).includes('teilnahmebescheinigung.schreiben')
+    );
+  } catch(e) {}
 
   // Zertifikate laden
   let certificates = [];
