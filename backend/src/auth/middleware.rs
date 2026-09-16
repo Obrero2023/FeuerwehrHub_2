@@ -135,7 +135,7 @@ fn accepted_permissions(module: &str) -> Option<Vec<&'static str>> {
         // Fahrzeugbuchung: Verwalter dürfen auch Buchungen erstellen/einsehen
         "fahrzeugbuchung"         => Some(vec!["fahrzeugbuchung", "fahrzeugbuchung.verwalten"]),
         // Teilnahmebescheinigung-Feuerwehreinsatz: Lesen < Schreiben < Admin
-        "teilnahmebescheinigung"  => Some(vec!["teilnahmebescheinigung.lesen", "teilnahmebescheinigung.schreiben", "teilnahmebescheinigung.admin"]),
+        "teilnahmebescheinigung"  => Some(vec!["teilnahmebescheinigung", "teilnahmebescheinigung.schreiben", "teilnahmebescheinigung.admin"]),
         _                         => None,
     }
 }
