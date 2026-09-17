@@ -19,37 +19,6 @@ use crate::{
     AppState,
 };
 
-use std::collections::HashMap;
-
-// ── Hilfsfunktion: Effektive Permissions berechnen ─────────────────────────
-
-/// Berechnet alle Permissions eines Users (direkt + über Rolle + über Zusatzfunktionen).
-fn compute_effective_permissions(
-    user_permissions: &[String],
-    role_id: Option<Uuid>,
-    role_perms_map: &HashMap<Uuid, Vec<String>>,
-    user_func_role_ids: &[Uuid],
-    func_perms_map: &HashMap<Uuid, Vec<String>>,
-) -> Vec<String> {
-    let mut perms: Vec<String> = user_permissions.to_vec();
-
-    if let Some(rid) = role_id {
-        if let Some(rp) = role_perms_map.get(&rid) {
-            perms.extend_from_slice(rp);
-        }
-    }
-
-    for rid in user_func_role_ids {
-        if let Some(fp) = func_perms_map.get(rid) {
-            perms.extend_from_slice(fp);
-        }
-    }
-
-    perms.sort();
-    perms.dedup();
-    perms
-}
-
 // ── Structs ───────────────────────────────────────────────────────────────────
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -63,8 +32,6 @@ pub struct UserEntry {
     pub permissions: Vec<String>,
     pub role_id: Option<Uuid>,
     pub assigned_role_name: Option<String>,
-    #[sqlx(skip)]
-    pub effective_permissions: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub locked_until: Option<DateTime<Utc>>,
 }

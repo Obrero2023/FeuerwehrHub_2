@@ -391,6 +391,7 @@ export const api = {
   // Teilnahmebescheinigung Template
   uploadTemplate: (body) => request("POST", "/participation-certificates/template", body),
   getTemplate: () => request("GET", "/participation-certificates/template"),
+  getUnitLeaders: () => request("GET", "/participation-certificates/unit-leaders"),
 
   // Fahrtenbuch
   getTrips: (vid) => request("GET", `/vehicles/${vid}/trips`),

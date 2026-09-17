@@ -41,15 +41,8 @@ export async function renderTeilnahmebescheinigung() {
   // Alle User für den Einheitsführer-Dropdown laden (nur mit Schreibrechten)
   let allUsers = [];
   try {
-    const users = await api.getUsers().catch(() => []);
-    // Nutzt effective_permissions (kombiniert aus direkten Permissions, Rolle + Zusatzfunktionen)
-    allUsers = users.filter(u => {
-      const effPerms = u.effective_permissions || u.permissions || [];
-      return u.role === 'admin' ||
-             u.role === 'superuser' ||
-             effPerms.includes('teilnahmebescheinigung.schreiben') ||
-             effPerms.includes('teilnahmebescheinigung.admin');
-    });
+    // Nutzt das spezialisierte Endpoint, das auch für Nicht-Admins erreichbar ist
+    allUsers = await api.getUnitLeaders().catch(() => []);
   } catch(e) {}
 
   // Zertifikate laden

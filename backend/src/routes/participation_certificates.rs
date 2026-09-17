@@ -47,6 +47,13 @@ pub struct CreateCertificateBody {
     pub unit_leader_id: Uuid,
 }
 
+#[derive(Serialize)]
+pub struct UnitLeaderEntry {
+    pub id: Uuid,
+    pub username: String,
+    pub display_name: Option<String>,
+}
+
 #[derive(Deserialize)]
 pub struct CertificateQuery {
     pub user_id:        Option<Uuid>,
@@ -409,6 +416,43 @@ pub async fn get_signature(
     })))
 }
 
+// ── Handler: Alle Einheitsführer laden ────────────────────────────
+
+pub async fn list_unit_leaders(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> AppResult<Json<Vec<UnitLeaderEntry>>> {
+    let is_admin = claims.is_admin_or_above();
+    let is_schreiben = if is_admin {
+        true
+    } else {
+        sqlx::query_scalar::<_, bool>(
+            "SELECT $1 = ANY(
+                SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
+                FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
+             )"
+        )
+        .bind("teilnahmebescheinigung.schreiben")
+        .bind(claims.sub)
+        .fetch_one(&state.db)
+        .await?
+    };
+
+    if !is_admin && !is_schreiben {
+        return Err(AppError::Forbidden);
+    }
+
+    let leaders = sqlx::query_as::<_, UnitLeaderEntry>(
+        "SELECT u.id, u.username, u.display_name
+         FROM users u
+         ORDER BY COALESCE(u.display_name, u.username) ASC"
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    Ok(Json(leaders))
+}
+
 // ── Router ──────────────────────────────────────────────────────
 
 pub fn router(state: AppState) -> Router<AppState> {
@@ -419,6 +463,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/:id/status", put(update_certificate_status))
         .route("/template", post(upload_template).get(get_template))
         .route("/signature", post(upload_signature).get(get_signature))
+        .route("/unit-leaders", get(list_unit_leaders))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_module("teilnahmebescheinigung")))
         .route_layer(middleware::from_fn_with_state(state, require_auth))
 }
