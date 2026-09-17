@@ -85,7 +85,7 @@ export async function renderTeilnahmebescheinigung() {
     grid.innerHTML = `<table class="data-table">
       <thead><tr>
         <th>Datum Start</th><th>Datum Ende</th><th>Alarmzeit</th><th>Endzeit</th>
-        <th>Einheitsführer</th><th>Status</th><th>Erstellt am</th><th>Aktionen</th>
+        <th>Einheitsführer</th><th>Ersteller</th><th>Status</th><th>Erstellt am</th><th>Aktionen</th>
       </tr></thead>
       <tbody>
         ${certificates.map(c => {
@@ -97,6 +97,7 @@ export async function renderTeilnahmebescheinigung() {
             <td>${c.alarm_time}</td>
             <td>${c.end_time}</td>
             <td>${esc(c.unit_leader_name || '—')}</td>
+            <td>${esc(c.username || '—')}</td>
             <td style="color:${statusColor};font-weight:600">${statusLabels[c.status] || c.status}</td>
             <td style="font-size:0.85em;color:var(--text-muted)">${formatDate(c.created_at)}</td>
             ${(canSchreiben || canAdmin || (canRead && c.status === 'signed' && String(c.user_id) === String(userId))) ? `<td>
