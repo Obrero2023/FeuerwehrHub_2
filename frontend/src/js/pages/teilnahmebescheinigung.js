@@ -54,10 +54,20 @@ export async function renderTeilnahmebescheinigung() {
       const params = {};
       if (canSchreiben || canAdmin) {
         // Admin/Schreiben sieht alle
+        certificates = await api.getParticipationCertificates(params).catch(() => []);
       } else {
-        params.user_id = userId;
+        // Zeige eigene erstellte + als Einheitsführer erhaltene Bescheinigungen
+        const [owned, asLeader] = await Promise.all([
+          api.getParticipationCertificates({ user_id: userId }).catch(() => []),
+          api.getParticipationCertificates({ unit_leader_id: userId }).catch(() => []),
+        ]);
+        const seen = new Set();
+        certificates = [...owned, ...asLeader].filter(c => {
+          if (seen.has(c.id)) return false;
+          seen.add(c.id);
+          return true;
+        });
       }
-      certificates = await api.getParticipationCertificates(params).catch(() => []);
     } catch(e) { toast(e.message, 'error'); }
     loading = false;
     renderCertificates();
@@ -100,11 +110,15 @@ export async function renderTeilnahmebescheinigung() {
             <td>${esc(c.username || '—')}</td>
             <td style="color:${statusColor};font-weight:600">${statusLabels[c.status] || c.status}</td>
             <td style="font-size:0.85em;color:var(--text-muted)">${formatDate(c.created_at)}</td>
-            ${(canSchreiben || canAdmin || (canRead && c.status === 'signed' && String(c.user_id) === String(userId))) ? `<td>
+            ${(() => {
+              const isCreator = String(c.user_id) === String(userId);
+              const isLeader = String(c.unit_leader_id) === String(userId);
+              const canDownload = canRead && c.status === 'signed' && (isCreator || isLeader);
+              if (!canSchreiben && !canAdmin && !canDownload) return '';
+              return `<td>
               ${c.status === 'pending' ? `
                 <select class="field field--sm status-select" data-id="${c.id}">
                   <option value="">— Aktion —</option>
-                  <option value="approved">Freigeben</option>
                   <option value="signed">Unterschreiben</option>
                   <option value="rejected">Ablehnen</option>
                 </select>` : ''}
@@ -113,7 +127,8 @@ export async function renderTeilnahmebescheinigung() {
                   ${icon('download', 12)} PDF herunterladen
                 </button>
               ` : ''}
-            </td>` : ''}
+            </td>`;
+            })()},
           </tr>
         `;}).join('')}
       </tbody>
