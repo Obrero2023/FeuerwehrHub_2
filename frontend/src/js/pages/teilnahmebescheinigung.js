@@ -43,11 +43,16 @@ export async function renderTeilnahmebescheinigung() {
   try {
     const users = await api.getUsers().catch(() => []);
     // Filtere nur User mit Schreibrechten (oder Admin/Superuser) für Einheitsführer
-    allUsers = users.filter(u =>
-      u.role === 'admin' ||
-      u.role === 'superuser' ||
-      (u.permissions || []).includes('teilnahmebescheinigung.schreiben')
-    );
+    // Prüft sowohl direkte Permissions als auch zugewiesene Rolle (assigned_role_name)
+    const hasSchreibRecht = (u) => {
+      if (u.role === 'admin' || u.role === 'superuser') return true;
+      if ((u.permissions || []).includes('teilnahmebescheinigung.schreiben')) return true;
+      if ((u.permissions || []).includes('teilnahmebescheinigung.admin')) return true;
+      const roleName = u.assigned_role_name || '';
+      return roleName === 'Teilnahmebescheinigung-Feuerwehreinsatz (Schreiben)' ||
+             roleName === 'Teilnahmebescheinigung-Feuerwehreinsatz (Admin)';
+    };
+    allUsers = users.filter(hasSchreibRecht);
   } catch(e) {}
 
   // Zertifikate laden
