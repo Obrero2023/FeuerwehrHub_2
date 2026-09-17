@@ -47,7 +47,7 @@ pub struct CreateCertificateBody {
     pub unit_leader_id: Uuid,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, sqlx::FromRow)]
 pub struct UnitLeaderEntry {
     pub id: Uuid,
     pub username: String,

@@ -9,6 +9,7 @@ use validator::Validate;
 use chrono::DateTime;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use crate::{
@@ -34,6 +35,37 @@ pub struct UserEntry {
     pub assigned_role_name: Option<String>,
     pub created_at: DateTime<Utc>,
     pub locked_until: Option<DateTime<Utc>>,
+
+    #[sqlx(default)]
+    pub effective_permissions: Vec<String>,
+}
+
+// ── Hilfsfunktion: Effektive Permissions berechnen ─────────────────────────
+fn compute_effective_permissions(
+    user_permissions: &[String],
+    assigned_role_id: Option<Uuid>,
+    role_permissions: &HashMap<Uuid, Vec<String>>,
+    function_role_ids: &[Uuid],
+) -> Vec<String> {
+    let mut permissions = HashSet::new();
+
+    permissions.extend(user_permissions.iter().cloned());
+
+    if let Some(role_id) = assigned_role_id {
+        if let Some(role_perms) = role_permissions.get(&role_id) {
+            permissions.extend(role_perms.iter().cloned());
+        }
+    }
+
+    for role_id in function_role_ids {
+        if let Some(role_perms) = role_permissions.get(role_id) {
+            permissions.extend(role_perms.iter().cloned());
+        }
+    }
+
+    let mut result: Vec<String> = permissions.into_iter().collect();
+    result.sort_unstable();
+    result
 }
 
 #[derive(Deserialize, Validate)]
@@ -129,7 +161,6 @@ pub async fn list_users(
             user.role_id,
             &role_perms_map,
             &func_role_ids,
-            &role_perms_map,
         );
     }
 
