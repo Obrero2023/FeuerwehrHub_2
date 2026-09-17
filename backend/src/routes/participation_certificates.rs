@@ -250,9 +250,11 @@ pub async fn create_certificate(
                       unit_leader_id, status, created_at
         )
         SELECT i.id, i.user_id, u.username, i.start_date, i.end_date, i.alarm_time, i.end_time,
-               i.unit_leader_id, i.status, i.created_at
+               i.unit_leader_id, COALESCE(ul.display_name, ul.username) as unit_leader_name,
+               i.status, i.created_at
         FROM inserted i
         JOIN users u ON u.id = i.user_id
+        LEFT JOIN users ul ON ul.id = i.unit_leader_id
         "
     )
     .bind(claims.sub)
