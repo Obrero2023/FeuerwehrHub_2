@@ -51,23 +51,11 @@ export async function renderTeilnahmebescheinigung() {
 
   const loadCertificates = async () => {
     try {
+      // Backend filtert basierend auf den Berechtigungen:
+      // - Admin sieht alle
+      // - Nicht-Admin sieht nur eigene (user_id) oder als Einheitsführer erhaltene (unit_leader_id)
       const params = {};
-      if (canSchreiben || canAdmin) {
-        // Admin/Schreiben sieht alle
-        certificates = await api.getParticipationCertificates(params).catch(() => []);
-      } else {
-        // Zeige eigene erstellte + als Einheitsführer erhaltene Bescheinigungen
-        const [owned, asLeader] = await Promise.all([
-          api.getParticipationCertificates({ user_id: userId }).catch(() => []),
-          api.getParticipationCertificates({ unit_leader_id: userId }).catch(() => []),
-        ]);
-        const seen = new Set();
-        certificates = [...owned, ...asLeader].filter(c => {
-          if (seen.has(c.id)) return false;
-          seen.add(c.id);
-          return true;
-        });
-      }
+      certificates = await api.getParticipationCertificates(params).catch(() => []);
     } catch(e) { toast(e.message, 'error'); }
     loading = false;
     renderCertificates();
@@ -113,7 +101,7 @@ export async function renderTeilnahmebescheinigung() {
             ${(() => {
               const isCreator = String(c.user_id) === String(userId);
               const isLeader = String(c.unit_leader_id) === String(userId);
-              const canDownload = canRead && c.status === 'signed' && (isCreator || isLeader);
+              const canDownload = (canRead || canSchreiben || canAdmin) && c.status === 'signed' && (isCreator || isLeader);
               if (!canSchreiben && !canAdmin && !canDownload) return '';
               return `<td>
               ${c.status === 'pending' ? `

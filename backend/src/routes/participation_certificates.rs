@@ -68,11 +68,33 @@ pub struct UpdateStatusBody {
 
 // ── Helper ──────────────────────────────────────────────────────
 
+async fn is_admin_or_has_module_admin(state: &AppState, claims: &Claims) -> AppResult<bool> {
+    if claims.is_admin_or_above() {
+        return Ok(true);
+    }
+
+    Ok(sqlx::query_scalar::<_, bool>(
+        "SELECT $1 = ANY(
+            SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
+            FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
+         )"
+    )
+    .bind("teilnahmebescheinigung.admin")
+    .bind(claims.sub)
+    .fetch_one(&state.db)
+    .await?)
+}
+
+/// Checks whether the authenticated user may access a given certificate.
+/// Admins (global or module-level) can access any certificate.
+/// Regular users only have access to certificates they created (user_id = claims.sub)
+/// or that were sent to them as Einheitsführer (unit_leader_id = claims.sub).
 async fn fetch_certificate_by_id(
-    db: &sqlx::PgPool,
+    state: &AppState,
     id: Uuid,
+    claims: &Claims,
 ) -> AppResult<ParticipationCertificate> {
-    sqlx::query_as::<_, ParticipationCertificate>(
+    let cert = sqlx::query_as::<_, ParticipationCertificate>(
         "SELECT pc.id, pc.user_id, COALESCE(u.display_name, u.username) as username,
                 pc.start_date, pc.end_date, pc.alarm_time, pc.end_time,
                 pc.unit_leader_id, COALESCE(ul.display_name, ul.username) as unit_leader_name,
@@ -86,9 +108,17 @@ async fn fetch_certificate_by_id(
          WHERE pc.id = $1"
     )
     .bind(id)
-    .fetch_one(db)
+    .fetch_one(&state.db)
     .await
-    .map_err(|_| AppError::NotFound)
+    .map_err(|_| AppError::NotFound)?;
+
+    let is_admin = is_admin_or_has_module_admin(state, claims).await?;
+    let user_id = claims.sub;
+    if !is_admin && cert.user_id != user_id && cert.unit_leader_id != Some(user_id) {
+        return Err(AppError::Forbidden);
+    }
+
+    Ok(cert)
 }
 
 // ── PDF generation ──────────────────────────────────────────────
@@ -158,8 +188,13 @@ async fn generate_certificate_pdf(
 
 pub async fn list_certificates(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Query(query): Query<CertificateQuery>,
 ) -> AppResult<Json<Vec<ParticipationCertificate>>> {
+    // Check if user has admin permission for this module
+    let is_admin = is_admin_or_has_module_admin(&state, claims).await?;
+    let user_id = claims.sub;
+
     let certificates = sqlx::query_as::<_, ParticipationCertificate>(
         "SELECT pc.id, pc.user_id, COALESCE(u.display_name, u.username) as username,
                 pc.start_date, pc.end_date, pc.alarm_time, pc.end_time,
@@ -183,24 +218,31 @@ pub async fn list_certificates(
     .fetch_all(&state.db)
     .await?;
 
-    Ok(Json(certificates))
+    let filtered: Vec<ParticipationCertificate> = certificates
+        .into_iter()
+        .filter(|cert| is_admin || cert.user_id == user_id || cert.unit_leader_id == Some(user_id))
+        .collect();
+
+    Ok(Json(filtered))
 }
 
 pub async fn get_certificate_by_id(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> AppResult<Json<ParticipationCertificate>> {
-    fetch_certificate_by_id(&state.db, id).await.map(Json)
+    fetch_certificate_by_id(&state, id, &claims).await.map(Json)
 }
 
 pub async fn get_certificate_pdf(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> AppResult<(
     axum::http::HeaderMap,
     Vec<u8>,
 )> {
-    let certificate = fetch_certificate_by_id(&state.db, id).await?;
+    let certificate = fetch_certificate_by_id(&state, id, &claims).await?;
     let pdf = generate_certificate_pdf(&state.db, &certificate).await?;
 
     let mut headers = axum::http::HeaderMap::new();
@@ -286,8 +328,20 @@ pub async fn update_certificate_status(
         return Err(AppError::BadRequest("Ungültiger Status".into()));
     }
 
-    let is_admin = claims.is_admin_or_above();
-    let is_schreiben = if is_admin {
+    // Check permission to update status: admin (global or module) or schreiben
+    let has_admin_perm = claims.is_admin_or_above()
+        || sqlx::query_scalar::<_, bool>(
+            "SELECT $1 = ANY(
+                SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
+                FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
+             )"
+        )
+        .bind("teilnahmebescheinigung.admin")
+        .bind(claims.sub)
+        .fetch_one(&state.db)
+        .await?;
+
+    let is_schreiben = if has_admin_perm {
         true
     } else {
         sqlx::query_scalar::<_, bool>(
@@ -302,9 +356,12 @@ pub async fn update_certificate_status(
         .await?
     };
 
-    if !is_admin && !is_schreiben {
+    if !has_admin_perm && !is_schreiben {
         return Err(AppError::Forbidden);
     }
+
+    // Check if user has access to this certificate (owner, leader, or admin)
+    let cert = fetch_certificate_by_id(&state, id, &claims).await?;
 
     sqlx::query(
         "UPDATE participation_certificates
@@ -320,7 +377,7 @@ pub async fn update_certificate_status(
     .execute(&state.db)
     .await?;
 
-    fetch_certificate_by_id(&state.db, id).await.map(Json)
+    fetch_certificate_by_id(&state, id, &claims).await.map(Json)
 }
 
 // ── Template upload (Admin only) ──────────────────────────────
