@@ -32,6 +32,7 @@ pub struct UserEntry {
     pub permissions: Vec<String>,
     pub role_id: Option<Uuid>,
     pub assigned_role_name: Option<String>,
+    pub effective_permissions: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub locked_until: Option<DateTime<Utc>>,
 }
@@ -93,7 +94,21 @@ pub async fn list_users(
 
     let users = sqlx::query_as::<_, UserEntry>(
         "SELECT u.id, u.username, u.display_name, u.role, u.is_admin, u.totp_enabled,
-                u.permissions, u.role_id, r.name as assigned_role_name, u.created_at, u.locked_until
+                u.permissions, u.role_id, r.name as assigned_role_name,
+                (SELECT COALESCE(
+                    ARRAY(SELECT DISTINCT perm
+                          FROM (
+                              SELECT unnest(COALESCE(u.permissions, '{}')) AS perm
+                              UNION
+                              SELECT unnest(COALESCE(role_perms.permissions, '{}'))
+                              FROM roles role_perms WHERE role_perms.id = u.role_id
+                              UNION
+                              SELECT unnest(fr.permissions)
+                              FROM user_functions uf
+                              JOIN roles fr ON fr.id = uf.role_id
+                              WHERE uf.user_id = u.id
+                          ) perms), '{}'::text[]) AS effective_permissions,
+                u.created_at, u.locked_until
          FROM users u
          LEFT JOIN roles r ON r.id = u.role_id
          ORDER BY u.created_at ASC"
@@ -161,7 +176,21 @@ pub async fn create_user(
 
     let row = sqlx::query_as::<_, UserEntry>(
         "SELECT u.id, u.username, u.display_name, u.role, u.is_admin, u.totp_enabled,
-                u.permissions, u.role_id, r.name as assigned_role_name, u.created_at, u.locked_until
+                u.permissions, u.role_id, r.name as assigned_role_name,
+                (SELECT COALESCE(
+                    ARRAY(SELECT DISTINCT perm
+                          FROM (
+                              SELECT unnest(COALESCE(u.permissions, '{}')) AS perm
+                              UNION
+                              SELECT unnest(COALESCE(role_perms.permissions, '{}'))
+                              FROM roles role_perms WHERE role_perms.id = u.role_id
+                              UNION
+                              SELECT unnest(fr.permissions)
+                              FROM user_functions uf
+                              JOIN roles fr ON fr.id = uf.role_id
+                              WHERE uf.user_id = u.id
+                          ) perms), '{}'::text[]) AS effective_permissions,
+                u.created_at, u.locked_until
          FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $1"
     )
     .bind(new_id)
@@ -240,7 +269,21 @@ pub async fn update_user(
 
     let row = sqlx::query_as::<_, UserEntry>(
         "SELECT u.id, u.username, u.display_name, u.role, u.is_admin, u.totp_enabled,
-                u.permissions, u.role_id, r.name as assigned_role_name, u.created_at, u.locked_until
+                u.permissions, u.role_id, r.name as assigned_role_name,
+                (SELECT COALESCE(
+                    ARRAY(SELECT DISTINCT perm
+                          FROM (
+                              SELECT unnest(COALESCE(u.permissions, '{}')) AS perm
+                              UNION
+                              SELECT unnest(COALESCE(role_perms.permissions, '{}'))
+                              FROM roles role_perms WHERE role_perms.id = u.role_id
+                              UNION
+                              SELECT unnest(fr.permissions)
+                              FROM user_functions uf
+                              JOIN roles fr ON fr.id = uf.role_id
+                              WHERE uf.user_id = u.id
+                          ) perms), '{}'::text[]) AS effective_permissions,
+                u.created_at, u.locked_until
          FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $1"
     )
     .bind(id)
@@ -295,7 +338,21 @@ pub async fn update_role(
 
     let row = sqlx::query_as::<_, UserEntry>(
         "SELECT u.id, u.username, u.display_name, u.role, u.is_admin, u.totp_enabled,
-                u.permissions, u.role_id, r.name as assigned_role_name, u.created_at, u.locked_until
+                u.permissions, u.role_id, r.name as assigned_role_name,
+                (SELECT COALESCE(
+                    ARRAY(SELECT DISTINCT perm
+                          FROM (
+                              SELECT unnest(COALESCE(u.permissions, '{}')) AS perm
+                              UNION
+                              SELECT unnest(COALESCE(role_perms.permissions, '{}'))
+                              FROM roles role_perms WHERE role_perms.id = u.role_id
+                              UNION
+                              SELECT unnest(fr.permissions)
+                              FROM user_functions uf
+                              JOIN roles fr ON fr.id = uf.role_id
+                              WHERE uf.user_id = u.id
+                          ) perms), '{}'::text[]) AS effective_permissions,
+                u.created_at, u.locked_until
          FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $1"
     )
     .bind(updated)
