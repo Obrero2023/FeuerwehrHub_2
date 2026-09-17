@@ -63,7 +63,7 @@ pub struct UserEntry {
     pub permissions: Vec<String>,
     pub role_id: Option<Uuid>,
     pub assigned_role_name: Option<String>,
-    #[sqlx::skip]
+    #[sqlx(skip)]
     pub effective_permissions: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub locked_until: Option<DateTime<Utc>>,
@@ -140,7 +140,7 @@ pub async fn list_users(
     )
     .fetch_all(&state.db)
     .await?;
-    let role_perms_map: HashMap<Uuid, Vec<String>> = roles.into_iter().map(|r| (r.id, r.permissions)).collect();
+    let role_perms_map: HashMap<Uuid, Vec<String>> = roles.into_iter().map(|r| (r.0, r.1)).collect();
 
     // User-Funktionen laden (user_id -> Vec<role_id>)
     let user_funcs: Vec<(Uuid, Uuid)> = sqlx::query_as(
@@ -154,14 +154,6 @@ pub async fn list_users(
         user_func_map.entry(uid).or_default().push(rid);
     }
 
-    // Zusatzfunktionen-Permissions (rolle_id -> permissions) laden
-    let func_roles: Vec<(Uuid, Vec<String>)> = sqlx::query_as(
-        "SELECT id, permissions FROM roles"
-    )
-    .fetch_all(&state.db)
-    .await?;
-    let func_perms_map: HashMap<Uuid, Vec<String>> = func_roles.into_iter().map(|r| (r.id, r.permissions)).collect();
-
     // effective_permissions berechnen
     for user in &mut users {
         let func_role_ids = user_func_map.get(&user.id).cloned().unwrap_or_default();
@@ -170,7 +162,7 @@ pub async fn list_users(
             user.role_id,
             &role_perms_map,
             &func_role_ids,
-            &func_perms_map,
+            &role_perms_map,
         );
     }
 
