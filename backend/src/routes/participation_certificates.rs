@@ -422,29 +422,24 @@ pub async fn list_unit_leaders(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> AppResult<Json<Vec<UnitLeaderEntry>>> {
-    let is_admin = claims.is_admin_or_above();
-    let is_schreiben = if is_admin {
-        true
-    } else {
-        sqlx::query_scalar::<_, bool>(
-            "SELECT $1 = ANY(
-                SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
-                FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
-             )"
-        )
-        .bind("teilnahmebescheinigung.schreiben")
-        .bind(claims.sub)
-        .fetch_one(&state.db)
-        .await?
-    };
-
-    if !is_admin && !is_schreiben {
-        return Err(AppError::Forbidden);
-    }
-
     let leaders = sqlx::query_as::<_, UnitLeaderEntry>(
         "SELECT u.id, u.username, u.display_name
          FROM users u
+         WHERE EXISTS (
+             SELECT 1
+             FROM (
+                 SELECT unnest(COALESCE(u.permissions, '{}')) AS perm
+                 UNION
+                 SELECT unnest(COALESCE(r.permissions, '{}'))
+                 FROM roles r WHERE r.id = u.role_id
+                 UNION
+                 SELECT unnest(fr.permissions)
+                 FROM user_functions uf
+                 JOIN roles fr ON fr.id = uf.role_id
+                 WHERE uf.user_id = u.id
+             ) perms
+             WHERE perms.perm IN ('teilnahmebescheinigung.schreiben', 'teilnahmebescheinigung.admin')
+         )
          ORDER BY COALESCE(u.display_name, u.username) ASC"
     )
     .fetch_all(&state.db)
