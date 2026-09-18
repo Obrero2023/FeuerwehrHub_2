@@ -391,8 +391,38 @@ export const api = {
   getSignature: () => request("GET", "/participation-certificates/signature"),
 
   // Teilnahmebescheinigung Template
-  uploadTemplate: (body) => request("POST", "/participation-certificates/template", body),
+  uploadTemplate: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return fetch(`${BASE}/participation-certificates/template`, {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    }).then(async (res) => {
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+      return data;
+    });
+  },
   getTemplate: () => request("GET", "/participation-certificates/template"),
+  deleteTemplate: () => request("DELETE", "/participation-certificates/template"),
+
+  // Teilnahmebescheinigung Stempel
+  uploadStempel: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return fetch(`${BASE}/participation-certificates/stempel`, {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    }).then(async (res) => {
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+      return data;
+    });
+  },
+  getStempel: () => request("GET", "/participation-certificates/stempel"),
+  deleteStempel: () => request("DELETE", "/participation-certificates/stempel"),
   getUnitLeaders: () => request("GET", "/participation-certificates/unit-leaders"),
 
   // Fahrtenbuch

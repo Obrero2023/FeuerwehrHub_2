@@ -252,6 +252,7 @@ export async function renderAdmin() {
             Lade das offizielle Formular deiner Feuerwehr für Teilnahmebescheinigungen hoch.
             Dieses Template wird als Vorlage für alle Bescheinigungen verwendet.
             Derzeit wird das Template als DOCX unterstützt.
+            Das Template darf folgende Rich-Text-Inhaltssteuerelemente enthalten: Name, date, date2, time-start, time-stop, name-gf, sing, stempel.
           </p>
           <div id="tc-template-status" class="text-sm mb-sm"></div>
           <div class="form-group">
@@ -261,6 +262,26 @@ export async function renderAdmin() {
           <div class="btn-group mt-sm">
             <button class="btn btn--primary" id="btn-upload-tc-template">Template hochladen</button>
             <button class="btn btn--danger" id="btn-delete-tc-template" style="display:none">Template löschen</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card--no-top">
+        <div class="card__header">Teilnahmebescheinigung Feuerwehreinsatz — Stempel</div>
+        <div class="card__body">
+          <p class="text-muted text-sm mb-md">
+            Lade den Stempel deiner Feuerwehr hoch. Er wird automatisch in generierte Teilnahmebescheinigungen eingesetzt.
+            Empfohlen: PNG mit transparentem Hintergrund, max. 5 MB.
+          </p>
+          <div id="stempel-status" class="text-sm mb-sm"></div>
+          <div id="stempel-preview" class="admin-preview-row mb-sm"></div>
+          <div class="form-group">
+            <label>Bilddatei auswählen (PNG, JPG, SVG, WEBP)</label>
+            <input type="file" id="stempel-upload-input" accept="image/png,image/jpeg,image/svg+xml,image/webp" />
+          </div>
+          <div class="btn-group mt-sm">
+            <button class="btn btn--primary" id="btn-upload-stempel">Stempel speichern</button>
+            <button class="btn btn--outline" id="btn-remove-stempel">Stempel entfernen</button>
           </div>
         </div>
       </div>
@@ -650,10 +671,9 @@ export async function renderAdmin() {
     const deleteBtn = document.getElementById('btn-delete-tc-template');
     if (!statusEl) return;
     try {
-      const result = await api.getSettings();
-      const templatePath = result?.teilnahmebescheinigung_template || '';
-      if (templatePath) {
-        statusEl.innerHTML = `<span class="text-success">${icon('check-circle', 14)} Template ist hinterlegt: ${esc(templatePath)}</span>`;
+      const result = await api.getTemplate();
+      if (result?.has_template) {
+        statusEl.innerHTML = `<span class="text-success">${icon('check-circle', 14)} Template ist hinterlegt</span>`;
         if (deleteBtn) deleteBtn.style.display = '';
       } else {
         statusEl.innerHTML = `<span class="text-error">${icon('alert-triangle', 14)} Kein Template hochgeladen</span>`;
@@ -673,28 +693,68 @@ export async function renderAdmin() {
     if (!file) { toast('Keine Datei ausgewählt', 'error'); return; }
     if (!file.name.toLowerCase().endsWith('.docx')) { toast('Nur DOCX-Dateien erlaubt', 'error'); return; }
 
-    // Lese die Datei als Base64
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const base64Data = e.target.result;
-      try {
-        // Speichere den Dateinamen in der Datenbank
-        await api.uploadTemplate({ template_path: file.name });
-        toast('Template erfolgreich hochgeladen');
-        document.getElementById('tc-template-input').value = '';
-        updateTcTemplateStatus();
-      } catch (e) { toast(e.message, 'error'); }
-    };
-    reader.readAsDataURL(file);
+    try {
+      await api.uploadTemplate(file);
+      toast('Template erfolgreich hochgeladen');
+      document.getElementById('tc-template-input').value = '';
+      updateTcTemplateStatus();
+    } catch (e) { toast(e.message, 'error'); }
   });
 
   // Template löschen
   document.getElementById('btn-delete-tc-template')?.addEventListener('click', async () => {
     if (!confirm('Template wirklich löschen?')) return;
     try {
-      await api.uploadTemplate({ template_path: '' });
+      await api.deleteTemplate();
       toast('Template gelöscht');
       updateTcTemplateStatus();
+    } catch (e) { toast(e.message, 'error'); }
+  });
+
+  // Stempel Status anzeigen
+  const updateStempelStatus = async () => {
+    const statusEl = document.getElementById('stempel-status');
+    const removeBtn = document.getElementById('btn-remove-stempel');
+    if (!statusEl) return;
+    try {
+      const result = await api.getStempel();
+      if (result?.has_stempel) {
+        statusEl.innerHTML = `<span class="text-success">${icon('check-circle', 14)} Stempel ist hinterlegt</span>`;
+        if (removeBtn) removeBtn.style.display = '';
+      } else {
+        statusEl.innerHTML = `<span class="text-error">${icon('alert-triangle', 14)} Kein Stempel hochgeladen</span>`;
+        if (removeBtn) removeBtn.style.display = 'none';
+      }
+    } catch (e) {
+      statusEl.innerHTML = `<span class="text-error">Fehler beim Laden des Stempels</span>`;
+    }
+    renderIcons(statusEl);
+  };
+
+  updateStempelStatus();
+
+  // Stempel hochladen
+  document.getElementById('btn-upload-stempel')?.addEventListener('click', async () => {
+    const file = document.getElementById('stempel-upload-input').files[0];
+    if (!file) { toast('Keine Datei ausgewählt', 'error'); return; }
+    if (!file.type.startsWith('image/')) { toast('Nur Bilddateien erlaubt', 'error'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast('Datei zu groß (max. 5 MB)', 'error'); return; }
+
+    try {
+      await api.uploadStempel(file);
+      toast('Stempel erfolgreich hochgeladen');
+      document.getElementById('stempel-upload-input').value = '';
+      updateStempelStatus();
+    } catch (e) { toast(e.message, 'error'); }
+  });
+
+  // Stempel entfernen
+  document.getElementById('btn-remove-stempel')?.addEventListener('click', async () => {
+    if (!confirm('Stempel wirklich entfernen?')) return;
+    try {
+      await api.deleteStempel();
+      toast('Stempel entfernt');
+      updateStempelStatus();
     } catch (e) { toast(e.message, 'error'); }
   });
 

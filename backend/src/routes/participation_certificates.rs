@@ -1,11 +1,13 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Multipart, Path, Query, State},
     middleware,
     routing::{delete, get, post, put},
     Extension, Json, Router,
 };
 use chrono::{NaiveDate, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::path::Path;
+use tokio::fs;
 use validator::Validate;
 use uuid::Uuid;
 
@@ -458,43 +460,209 @@ pub async fn update_certificate_status(
 
 // ── Template upload (Admin only) ──────────────────────────────
 
-#[derive(Deserialize)]
-pub struct UploadTemplateBody {
-    pub template_path: String,
-}
-
+/// Handle multipart form data for template upload
 pub async fn upload_template(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<UploadTemplateBody>,
+    mut multipart: Multipart,
 ) -> AppResult<Json<serde_json::Value>> {
     if !claims.is_admin_or_above() {
         return Err(AppError::Forbidden);
     }
 
-    // Store template path in settings
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::BadRequest(e.to_string()))?
+    {
+        if field.name() == Some("file") {
+            let content_type = field.content_type().unwrap_or("").to_string();
+            let is_docx = content_type
+                .starts_with("application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                || field.file_name().map_or(false, |n| n.to_lowercase().ends_with(".docx"));
+            if !is_docx {
+                return Err(AppError::BadRequest("Nur DOCX-Dateien erlaubt".into()));
+            }
+
+            let data = field
+                .bytes()
+                .await
+                .map_err(|e| AppError::BadRequest(e.to_string()))?;
+
+            const MAX_TEMPLATE_SIZE: usize = 20 * 1024 * 1024; // 20 MB
+            if data.len() > MAX_TEMPLATE_SIZE {
+                return Err(AppError::BadRequest("Template zu groß (max. 20 MB)".into()));
+            }
+
+            let dir = Path::new(&state.config.data_dir);
+            fs::create_dir_all(dir)
+                .await
+                .map_err(|e| AppError::Internal(e.into()))?;
+            fs::write(dir.join("teilnahmebescheinigung_template.docx"), &data)
+                .await
+                .map_err(|e| AppError::Internal(e.into()))?;
+
+            // Mark template as uploaded in settings
+            sqlx::query(
+                "INSERT INTO settings (key, value) VALUES ('teilnahmebescheinigung_template', $1)
+                 ON CONFLICT (key) DO UPDATE SET value = $1"
+            )
+            .bind("uploaded")
+            .execute(&state.db)
+            .await?;
+
+            return Ok(Json(serde_json::json!({ "ok": true })));
+        }
+    }
+
+    Err(AppError::BadRequest("Keine Datei im Request gefunden".into()))
+}
+
+/// Delete the uploaded template (Admin only)
+pub async fn delete_template(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> AppResult<Json<serde_json::Value>> {
+    if !claims.is_admin_or_above() {
+        return Err(AppError::Forbidden);
+    }
+
+    let path = Path::new(&state.config.data_dir).join("teilnahmebescheinigung_template.docx");
+    if path.exists() {
+        fs::remove_file(&path)
+            .await
+            .map_err(|e| AppError::Internal(e.into()))?;
+    }
+
     sqlx::query(
-        "INSERT INTO settings (key, value) VALUES ('teilnahmebescheinigung_template', $1)
-         ON CONFLICT (key) DO UPDATE SET value = $1"
+        "INSERT INTO settings (key, value) VALUES ('teilnahmebescheinigung_template', '')
+         ON CONFLICT (key) DO UPDATE SET value = ''"
     )
-    .bind(&body.template_path)
     .execute(&state.db)
     .await?;
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
+/// Get template status (whether a template is uploaded)
 pub async fn get_template(
     State(state): State<AppState>,
 ) -> AppResult<Json<serde_json::Value>> {
-    let template_path: Option<String> = sqlx::query_scalar(
+    let has_template: Option<String> = sqlx::query_scalar(
         "SELECT value FROM settings WHERE key = 'teilnahmebescheinigung_template'"
     )
     .fetch_optional(&state.db)
     .await?;
 
+    let has_template = has_template.map_or(false, |v| v == "uploaded");
+    let path = Path::new(&state.config.data_dir).join("teilnahmebescheinigung_template.docx");
+    let file_exists = path.exists();
+
     Ok(Json(serde_json::json!({
-        "template_path": template_path.unwrap_or_default()
+        "has_template": has_template && file_exists,
+        "template_path": if has_template && file_exists { "teilnahmebescheinigung_template.docx" } else { "" }
+    })))
+}
+
+// ── Stempel (Stamp) upload (Admin only) ──────────────────────
+
+/// Handle multipart form data for stamp upload (image file)
+pub async fn upload_stempel(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    mut multipart: Multipart,
+) -> AppResult<Json<serde_json::Value>> {
+    if !claims.is_admin_or_above() {
+        return Err(AppError::Forbidden);
+    }
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::BadRequest(e.to_string()))?
+    {
+        if field.name() == Some("file") {
+            let content_type = field.content_type().unwrap_or("").to_string();
+            if !content_type.starts_with("image/") {
+                return Err(AppError::BadRequest("Nur Bilddateien erlaubt".into()));
+            }
+
+            let data = field
+                .bytes()
+                .await
+                .map_err(|e| AppError::BadRequest(e.to_string()))?;
+
+            const MAX_STAMP_SIZE: usize = 5 * 1024 * 1024; // 5 MB
+            if data.len() > MAX_STAMP_SIZE {
+                return Err(AppError::BadRequest("Stempel zu groß (max. 5 MB)".into()));
+            }
+
+            let dir = Path::new(&state.config.data_dir);
+            fs::create_dir_all(dir)
+                .await
+                .map_err(|e| AppError::Internal(e.into()))?;
+            fs::write(dir.join("teilnahmebescheinigung_stempel.png"), &data)
+                .await
+                .map_err(|e| AppError::Internal(e.into()))?;
+
+            // Mark stamp as uploaded in settings
+            sqlx::query(
+                "INSERT INTO settings (key, value) VALUES ('teilnahmebescheinigung_stempel', $1)
+                 ON CONFLICT (key) DO UPDATE SET value = $1"
+            )
+            .bind("uploaded")
+            .execute(&state.db)
+            .await?;
+
+            return Ok(Json(serde_json::json!({ "ok": true })));
+        }
+    }
+
+    Err(AppError::BadRequest("Keine Datei im Request gefunden".into()))
+}
+
+/// Delete the uploaded stamp (Admin only)
+pub async fn delete_stempel(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> AppResult<Json<serde_json::Value>> {
+    if !claims.is_admin_or_above() {
+        return Err(AppError::Forbidden);
+    }
+
+    let path = Path::new(&state.config.data_dir).join("teilnahmebescheinigung_stempel.png");
+    if path.exists() {
+        fs::remove_file(&path)
+            .await
+            .map_err(|e| AppError::Internal(e.into()))?;
+    }
+
+    sqlx::query(
+        "INSERT INTO settings (key, value) VALUES ('teilnahmebescheinigung_stempel', '')
+         ON CONFLICT (key) DO UPDATE SET value = ''"
+    )
+    .execute(&state.db)
+    .await?;
+
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+/// Get stamp status
+pub async fn get_stempel(
+    State(state): State<AppState>,
+) -> AppResult<Json<serde_json::Value>> {
+    let has_stempel: Option<String> = sqlx::query_scalar(
+        "SELECT value FROM settings WHERE key = 'teilnahmebescheinigung_stempel'"
+    )
+    .fetch_optional(&state.db)
+    .await?;
+
+    let has_stempel = has_stempel.map_or(false, |v| v == "uploaded");
+    let path = Path::new(&state.config.data_dir).join("teilnahmebescheinigung_stempel.png");
+    let file_exists = path.exists();
+
+    Ok(Json(serde_json::json!({
+        "has_stempel": has_stempel && file_exists,
     })))
 }
 
@@ -596,8 +764,9 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/:id", get(get_certificate_by_id).delete(delete_certificate))
         .route("/:id/pdf", get(get_certificate_pdf))
         .route("/:id/status", put(update_certificate_status))
-        .route("/template", post(upload_template).get(get_template))
+        .route("/template", post(upload_template).get(get_template).delete(delete_template))
         .route("/signature", post(upload_signature).get(get_signature))
+        .route("/stempel", post(upload_stempel).get(get_stempel).delete(delete_stempel))
         .route("/unit-leaders", get(list_unit_leaders))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_module("teilnahmebescheinigung")))
         .route_layer(middleware::from_fn_with_state(state, require_auth))
