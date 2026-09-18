@@ -83,7 +83,7 @@ async fn get_certificate_permission_level(state: &AppState, claims: &Claims) -> 
     }
 
     // Query all module permissions at once (admin > write > read)
-    let perms: Vec<Option<String>> = sqlx::query_scalar::<_, String>(
+    let perms: Vec<String> = sqlx::query_scalar::<_, String>(
         "SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}')) AS perm
          FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $1
          UNION
