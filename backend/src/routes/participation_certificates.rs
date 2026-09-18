@@ -68,21 +68,42 @@ pub struct UpdateStatusBody {
 
 // ── Helper ──────────────────────────────────────────────────────
 
-async fn is_admin_or_has_module_admin(state: &AppState, claims: &Claims) -> AppResult<bool> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CertificatePermissionLevel {
+    None,
+    Read,
+    Write,
+    Admin,
+}
+
+async fn get_certificate_permission_level(state: &AppState, claims: &Claims) -> AppResult<CertificatePermissionLevel> {
+    // Check for global admin/superuser
     if claims.is_admin_or_above() {
-        return Ok(true);
+        return Ok(CertificatePermissionLevel::Admin);
     }
 
-    Ok(sqlx::query_scalar::<_, bool>(
-        "SELECT $1 = ANY(
-            SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
-            FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
-         )"
+    // Query all module permissions at once (admin > write > read)
+    let perms: Vec<Option<String>> = sqlx::query_scalar::<_, String>(
+        "SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}')) AS perm
+         FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $1
+         UNION
+         SELECT unnest(fr.permissions)
+         FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $1"
     )
-    .bind("teilnahmebescheinigung.admin")
     .bind(claims.sub)
-    .fetch_one(&state.db)
-    .await?)
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
+
+    if perms.iter().any(|p| p == "teilnahmebescheinigung.admin") {
+        Ok(CertificatePermissionLevel::Admin)
+    } else if perms.iter().any(|p| p == "teilnahmebescheinigung.schreiben") {
+        Ok(CertificatePermissionLevel::Write)
+    } else if perms.iter().any(|p| p == "teilnahmebescheinigung") {
+        Ok(CertificatePermissionLevel::Read)
+    } else {
+        Ok(CertificatePermissionLevel::None)
+    }
 }
 
 /// Checks whether the authenticated user may access a given certificate.
@@ -112,10 +133,22 @@ async fn fetch_certificate_by_id(
     .await
     .map_err(|_| AppError::NotFound)?;
 
-    let is_admin = is_admin_or_has_module_admin(state, claims).await?;
+    let perm_level = get_certificate_permission_level(state, claims).await?;
     let user_id = claims.sub;
-    if !is_admin && cert.user_id != user_id && cert.unit_leader_id != Some(user_id) {
-        return Err(AppError::Forbidden);
+
+    match perm_level {
+        CertificatePermissionLevel::Admin => {}
+        CertificatePermissionLevel::Write => {
+            if cert.user_id != user_id && cert.unit_leader_id != Some(user_id) {
+                return Err(AppError::Forbidden);
+            }
+        }
+        CertificatePermissionLevel::Read => {
+            if cert.user_id != user_id {
+                return Err(AppError::Forbidden);
+            }
+        }
+        CertificatePermissionLevel::None => return Err(AppError::Forbidden),
     }
 
     Ok(cert)
@@ -191,9 +224,13 @@ pub async fn list_certificates(
     Extension(claims): Extension<Claims>,
     Query(query): Query<CertificateQuery>,
 ) -> AppResult<Json<Vec<ParticipationCertificate>>> {
-    // Check if user has admin permission for this module
-    let is_admin = is_admin_or_has_module_admin(&state, &claims).await?;
+    let perm_level = get_certificate_permission_level(&state, &claims).await?;
     let user_id = claims.sub;
+
+    // If user has no permission, return empty list
+    if perm_level == CertificatePermissionLevel::None {
+        return Ok(Json(vec![]));
+    }
 
     let certificates = sqlx::query_as::<_, ParticipationCertificate>(
         "SELECT pc.id, pc.user_id, COALESCE(u.display_name, u.username) as username,
@@ -218,9 +255,18 @@ pub async fn list_certificates(
     .fetch_all(&state.db)
     .await?;
 
+    // Filter based on permission level:
+    // - Admin: see all certificates
+    // - Write: see own certificates + certificates where user is unit leader
+    // - Read: see only own certificates
     let filtered: Vec<ParticipationCertificate> = certificates
         .into_iter()
-        .filter(|cert| is_admin || cert.user_id == user_id || cert.unit_leader_id == Some(user_id))
+        .filter(|cert| {
+            perm_level == CertificatePermissionLevel::Admin
+                || (perm_level == CertificatePermissionLevel::Write
+                    && (cert.user_id == user_id || cert.unit_leader_id == Some(user_id)))
+                || (perm_level == CertificatePermissionLevel::Read && cert.user_id == user_id)
+        })
         .collect();
 
     Ok(Json(filtered))
