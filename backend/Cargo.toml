@@ -61,3 +61,6 @@ hex = "0.4"
 
 # Dependency-Pins (Workaround für heck 0.4.x + unicode-segmentation 1.12+ Inkompatibilität)
 unicode-segmentation = "=1.11.0"
+
+# DOCX Template Processing
+zip = "0.6"

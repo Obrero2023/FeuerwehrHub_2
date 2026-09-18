@@ -158,28 +158,214 @@ async fn fetch_certificate_by_id(
 
 // ── PDF generation ──────────────────────────────────────────────
 
+/// Liest das Stempel-Bild aus dem data_dir und gibt die Bilddaten zurück.
+/// Erwartet im data_dir: teilnahmebescheinigung_stempel.png
+async fn read_stempel_image(state: &AppState) -> AppResult<Option<Vec<u8>>> {
+    let stempel_path = state.config.data_dir.join("teilnahmebescheinigung_stempel.png");
+
+    if !stempel_path.exists() {
+        return Ok(None);
+    }
+
+    let data = tokio::fs::read(&stempel_path)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Stempel lesen fehlgeschlagen: {}", e)))?;
+
+    Ok(Some(data))
+}
+
+/// Parst ein DOCX-Template und extrahiert die Namen der Rich-Text-Inhaltssteuerelemente.
+/// Ein DOCX ist ein ZIP-Archiv; das Dokument liegt in word/document.xml.
+/// Content Controls haben das Format:<w:sdt><w:sdtPr><w:alias w:val="Name"/>...</w:sdtPr>...
+/// Wir extrahieren alle `w:alias`-Attribute.
+fn parse_docx_template(template_data: &[u8]) -> Vec<String> {
+    let mut names = Vec::new();
+
+    // ZIP-Archiv öffnen
+    let archive = zip::ZipArchive::new(template_data).unwrap_or_else(|_| {
+        return names;
+    });
+
+    // document.xml lesen
+    let mut document_data = Vec::new();
+    for i in 0..archive.len() {
+        let file = archive.by_index(i).unwrap();
+        if file.name() == "word/document.xml" {
+            // Dateiinhalt lesen
+            use std::io::Read;
+            let mut content = Vec::new();
+            file.read_to_end(&mut content).unwrap();
+            document_data = content;
+            break;
+        }
+    }
+
+    // Grob-Parser für die XML-Struktur von Content Controls
+    // Wir suchen nach <w:alias w:val="..."/> oder <w:tag w:val="..."/>
+    let xml_str = String::from_utf8_lossy(&document_data);
+    for line in xml_str.lines() {
+        // Suche nach w:alias mit w:val-Attribut
+        if line.contains("w:alias") && line.contains("w:val=\"") {
+            // Extrahiere den Wert zwischen den Anführungszeichen
+            if let Some(start) = line.find("w:val=\"") {
+                let after = &line[start + 7..];
+                if let Some(end) = after.find('"') {
+                    let name = &after[..end];
+                    // Nur echte Namen filtern (nicht leere Strings)
+                    if !name.is_empty() && name != " " {
+                        names.push(name.to_string());
+                    }
+                }
+            }
+        }
+        // Auch nach w:tag suchen
+        if line.contains("w:tag") && line.contains("w:val=\"") {
+            if let Some(start) = line.find("w:val=\"") {
+                let after = &line[start + 7..];
+                if let Some(end) = after.find('"') {
+                    let name = &after[..end];
+                    if !name.is_empty() && name != " " {
+                        names.push(name.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    names
+}
+
+/// Liest den Inhalt eines Content Controls aus dem XML.
+/// Gibt den Text zwischen <w:sdtContent>...</w:sdtContent> zurück.
+fn read_content_control_text(xml_str: &str) -> Option<String> {
+    // Einfacher Parser: suche nach Inhaltssteuerelementen
+    let mut in_sdt = false;
+    let mut in_content = false;
+    let mut text = String::new();
+
+    for line in xml_str.lines() {
+        if line.contains("<w:sdt>") {
+            in_sdt = true;
+        }
+        if in_sdt && line.contains("<w:sdtContent>") {
+            in_content = true;
+        }
+        if in_content {
+            // Entferne XML-Tags, halte nur Text
+            let clean = line
+                .replace("<", "")
+                .replace(">", "")
+                .replace(""", "\"")
+                .replace("&", "&")
+                .replace("<", "<")
+                .replace(">", ">");
+            text.push_str(&clean);
+        }
+        if in_sdt && line.contains("</w:sdtContent>") {
+            in_content = false;
+        }
+        if in_sdt && line.contains("</w:sdt>") {
+            break;
+        }
+    }
+
+    if text.trim().is_empty() {
+        None
+    } else {
+        Some(text.trim().to_string())
+    }
+}
+
 async fn generate_certificate_pdf(
-    db: &sqlx::PgPool,
+    state: &AppState,
     certificate: &ParticipationCertificate,
 ) -> AppResult<Vec<u8>> {
-    // Get ff_name
+    // Get ff_name from settings
     let ff_name: Option<String> = sqlx::query_scalar(
         "SELECT value FROM settings WHERE key = 'ff_name'"
     )
-    .fetch_optional(db)
-    .await?;
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
 
-    PdfBuilder::new("Teilnahmebescheinigung Feuerwehreinsatz")
+    // Read stempel image if available
+    let stempel_image = read_stempel_image(state).await.unwrap_or(None);
+
+    // Global template laden (falls vorhanden)
+    let template_path = state.config.data_dir.join("teilnahmebescheinigung_template.docx");
+    let template_values = if template_path.exists() {
+        let template_data = tokio::fs::read(&template_path)
+            .await
+            .ok()
+            .flatten();
+        if let Some(data) = template_data {
+            let control_names = parse_docx_template(&data);
+            // Basierend auf den gefundenen Steuerelementen Werte zusammenstellen
+            let mut values = serde_json::Map::new();
+
+            // Die Steuerungsnamen mit Werten aus dem Zertifikat belegen
+            for name in &control_names {
+                match name.as_str() {
+                    "Name" => {
+                        values.insert("Name".to_string(), serde_json::Value::String(
+                            certificate.username.clone().unwrap_or_default()
+                        ));
+                    }
+                    "date" => {
+                        values.insert("date".to_string(), serde_json::Value::String(
+                            certificate.start_date.format("%d.%m.%Y").to_string()
+                        ));
+                    }
+                    "date2" => {
+                        values.insert("date2".to_string(), serde_json::Value::String(
+                            certificate.end_date.format("%d.%m.%Y").to_string()
+                        ));
+                    }
+                    "time-start" => {
+                        values.insert("time-start".to_string(), serde_json::Value::String(
+                            certificate.alarm_time.format("%H:%M").to_string()
+                        ));
+                    }
+                    "time-stop" => {
+                        values.insert("time-stop".to_string(), serde_json::Value::String(
+                            certificate.end_time.format("%H:%M").to_string()
+                        ));
+                    }
+                    "name-gf" => {
+                        values.insert("name-gf".to_string(), serde_json::Value::String(
+                            certificate.unit_leader_name.clone().unwrap_or_default()
+                        ));
+                    }
+                    "sing" => {
+                        // Signatur – falls vorhanden (würde aus user.signature kommen)
+                        values.insert("sing".to_string(), serde_json::Value::String(
+                            "—".to_string()
+                        ));
+                    }
+                    "stempel" => {
+                        // Stempel wird separat eingefügt
+                    }
+                    _ => {}
+                }
+            }
+            // Template-Werte als JSON zurückgeben für mögliche weitere Verarbeitung
+            Some(serde_json::Value::Object(values))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let mut builder = PdfBuilder::new("Teilnahmebescheinigung Feuerwehreinsatz")
         .heading(ff_name.unwrap_or_else(|| "Feuerwehr".to_string()))
         .sub_heading("Teilnahmebescheinigung Feuerwehreinsatz")
         .text_block(
             "Hiermit wird bescheinigt, dass der/die unten genannte Einsatzkraft am beschriebenen Einsatz teilgenommen hat.",
         )
         .spacer(4.0)
-        .key_value(
-            "Teilnehmer/in",
-            certificate.username.clone().unwrap_or_default(),
-        )
+        .key_value("Teilnehmer/in", certificate.username.clone().unwrap_or_default())
         .key_value(
             "Einsatzzeitraum",
             format!(
@@ -188,21 +374,22 @@ async fn generate_certificate_pdf(
                 certificate.end_date.format("%d.%m.%Y")
             ),
         )
-        .key_value(
-            "Alarmzeit",
-            certificate.alarm_time.format("%H:%M").to_string(),
-        )
-        .key_value(
-            "Einsatzende",
-            certificate.end_time.format("%H:%M").to_string(),
-        )
+        .key_value("Alarmzeit", certificate.alarm_time.format("%H:%M").to_string())
+        .key_value("Einsatzende", certificate.end_time.format("%H:%M").to_string())
         .key_value(
             "Einheitsführer/in",
             certificate
                 .unit_leader_name
                 .clone()
                 .unwrap_or_else(|| "—".to_string()),
-        )
+        );
+
+    // Include stamp image if available
+    if let Some(ref stempel_data) = stempel_image {
+        builder = builder.spacer(6.0).image(stempel_data.clone(), 40.0, 30.0);
+    }
+
+    builder
         .spacer(6.0)
         .key_value(
             "Unterschrift",
@@ -291,7 +478,7 @@ pub async fn get_certificate_pdf(
     Vec<u8>,
 )> {
     let certificate = fetch_certificate_by_id(&state, id, &claims).await?;
-    let pdf = generate_certificate_pdf(&state.db, &certificate).await?;
+    let pdf = generate_certificate_pdf(state, &certificate).await?;
 
     let mut headers = axum::http::HeaderMap::new();
     headers.insert(
