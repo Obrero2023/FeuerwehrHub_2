@@ -6,7 +6,7 @@ use axum::{
 };
 use chrono::{NaiveDate, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::Path as FsPath;
 use tokio::fs;
 use validator::Validate;
 use uuid::Uuid;
@@ -494,7 +494,7 @@ pub async fn upload_template(
                 return Err(AppError::BadRequest("Template zu groß (max. 20 MB)".into()));
             }
 
-            let dir = Path::new(&state.config.data_dir);
+            let dir = FsPath::new(&state.config.data_dir);
             fs::create_dir_all(dir)
                 .await
                 .map_err(|e| AppError::Internal(e.into()))?;
@@ -527,7 +527,7 @@ pub async fn delete_template(
         return Err(AppError::Forbidden);
     }
 
-    let path = Path::new(&state.config.data_dir).join("teilnahmebescheinigung_template.docx");
+    let path = FsPath::new(&state.config.data_dir).join("teilnahmebescheinigung_template.docx");
     if path.exists() {
         fs::remove_file(&path)
             .await
@@ -555,7 +555,7 @@ pub async fn get_template(
     .await?;
 
     let has_template = has_template.map_or(false, |v| v == "uploaded");
-    let path = Path::new(&state.config.data_dir).join("teilnahmebescheinigung_template.docx");
+    let path = FsPath::new(&state.config.data_dir).join("teilnahmebescheinigung_template.docx");
     let file_exists = path.exists();
 
     Ok(Json(serde_json::json!({
@@ -597,7 +597,7 @@ pub async fn upload_stempel(
                 return Err(AppError::BadRequest("Stempel zu groß (max. 5 MB)".into()));
             }
 
-            let dir = Path::new(&state.config.data_dir);
+            let dir = FsPath::new(&state.config.data_dir);
             fs::create_dir_all(dir)
                 .await
                 .map_err(|e| AppError::Internal(e.into()))?;
@@ -630,7 +630,7 @@ pub async fn delete_stempel(
         return Err(AppError::Forbidden);
     }
 
-    let path = Path::new(&state.config.data_dir).join("teilnahmebescheinigung_stempel.png");
+    let path = FsPath::new(&state.config.data_dir).join("teilnahmebescheinigung_stempel.png");
     if path.exists() {
         fs::remove_file(&path)
             .await
@@ -658,7 +658,7 @@ pub async fn get_stempel(
     .await?;
 
     let has_stempel = has_stempel.map_or(false, |v| v == "uploaded");
-    let path = Path::new(&state.config.data_dir).join("teilnahmebescheinigung_stempel.png");
+    let path = FsPath::new(&state.config.data_dir).join("teilnahmebescheinigung_stempel.png");
     let file_exists = path.exists();
 
     Ok(Json(serde_json::json!({
