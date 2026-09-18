@@ -192,7 +192,7 @@ pub async fn list_certificates(
     Query(query): Query<CertificateQuery>,
 ) -> AppResult<Json<Vec<ParticipationCertificate>>> {
     // Check if user has admin permission for this module
-    let is_admin = is_admin_or_has_module_admin(&state, claims).await?;
+    let is_admin = is_admin_or_has_module_admin(&state, &claims).await?;
     let user_id = claims.sub;
 
     let certificates = sqlx::query_as::<_, ParticipationCertificate>(
