@@ -102,9 +102,10 @@ export async function renderTeilnahmebescheinigung() {
               const isCreator = String(c.user_id) === String(userId);
               const isLeader = String(c.unit_leader_id) === String(userId);
               const canDownload = (canRead || canSchreiben || canAdmin) && c.status === 'signed' && (isCreator || isLeader);
-              if (!canSchreiben && !canAdmin && !canDownload) return '';
+              const canDelete = isCreator || canAdmin;
+              if (!canSchreiben && !canAdmin && !canDownload && !canDelete) return '';
               return `<td>
-              ${(isCreator || canAdmin) ? `
+              ${canDelete ? `
                 <button class="btn btn--sm btn--danger tc-delete-btn" data-id="${c.id}" data-action="delete-cert" title="Löschen">
                   ${icon('trash-2', 14)}
                 </button>
