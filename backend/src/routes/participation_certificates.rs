@@ -362,6 +362,36 @@ pub async fn create_certificate(
     Ok(Json(certificate))
 }
 
+pub async fn delete_certificate(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> AppResult<Json<serde_json::Value>> {
+    // First check if user has access to this certificate (owner, leader, or admin)
+    let cert = fetch_certificate_by_id(&state, id, &claims).await?;
+
+    let perm_level = get_certificate_permission_level(&state, &claims).await?;
+    let user_id = claims.sub;
+
+    // Allow delete if user is the creator OR has admin permission
+    let is_creator = cert.user_id == user_id;
+    let is_admin = perm_level == CertificatePermissionLevel::Admin;
+    if !is_creator && !is_admin {
+        return Err(AppError::Forbidden);
+    }
+
+    let result = sqlx::query("DELETE FROM participation_certificates WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(Json(serde_json::json!({ "message": "Bescheinigung gelöscht" })))
+}
+
 pub async fn update_certificate_status(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -563,7 +593,7 @@ pub async fn list_unit_leaders(
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/", get(list_certificates).post(create_certificate))
-        .route("/:id", get(get_certificate_by_id))
+        .route("/:id", get(get_certificate_by_id).delete(delete_certificate))
         .route("/:id/pdf", get(get_certificate_pdf))
         .route("/:id/status", put(update_certificate_status))
         .route("/template", post(upload_template).get(get_template))

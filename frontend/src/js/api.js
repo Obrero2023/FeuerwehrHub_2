@@ -366,6 +366,8 @@ export const api = {
   createParticipationCertificate: (body) => request("POST", "/participation-certificates", body),
   updateCertificateStatus: (id, body) =>
     request("PUT", `/participation-certificates/${id}/status`, body),
+  deleteParticipationCertificate: (id) =>
+    request("DELETE", `/participation-certificates/${id}`),
 
   downloadCertificatePdf: async (id) => {
     const res = await fetch(`${BASE}/participation-certificates/${id}/pdf`, {

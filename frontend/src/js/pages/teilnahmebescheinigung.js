@@ -104,6 +104,11 @@ export async function renderTeilnahmebescheinigung() {
               const canDownload = (canRead || canSchreiben || canAdmin) && c.status === 'signed' && (isCreator || isLeader);
               if (!canSchreiben && !canAdmin && !canDownload) return '';
               return `<td>
+              ${(isCreator || canAdmin) ? `
+                <button class="btn btn--sm btn--danger tc-delete-btn" data-id="${c.id}" data-action="delete-cert" title="Löschen">
+                  ${icon('trash-2', 14)}
+                </button>
+              ` : ''}
               ${c.status === 'pending' ? `
                 <select class="field field--sm status-select" data-id="${c.id}">
                   <option value="">— Aktion —</option>
@@ -166,6 +171,19 @@ export async function renderTeilnahmebescheinigung() {
           a.download = `teilnahmebescheinigung-${certId}.pdf`;
           a.click();
           URL.revokeObjectURL(url);
+        } catch(e) { toast(e.message, 'error'); }
+      });
+    });
+
+    // Delete-Buttons (Ersteller oder Admin)
+    grid.querySelectorAll('.tc-delete-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const certId = btn.dataset.id;
+        if (!confirm('Bescheinigung wirklich löschen?')) return;
+        try {
+          await api.deleteParticipationCertificate(certId);
+          toast('Bescheinigung gelöscht');
+          await loadCertificates();
         } catch(e) { toast(e.message, 'error'); }
       });
     });
