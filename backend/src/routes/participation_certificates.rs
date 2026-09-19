@@ -278,6 +278,18 @@ fn read_content_control_text(xml_str: &str) -> Option<String> {
     }
 }
 
+/// Hilfsfunktion: Hole einen Wert aus dem Template-Map, oder verwende einen Fallback.
+fn resolve_template_value(
+    template_values: &Option<serde_json::Map<String, serde_json::Value>>,
+    key: &str,
+    fallback: String,
+) -> String {
+    template_values
+        .as_ref()
+        .and_then(|values| values.get(key).and_then(|v| v.as_str()).map(|s| s.to_string()))
+        .unwrap_or(fallback)
+}
+
 async fn generate_certificate_pdf(
     state: &AppState,
     certificate: &ParticipationCertificate,
@@ -348,8 +360,7 @@ async fn generate_certificate_pdf(
                     _ => {}
                 }
             }
-            // Template-Werte als JSON zurückgeben für mögliche weitere Verarbeitung
-            Some(serde_json::Value::Object(values))
+            Some(values) // Speichere das Map für die PDF-Erstellung
         } else {
             None
         }
@@ -364,23 +375,52 @@ async fn generate_certificate_pdf(
             "Hiermit wird bescheinigt, dass der/die unten genannte Einsatzkraft am beschriebenen Einsatz teilgenommen hat.",
         )
         .spacer(4.0)
-        .key_value("Teilnehmer/in", certificate.username.clone().unwrap_or_default())
         .key_value(
-            "Einsatzzeitraum",
-            format!(
-                "{} bis {}",
-                certificate.start_date.format("%d.%m.%Y"),
-                certificate.end_date.format("%d.%m.%Y")
+            "Teilnehmer/in",
+            resolve_template_value(
+                &template_values,
+                "Name",
+                certificate.username.clone().unwrap_or_default(),
             ),
         )
-        .key_value("Alarmzeit", certificate.alarm_time.format("%H:%M").to_string())
-        .key_value("Einsatzende", certificate.end_time.format("%H:%M").to_string())
+        .key_value(
+            "Einsatzzeitraum",
+            resolve_template_value(
+                &template_values,
+                "date",
+                format!(
+                    "{} bis {}",
+                    certificate.start_date.format("%d.%m.%Y"),
+                    certificate.end_date.format("%d.%m.%Y")
+                ),
+            ),
+        )
+        .key_value(
+            "Alarmzeit",
+            resolve_template_value(
+                &template_values,
+                "time-start",
+                certificate.alarm_time.format("%H:%M").to_string(),
+            ),
+        )
+        .key_value(
+            "Einsatzende",
+            resolve_template_value(
+                &template_values,
+                "time-stop",
+                certificate.end_time.format("%H:%M").to_string(),
+            ),
+        )
         .key_value(
             "Einheitsführer/in",
-            certificate
-                .unit_leader_name
-                .clone()
-                .unwrap_or_else(|| "—".to_string()),
+            resolve_template_value(
+                &template_values,
+                "name-gf",
+                certificate
+                    .unit_leader_name
+                    .clone()
+                    .unwrap_or_else(|| "—".to_string()),
+            ),
         );
 
     // Include stamp image if available
