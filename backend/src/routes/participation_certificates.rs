@@ -6,7 +6,7 @@ use axum::{
 };
 use chrono::{NaiveDate, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::io::{Cursor, Read};
+use std::io::{Cursor, Read, Write};
 use std::path::Path as FsPath;
 use tokio::fs;
 use validator::Validate;
@@ -395,8 +395,7 @@ fn fill_sdt_content(xml: &str, values: &serde_json::Map<String, serde_json::Valu
 /// Konvertiert DOCX-Bytes zu PDF-Bytes mittels LibreOffice.
 /// Erwartet, dass `libreoffice` im PATH verfügbar ist (im Docker-Image bereitgestellt).
 fn docx_to_pdf(docx_data: &[u8]) -> anyhow::Result<Vec<u8>> {
-    use std::process::{Command, Stdio};
-    use std::io::Write;
+    use std::process::Command;
 
     // Erstelle ein temporäres Verzeichnis für die Dateien
     let temp_dir = tempfile::tempdir()?;
