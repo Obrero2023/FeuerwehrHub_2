@@ -290,6 +290,146 @@ fn resolve_template_value(
         .unwrap_or(fallback)
 }
 
+/// Füllt die Rich-Text-Inhaltssteuerelemente eines DOCX-Templates mit den gegebenen Werten.
+/// Erwartet ein DOCX mit Content Controls, deren `w:alias` den Schlüsseln in `values` entspricht.
+/// Gibt das gefüllte DOCX als Vec<u8> zurück oder einen Fehler.
+fn fill_docx_template(
+    template_data: &[u8],
+    values: &serde_json::Map<String, serde_json::Value>,
+) -> anyhow::Result<Vec<u8>> {
+    // Öffne das DOCX als ZIP-Archiv
+    let mut archive = zip::ZipArchive::new(Cursor::new(template_data))?;
+
+    // Lese alle Dateien aus dem DOCX
+    let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)?;
+        let name = file.name().to_string();
+        let mut data = Vec::new();
+        file.read_to_end(&mut data)?;
+        files.push((name, data));
+    }
+
+    // Ändere document.xml (enthält die Content Controls)
+    for (name, data) in &mut files {
+        if name == "word/document.xml" {
+            let xml = String::from_utf8_lossy(data).to_string();
+            let modified = fill_sdt_content(&xml, values);
+            *data = modified.into_bytes();
+        }
+    }
+
+    // Schreibe das modifizierte DOCX zurück
+    let mut output = Vec::new();
+    {
+        let mut writer = zip::ZipWriter::new(Cursor::new(&mut output));
+        let options = zip::write::FileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+
+        for (name, data) in &files {
+            writer.start_file(name, options)?;
+            writer.write_all(data)?;
+        }
+        writer.finish()?;
+    }
+
+    Ok(output)
+}
+
+/// Ersetzt den Textinhalt aller Rich-Text-Inhaltssteuerelemente in der XML.
+/// Für jedes Key-Value-Paar in `values` sucht es das Content Control mit passendem `w:alias`
+/// und ersetzt den Textinhalt seines `<w:sdtContent>` durch den Wert.
+fn fill_sdt_content(xml: &str, values: &serde_json::Map<String, serde_json::Value>) -> String {
+    let mut result = xml.to_string();
+
+    // Für jedes Feld im Werte-Map
+    for (key, value) in values {
+        if let Some(val_str) = value.as_str() {
+            // Suche nach Content Control mit diesem alias
+            let alias_pattern = format!(r#"<w:alias w:val="{}""#, key);
+            let mut search_pos = 0usize;
+
+            while let Some(alias_pos) = result[search_pos..].find(&alias_pattern) {
+                let actual_alias_pos = search_pos + alias_pos;
+
+                // Suche den öffnenden <w:sdtContent> Tag nach diesem alias
+                if let Some(sdt_content_start) = result[actual_alias_pos..].find("<w:sdtContent>") {
+                    let sdt_content_pos = actual_alias_pos + sdt_content_start;
+
+                    // Suche den schließenden </w:sdtContent> Tag
+                    if let Some(sdt_content_end) = result[sdt_content_pos..].find("</w:sdtContent>") {
+                        let sdt_content_end_pos = sdt_content_pos + sdt_content_end;
+
+                        // Ersetze den Inhalt zwischen den Tags
+                        let mut content = result[sdt_content_pos..sdt_content_end_pos].to_string();
+
+                        // Ersetze alle Textinhalte innerhalb von <w:t>...</w:t> durch den Wert
+                        // Dies ist eine vereinfachte Annahme: ersetze den ersten <w:t> Block
+                        if let Some(t_start) = content.find("<w:t>") {
+                            if let Some(t_end) = content[t_start..].find("</w:t>") {
+                                let t_end_pos = t_start + t_end;
+                                // Ersetze nur den Text zwischen <w:t> und </w:t>
+                                content.replace_range(t_start + 5..t_end_pos, val_str);
+                            }
+                        }
+
+                        result.replace_range(sdt_content_pos..sdt_content_end_pos, &content);
+
+                        // Weiter suchen nach dem nächsten Content Control mit demselben Alias
+                        search_pos = sdt_content_end_pos;
+                    } else {
+                        // Kein schließender Tag gefunden, abbrechen
+                        break;
+                    }
+                } else {
+                    // Kein öffnender Tag gefunden, abbrechen
+                    break;
+                }
+            }
+        }
+    }
+
+    result
+}
+
+/// Konvertiert DOCX-Bytes zu PDF-Bytes mittels LibreOffice.
+/// Erwartet, dass `libreoffice` im PATH verfügbar ist (im Docker-Image bereitgestellt).
+fn docx_to_pdf(docx_data: &[u8]) -> anyhow::Result<Vec<u8>> {
+    use std::process::{Command, Stdio};
+    use std::io::Write;
+
+    // Erstelle ein temporäres Verzeichnis für die Dateien
+    let temp_dir = tempfile::tempdir()?;
+    let docx_path = temp_dir.path().join("template.docx");
+    let pdf_path = temp_dir.path().join("template.pdf");
+
+    // Schreibe die DOCX-Daten in die temporäre Datei
+    std::fs::write(&docx_path, docx_data)?;
+
+    // Führe LibreOffice aus: konvertiere DOCX zu PDF
+    let output = Command::new("libreoffice")
+        .args(&[
+            "--headless",
+            "--convert-to",
+            "pdf:writer_pdf_Export",
+            "--outdir",
+            temp_dir.path().to_str().unwrap(),
+            docx_path.to_str().unwrap()
+        ])
+        .output()?;
+
+    if !output.status.success() {
+        let err_msg = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow::anyhow!("LibreOffice konvertierung fehlgeschlagen: {}", err_msg));
+    }
+
+    // Lese die erzeugte PDF-Datei
+    let pdf_data = std::fs::read(&pdf_path)?;
+
+    // Temporäres Verzeichnis wird automatisch bereinigt wenn temp_dir out of scope geht
+    Ok(pdf_data)
+}
+
 async fn generate_certificate_pdf(
     state: &AppState,
     certificate: &ParticipationCertificate,
