@@ -311,12 +311,20 @@ async fn generate_certificate_pdf(
     let template_values = if template_path.exists() {
         let template_data = tokio::fs::read(&template_path).await.ok();
         if let Some(data) = template_data {
+            // DOCX-Vorlage enthält Rich-Text-Inhaltssteuerelemente.
+            // Die Steuerelemente definieren, welche Werte ins PDF eingefügt werden.
+            // Falls das Template keine Aliase liefert, werden die bekannten Felder verwendet.
             let control_names = parse_docx_template(&data);
-            // Basierend auf den gefundenen Steuerelementen Werte zusammenstellen
+            let known_fields = [
+                "Name", "date", "date2", "time-start", "time-stop", "name-gf", "sing", "stempel",
+            ];
+            let names: Vec<String> = if control_names.is_empty() {
+                known_fields.iter().map(|s| s.to_string()).collect()
+            } else {
+                control_names
+            };
             let mut values = serde_json::Map::new();
-
-            // Die Steuerungsnamen mit Werten aus dem Zertifikat belegen
-            for name in &control_names {
+            for name in &names {
                 match name.as_str() {
                     "Name" => {
                         values.insert("Name".to_string(), serde_json::Value::String(
@@ -349,18 +357,19 @@ async fn generate_certificate_pdf(
                         ));
                     }
                     "sing" => {
-                        // Signatur – falls vorhanden (würde aus user.signature kommen)
                         values.insert("sing".to_string(), serde_json::Value::String(
                             "—".to_string()
                         ));
                     }
                     "stempel" => {
-                        // Stempel wird separat eingefügt
+                        values.insert("stempel".to_string(), serde_json::Value::String(
+                            "—".to_string()
+                        ));
                     }
                     _ => {}
                 }
             }
-            Some(values) // Speichere das Map für die PDF-Erstellung
+            Some(values)
         } else {
             None
         }
