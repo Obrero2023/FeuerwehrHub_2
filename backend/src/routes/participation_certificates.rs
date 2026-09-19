@@ -1,11 +1,12 @@
 use axum::{
     extract::{Multipart, Path, Query, State},
     middleware,
-    routing::{delete, get, post, put},
+    routing::get,
     Extension, Json, Router,
 };
 use chrono::{NaiveDate, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::io::{Cursor, Read};
 use std::path::Path as FsPath;
 use tokio::fs;
 use validator::Validate;
@@ -161,7 +162,7 @@ async fn fetch_certificate_by_id(
 /// Liest das Stempel-Bild aus dem data_dir und gibt die Bilddaten zurück.
 /// Erwartet im data_dir: teilnahmebescheinigung_stempel.png
 async fn read_stempel_image(state: &AppState) -> AppResult<Option<Vec<u8>>> {
-    let stempel_path = state.config.data_dir.join("teilnahmebescheinigung_stempel.png");
+    let stempel_path = FsPath::new(&state.config.data_dir).join("teilnahmebescheinigung_stempel.png");
 
     if !stempel_path.exists() {
         return Ok(None);
@@ -181,21 +182,24 @@ async fn read_stempel_image(state: &AppState) -> AppResult<Option<Vec<u8>>> {
 fn parse_docx_template(template_data: &[u8]) -> Vec<String> {
     let mut names = Vec::new();
 
-    // ZIP-Archiv öffnen
-    let archive = zip::ZipArchive::new(template_data).unwrap_or_else(|_| {
-        return names;
-    });
+    // ZIP-Archiv öffnen (braucht Seek, daher Cursor)
+    let mut archive = match zip::ZipArchive::new(Cursor::new(template_data)) {
+        Ok(archive) => archive,
+        Err(_) => return names,
+    };
 
     // document.xml lesen
     let mut document_data = Vec::new();
     for i in 0..archive.len() {
-        let file = archive.by_index(i).unwrap();
+        let mut file = match archive.by_index(i) {
+            Ok(file) => file,
+            Err(_) => continue,
+        };
+
         if file.name() == "word/document.xml" {
-            // Dateiinhalt lesen
-            use std::io::Read;
-            let mut content = Vec::new();
-            file.read_to_end(&mut content).unwrap();
-            document_data = content;
+            if file.read_to_end(&mut document_data).is_err() {
+                return names;
+            }
             break;
         }
     }
@@ -253,12 +257,10 @@ fn read_content_control_text(xml_str: &str) -> Option<String> {
         if in_content {
             // Entferne XML-Tags, halte nur Text
             let clean = line
-                .replace("<", "")
-                .replace(">", "")
-                .replace(""", "\"")
-                .replace("&", "&")
-                .replace("<", "<")
-                .replace(">", ">");
+                .replace("&quot;", "\"")
+                .replace("&amp;", "&")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">");
             text.push_str(&clean);
         }
         if in_sdt && line.contains("</w:sdtContent>") {
@@ -293,12 +295,9 @@ async fn generate_certificate_pdf(
     let stempel_image = read_stempel_image(state).await.unwrap_or(None);
 
     // Global template laden (falls vorhanden)
-    let template_path = state.config.data_dir.join("teilnahmebescheinigung_template.docx");
+    let template_path = FsPath::new(&state.config.data_dir).join("teilnahmebescheinigung_template.docx");
     let template_values = if template_path.exists() {
-        let template_data = tokio::fs::read(&template_path)
-            .await
-            .ok()
-            .flatten();
+        let template_data = tokio::fs::read(&template_path).await.ok();
         if let Some(data) = template_data {
             let control_names = parse_docx_template(&data);
             // Basierend auf den gefundenen Steuerelementen Werte zusammenstellen
@@ -386,7 +385,9 @@ async fn generate_certificate_pdf(
 
     // Include stamp image if available
     if let Some(ref stempel_data) = stempel_image {
-        builder = builder.spacer(6.0).image(stempel_data.clone(), 40.0, 30.0);
+        builder = builder
+            .spacer(6.0)
+            .signature_image(stempel_data.clone(), 40.0, 30.0);
     }
 
     builder
@@ -478,7 +479,7 @@ pub async fn get_certificate_pdf(
     Vec<u8>,
 )> {
     let certificate = fetch_certificate_by_id(&state, id, &claims).await?;
-    let pdf = generate_certificate_pdf(state, &certificate).await?;
+    let pdf = generate_certificate_pdf(&state, &certificate).await?;
 
     let mut headers = axum::http::HeaderMap::new();
     headers.insert(
