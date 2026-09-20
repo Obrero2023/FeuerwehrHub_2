@@ -551,7 +551,7 @@ async fn generate_certificate_pdf(
 
     // Read signature from the user who created this certificate
     // Each user uploads their own signature under "Mein Bereich → Mein Profil → Unterschrift für Teilnahmebescheinigungen"
-    let signature_data = sqlx::query_scalar(
+    let signature_data: Option<String> = sqlx::query_scalar::<_, String>(
         "SELECT signature FROM users WHERE id = $1"
     )
     .bind(certificate.user_id)
