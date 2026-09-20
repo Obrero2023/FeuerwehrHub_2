@@ -549,20 +549,16 @@ async fn generate_certificate_pdf(
     // Read stempel image if available
     let stempel_image = read_stempel_image(state).await.unwrap_or(None);
 
-    // Read signature from the user who signed the certificate (or the unit leader)
-    let signature_data = if let Some(signed_by) = certificate.signed_by {
-        let sig: Option<String> = sqlx::query_scalar(
-            "SELECT signature FROM users WHERE id = $1"
-        )
-        .bind(signed_by)
-        .fetch_optional(&state.db)
-        .await
-        .ok()
-        .flatten();
-        sig
-    } else {
-        None
-    };
+    // Read signature from the user who created this certificate
+    // Each user uploads their own signature under "Mein Bereich → Mein Profil → Unterschrift für Teilnahmebescheinigungen"
+    let signature_data = sqlx::query_scalar(
+        "SELECT signature FROM users WHERE id = $1"
+    )
+    .bind(certificate.user_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
 
     // Global template laden (falls vorhanden)
     let template_path = FsPath::new(&state.config.data_dir).join("teilnahmebescheinigung_template.docx");
@@ -594,10 +590,11 @@ async fn generate_certificate_pdf(
         values.insert("time-stop".to_string(), serde_json::Value::String(
             certificate.end_time.format("%H:%M").to_string()
         ));
+        // name-gf: Benutzername (Teilnehmer/in)
         values.insert("name-gf".to_string(), serde_json::Value::String(
-            certificate.unit_leader_name.clone().unwrap_or_default()
+            certificate.username.clone().unwrap_or_default()
         ));
-        // Unterschrift als Data-URI einbetten, falls vorhanden
+        // sing: Unterschrift des Benutzers (uploaded unter "Mein Bereich → Mein Profil")
         values.insert("sing".to_string(), serde_json::Value::String(
             signature_data
                 .as_ref()
