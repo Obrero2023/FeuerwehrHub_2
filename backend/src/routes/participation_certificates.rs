@@ -408,39 +408,49 @@ fn replace_sdt_with_image(xml: &str, alias: &str, rel_id: &str) -> String {
 /// Ersetzt den Textinhalt aller Rich-Text-Inhaltssteuerelemente in der XML.
 /// Für jedes Key-Value-Paar in `values` sucht es das Content Control mit passendem `w:alias`
 /// und ersetzt den Textinhalt seines `<w:sdtContent>` durch den Wert.
+///
+/// Der Alias‑Vergleich ist gross-/kleinschreibungs‑unabhängig: sowohl die exakte Schreibweise
+/// als auch die Variante mit kleingeschriebenem ersten Buchstaben werden gesucht.
 fn fill_sdt_content_text(xml: &str, values: &serde_json::Map<String, serde_json::Value>) -> String {
     let mut result = xml.to_string();
 
     for (key, value) in values {
         if let Some(val_str) = value.as_str() {
-            let alias_pattern = format!(r#"<w:alias w:val="{}""#, key);
-            let mut search_pos = 0usize;
+            // Wir suchen nach beiden Varianten: exakt so wie im Key und mit kleinem Anfangsbuchstaben
+            let alias_patterns = [
+                format!(r#"<w:alias w:val="{}""#, key),
+                format!(r#"<w:alias w:val="{}""#, key.to_lowercase()),
+            ];
 
-            while let Some(alias_pos) = result[search_pos..].find(&alias_pattern) {
-                let actual_alias_pos = search_pos + alias_pos;
+            for alias_pattern in &alias_patterns {
+                let mut search_pos = 0usize;
 
-                if let Some(sdt_content_start) = result[actual_alias_pos..].find("<w:sdtContent>") {
-                    let sdt_content_pos = actual_alias_pos + sdt_content_start;
+                while let Some(alias_pos) = result[search_pos..].find(alias_pattern) {
+                    let actual_alias_pos = search_pos + alias_pos;
 
-                    if let Some(sdt_content_end) = result[sdt_content_pos..].find("</w:sdtContent>") {
-                        let sdt_content_end_pos = sdt_content_pos + sdt_content_end;
+                    if let Some(sdt_content_start) = result[actual_alias_pos..].find("<w:sdtContent>") {
+                        let sdt_content_pos = actual_alias_pos + sdt_content_start;
 
-                        let mut content = result[sdt_content_pos..sdt_content_end_pos].to_string();
+                        if let Some(sdt_content_end) = result[sdt_content_pos..].find("</w:sdtContent>") {
+                            let sdt_content_end_pos = sdt_content_pos + sdt_content_end;
 
-                        if let Some(t_start) = content.find("<w:t>") {
-                            if let Some(t_end) = content[t_start..].find("</w:t>") {
-                                let t_end_pos = t_start + t_end;
-                                content.replace_range(t_start + 5..t_end_pos, val_str);
+                            let mut content = result[sdt_content_pos..sdt_content_end_pos].to_string();
+
+                            if let Some(t_start) = content.find("<w:t>") {
+                                if let Some(t_end) = content[t_start..].find("</w:t>") {
+                                    let t_end_pos = t_start + t_end;
+                                    content.replace_range(t_start + 5..t_end_pos, val_str);
+                                }
                             }
-                        }
 
-                        result.replace_range(sdt_content_pos..sdt_content_end_pos, &content);
-                        search_pos = sdt_content_end_pos;
+                            result.replace_range(sdt_content_pos..sdt_content_end_pos, &content);
+                            search_pos = sdt_content_end_pos;
+                        } else {
+                            break;
+                        }
                     } else {
                         break;
                     }
-                } else {
-                    break
                 }
             }
         }
@@ -558,7 +568,11 @@ async fn generate_certificate_pdf(
     // Versuche, das DOCX-Template zu füllen und zu PDF zu konvertieren
     if let Some(ref template_bytes) = template_data {
         let mut values = serde_json::Map::new();
+        // Teilnehmer‑Name – beide Varianten versuchen
         values.insert("Name".to_string(), serde_json::Value::String(
+            certificate.username.clone().unwrap_or_default()
+        ));
+        values.insert("name".to_string(), serde_json::Value::String(
             certificate.username.clone().unwrap_or_default()
         ));
         values.insert("date".to_string(), serde_json::Value::String(
