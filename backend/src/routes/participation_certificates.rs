@@ -232,7 +232,7 @@ fn fill_docx_template(
         let modified = fill_sdt_content_text(&xml, &text_values);
         for (name, data) in &mut files {
             if name == "word/document.xml" {
-                *data = modified.into_bytes();
+                *data = modified.as_bytes().to_vec();
             }
         }
     }
@@ -337,9 +337,9 @@ fn embed_images(
     // Dateien aktualisieren
     for (name, data) in &mut files {
         if name == "word/_rels/document.xml.rels" {
-            *data = rels_xml.into_bytes();
+            *data = rels_xml.as_bytes().to_vec();
         } else if name == "word/document.xml" {
-            *data = doc_xml.into_bytes();
+            *data = doc_xml.as_bytes().to_vec();
         }
     }
 
