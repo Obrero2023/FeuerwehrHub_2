@@ -503,11 +503,10 @@ fn docx_to_pdf(docx_data: &[u8]) -> anyhow::Result<Vec<u8>> {
     std::fs::write(&docx_path, docx_data)?;
 
     // Führe LibreOffice aus: konvertiere DOCX zu PDF
-    // -env:UserInstallation=... vermeidet "User installation could not be completed"
-    // indem ein beschreibbares Profil-Verzeichnis in /tmp verwendet wird
-    let profile_dir = temp_dir.path().join("lo-profile");
-    std::fs::create_dir_all(&profile_dir)?;
+    // HOME auf ein beschreibbares Verzeichnis setzen, damit javaldx und dconf
+    // keine Berechtigungsprobleme haben
     let output = Command::new("libreoffice")
+        .env("HOME", temp_dir.path())
         .args(&[
             "--headless",
             "-env:UserInstallation",
