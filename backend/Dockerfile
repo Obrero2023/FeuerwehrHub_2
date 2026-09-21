@@ -37,6 +37,8 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 COPY --from=builder /app/backend/target/release/feuerwehrhub .
+COPY backend/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Non-root User anlegen; docker-Gruppe für Socket-Zugriff (Update-Mechanismus)
 RUN groupadd -r app \
@@ -45,8 +47,4 @@ RUN groupadd -r app \
     && mkdir -p /data \
     && chown app:app /data /app/feuerwehrhub
 
-USER app
-
-EXPOSE 3000
-
-CMD ["./feuerwehrhub"]
+CMD ["/entrypoint.sh"]
