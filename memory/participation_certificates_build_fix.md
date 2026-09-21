@@ -65,9 +65,3 @@ cd backend
 SQLX_OFFLINE=true cargo check
 # Then rerun the Docker build
 ```
-
-### Current Status
-✅ All compilation errors fixed  
-✅ Template values correctly used in PDF builder  
-✅ DOCX template rendering via LibreOffice implemented (enhancement)  
-✅ Dockerfile updated to include LibreOffice for template conversion
