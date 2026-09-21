@@ -594,9 +594,9 @@ async fn generate_certificate_pdf(
         values.insert("time-stop".to_string(), serde_json::Value::String(
             certificate.end_time.format("%H:%M").to_string()
         ));
-        // name-gf: Benutzername (Teilnehmer/in)
+        // name-gf: Einheitsführer (Unterschreibende/r)
         values.insert("name-gf".to_string(), serde_json::Value::String(
-            certificate.username.clone().unwrap_or_default()
+            certificate.unit_leader_name.clone().unwrap_or_default()
         ));
         // sing: Unterschrift des Unterzeichnenden (uploaded unter "Mein Bereich → Mein Profil")
         values.insert("sing".to_string(), serde_json::Value::String(
