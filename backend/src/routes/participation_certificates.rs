@@ -359,11 +359,11 @@ fn replace_sdt_with_image(xml: &str, alias: &str, rel_id: &str) -> String {
                 let sdt_full_end = sdt_end_pos + "</w:sdt>".len();
 
                 // Prüfen, ob es ein Picture Content Control ist (hat <w:picture/> in den Eigenschaften)
-                let is_picture_sdt = &xml[sdt_start..sdt_end_pos].contains("<w:picture/>");
+                let is_picture_sdt = xml[sdt_start..sdt_end_pos].contains("<w:picture/>");
 
                 let replacement = if is_picture_sdt {
                     // Für Picture Content Control: Ersetze das <w:drawing> im Inhalt
-                    let image_xml = format!(
+                    format!(
                         r#"<w:sdt>
   <w:sdtPr><w:alias w:val="{}"/></w:sdtPr>
   <w:sdtContent>
@@ -399,7 +399,7 @@ fn replace_sdt_with_image(xml: &str, alias: &str, rel_id: &str) -> String {
                     )
                 } else {
                     // Für Rich Text Content Control: Ersetze Textinhalt
-                    let image_xml = format!(
+                    format!(
                         r#"<w:sdt>
   <w:sdtPr><w:alias w:val="{}"/></w:sdtPr>
   <w:sdtContent>
