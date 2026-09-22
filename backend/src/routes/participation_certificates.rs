@@ -550,17 +550,19 @@ async fn generate_certificate_pdf(
     let stempel_image = read_stempel_image(state).await.unwrap_or(None);
 
     // Read signature from the unit leader (Einheitsführer)
-    // Each user uploads their own signature under "Mein Bereich → Mein Profil → Unterschrift für Teilnahmebescheinigungen"
-    let signature_data: Option<String> = certificate.unit_leader_id.map(|leader_id| {
-        sqlx::query_scalar::<_, String>(
-            "SELECT signature FROM users WHERE id = $1"
-        )
-        .bind(leader_id)
-        .fetch_optional(&state.db)
-        .await
-        .ok()
-        .flatten()
-    });
+    let signature_data: Option<String> =
+        if let Some(leader_id) = certificate.unit_leader_id {
+            sqlx::query_scalar::<_, String>(
+                "SELECT signature FROM users WHERE id = $1"
+            )
+            .bind(leader_id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten()
+        } else {
+            None
+        };
 
     // Global template laden (falls vorhanden)
     let template_path = FsPath::new(&state.config.data_dir).join("teilnahmebescheinigung_template.docx");
