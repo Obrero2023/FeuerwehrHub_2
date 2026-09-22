@@ -346,7 +346,7 @@ fn embed_images(
     files
 }
 
-/// Ersetzt ein Rich-Text-Inhaltssteuerelement durch ein Inline-Bild-Element.
+/// Ersetzt ein Rich-Text- oder Bild-Inhaltssteuerelement durch ein Inline-Bild-Element.
 fn replace_sdt_with_image(xml: &str, alias: &str, rel_id: &str) -> String {
     let alias_pattern = format!(r#"<w:alias w:val="{}""#, alias);
 
@@ -358,8 +358,49 @@ fn replace_sdt_with_image(xml: &str, alias: &str, rel_id: &str) -> String {
                 let sdt_end_pos = alias_pos + sdt_end;
                 let sdt_full_end = sdt_end_pos + "</w:sdt>".len();
 
-                let image_xml = format!(
-                    r#"<w:sdt>
+                // Prüfen, ob es ein Picture Content Control ist (hat <w:picture/> in den Eigenschaften)
+                let is_picture_sdt = &xml[sdt_start..sdt_end_pos].contains("<w:picture/>");
+
+                let replacement = if is_picture_sdt {
+                    // Für Picture Content Control: Ersetze das <w:drawing> im Inhalt
+                    let image_xml = format!(
+                        r#"<w:sdt>
+  <w:sdtPr><w:alias w:val="{}"/></w:sdtPr>
+  <w:sdtContent>
+    <w:r>
+      <w:drawing>
+        <wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+          <wp:extent cx="914400" cy="914400"/>
+          <wp:docPr id="1" name="Image"/>
+          <a:graphic>
+            <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+              <pic:pic>
+                <pic:nvPicPr>
+                  <pic:cNvPr id="0" name="Image"/>
+                  <pic:cNvPicPr/>
+                </pic:nvPicPr>
+                <pic:blipFill>
+                  <a:blip r:embed="{}"/>
+                  <a:stretch><a:fillRect/></a:stretch>
+                </pic:blipFill>
+                <pic:spPr>
+                  <a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="914400"/></a:xfrm>
+                  <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                </pic:spPr>
+              </pic:pic>
+            </a:graphicData>
+          </a:graphic>
+        </wp:inline>
+      </w:drawing>
+    </w:r>
+  </w:sdtContent>
+</w:sdt>"#,
+                        alias, rel_id
+                    )
+                } else {
+                    // Für Rich Text Content Control: Ersetze Textinhalt
+                    let image_xml = format!(
+                        r#"<w:sdt>
   <w:sdtPr><w:alias w:val="{}"/></w:sdtPr>
   <w:sdtContent>
     <w:p>
@@ -392,11 +433,12 @@ fn replace_sdt_with_image(xml: &str, alias: &str, rel_id: &str) -> String {
     </w:p>
   </w:sdtContent>
 </w:sdt>"#,
-                    alias, rel_id
-                );
+                        alias, rel_id
+                    )
+                };
 
                 let mut result = xml.to_string();
-                result.replace_range(sdt_start..sdt_full_end, &image_xml);
+                result.replace_range(sdt_start..sdt_full_end, &replacement);
                 return result;
             }
         }
