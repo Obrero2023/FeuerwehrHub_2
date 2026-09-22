@@ -204,7 +204,7 @@ fn fill_docx_template(
 
     for (key, value) in values {
         if let Some(val_str) = value.as_str() {
-            if val_str.starts_with("data:image/") {
+            if val_str.starts_with("data:image/") && key != "sing" {
                 if let Some((mime, data)) = parse_data_uri(val_str) {
                     image_values.push((key.clone(), data, mime));
                 }
