@@ -615,9 +615,19 @@ async fn generate_certificate_pdf(
     // Read stempel image if available
     let stempel_image = read_stempel_image(state).await.unwrap_or(None);
 
-    // Read signature from the unit leader (Einheitsführer)
+    // Read signature from the person who signed the certificate (signed_by),
+    // falling back to the unit leader if no signer is set (e.g., for unsigned certs)
     let signature_data: Option<String> =
-        if let Some(leader_id) = certificate.unit_leader_id {
+        if let Some(signer_id) = certificate.signed_by {
+            sqlx::query_scalar::<_, String>(
+                "SELECT signature FROM users WHERE id = $1"
+            )
+            .bind(signer_id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten()
+        } else if let Some(leader_id) = certificate.unit_leader_id {
             sqlx::query_scalar::<_, String>(
                 "SELECT signature FROM users WHERE id = $1"
             )
