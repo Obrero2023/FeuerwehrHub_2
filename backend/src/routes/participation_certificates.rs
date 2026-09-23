@@ -1302,13 +1302,14 @@ pub async fn list_unit_leaders(
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/", get(list_certificates).post(create_certificate))
-        .route("/:id", get(get_certificate_by_id).delete(delete_certificate))
-        .route("/:id/pdf", get(get_certificate_pdf))
-        .route("/:id/status", put(update_certificate_status))
+        // /template must come BEFORE /:id — otherwise "template" is captured as an id and fails UUID parsing (HTTP 400)
         .route("/template", post(upload_template).get(get_template).delete(delete_template))
         .route("/signature", post(upload_signature).get(get_signature))
         .route("/stempel", post(upload_stempel).get(get_stempel).delete(delete_stempel))
         .route("/unit-leaders", get(list_unit_leaders))
+        .route("/:id", get(get_certificate_by_id).delete(delete_certificate))
+        .route("/:id/pdf", get(get_certificate_pdf))
+        .route("/:id/status", put(update_certificate_status))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_module("teilnahmebescheinigung")))
         .route_layer(middleware::from_fn_with_state(state, require_auth))
 }
