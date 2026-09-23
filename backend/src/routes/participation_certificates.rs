@@ -753,6 +753,15 @@ async fn generate_certificate_pdf(
             .signature_image(stempel_data.clone(), 40.0, 30.0);
     }
 
+    // Include signature image if available
+    if let Some(ref sig_data_uri) = signature_data {
+        if let Some((_mime, sig_bytes)) = parse_data_uri(sig_data_uri) {
+            builder = builder
+                .spacer(6.0)
+                .signature_image(sig_bytes, 60.0, 30.0);
+        }
+    }
+
     builder
         .spacer(6.0)
         .key_value(
