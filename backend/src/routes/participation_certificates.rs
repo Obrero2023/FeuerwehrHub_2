@@ -80,6 +80,27 @@ enum CertificatePermissionLevel {
     Admin,
 }
 
+/// Prüft, ob der User entweder global Admin/Superuser oder auf Modulebene
+/// Admin für Teilnahmebescheinigungen ist (`teilnahmebescheinigung.admin`).
+/// Wird für Template-/Stempel-Verwaltung benötigt, da diese nicht nur für
+/// globale Admins, sondern auch für Module-Admins bestimmt sind.
+async fn is_tc_admin(state: &AppState, claims: &Claims) -> bool {
+    if claims.is_admin_or_above() {
+        return true;
+    }
+    sqlx::query_scalar::<_, bool>(
+        "SELECT $1 = ANY(
+            SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
+            FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
+         )"
+    )
+    .bind("teilnahmebescheinigung.admin")
+    .bind(claims.sub)
+    .fetch_one(&state.db)
+    .await
+    .unwrap_or(false)
+}
+
 async fn get_certificate_permission_level(state: &AppState, claims: &Claims) -> AppResult<CertificatePermissionLevel> {
     // Check for global admin/superuser
     if claims.is_admin_or_above() {
@@ -977,13 +998,13 @@ pub async fn update_certificate_status(
 
 // ── Template upload (Admin only) ──────────────────────────────
 
-/// Handle multipart form data for template upload
+/// Handle multipart form data for template upload (Admin only)
 pub async fn upload_template(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     mut multipart: Multipart,
 ) -> AppResult<Json<serde_json::Value>> {
-    if !claims.is_admin_or_above() {
+    if !is_tc_admin(state, claims).await {
         return Err(AppError::Forbidden);
     }
 
@@ -1040,7 +1061,7 @@ pub async fn delete_template(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> AppResult<Json<serde_json::Value>> {
-    if !claims.is_admin_or_above() {
+    if !is_tc_admin(state, claims).await {
         return Err(AppError::Forbidden);
     }
 
@@ -1089,7 +1110,7 @@ pub async fn upload_stempel(
     Extension(claims): Extension<Claims>,
     mut multipart: Multipart,
 ) -> AppResult<Json<serde_json::Value>> {
-    if !claims.is_admin_or_above() {
+    if !is_tc_admin(state, claims).await {
         return Err(AppError::Forbidden);
     }
 
@@ -1143,7 +1164,7 @@ pub async fn delete_stempel(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> AppResult<Json<serde_json::Value>> {
-    if !claims.is_admin_or_above() {
+    if !is_tc_admin(state, claims).await {
         return Err(AppError::Forbidden);
     }
 
