@@ -88,17 +88,20 @@ async fn is_tc_admin(state: &AppState, claims: &Claims) -> bool {
     if claims.is_admin_or_above() {
         return true;
     }
-    sqlx::query_scalar::<_, bool>(
-        "SELECT $1 = ANY(
-            SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
-            FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
-         )"
+    // Same query as get_certificate_permission_level - checks both user permissions AND user_functions
+    let perms: Vec<String> = sqlx::query_scalar::<_, String>(
+        "SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}')) AS perm
+         FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $1
+         UNION
+         SELECT unnest(fr.permissions)
+         FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $1"
     )
-    .bind("teilnahmebescheinigung.admin")
     .bind(claims.sub)
-    .fetch_one(&state.db)
+    .fetch_all(&state.db)
     .await
-    .unwrap_or(false)
+    .unwrap_or_default();
+
+    perms.iter().any(|p| p == "teilnahmebescheinigung.admin")
 }
 
 async fn get_certificate_permission_level(state: &AppState, claims: &Claims) -> AppResult<CertificatePermissionLevel> {
