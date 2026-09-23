@@ -1004,7 +1004,7 @@ pub async fn upload_template(
     Extension(claims): Extension<Claims>,
     mut multipart: Multipart,
 ) -> AppResult<Json<serde_json::Value>> {
-    if !is_tc_admin(state, claims).await {
+    if !is_tc_admin(&state, &claims).await {
         return Err(AppError::Forbidden);
     }
 
@@ -1061,7 +1061,7 @@ pub async fn delete_template(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> AppResult<Json<serde_json::Value>> {
-    if !is_tc_admin(state, claims).await {
+    if !is_tc_admin(&state, &claims).await {
         return Err(AppError::Forbidden);
     }
 
@@ -1110,7 +1110,7 @@ pub async fn upload_stempel(
     Extension(claims): Extension<Claims>,
     mut multipart: Multipart,
 ) -> AppResult<Json<serde_json::Value>> {
-    if !is_tc_admin(state, claims).await {
+    if !is_tc_admin(&state, &claims).await {
         return Err(AppError::Forbidden);
     }
 
@@ -1164,7 +1164,7 @@ pub async fn delete_stempel(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> AppResult<Json<serde_json::Value>> {
-    if !is_tc_admin(state, claims).await {
+    if !is_tc_admin(&state, &claims).await {
         return Err(AppError::Forbidden);
     }
 
