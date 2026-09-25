@@ -26,13 +26,12 @@ export async function renderLehrgangDetail({ params }) {
         <h2>Lehrgang-Detail</h2>
         <p>Übersicht und Verwaltung des Lehrgangs</p>
       </div>
-      <div class="btn-group">
+      <div class="btn-group" id="detail-actions">
         ${canManage ? `
           <button class="btn btn--outline" id="btn-edit-course">Bearbeiten</button>
           <button class="btn btn--primary" id="btn-assign-seats">Plätze zuweisen</button>
           ${canManage ? `<button class="btn btn--outline" id="btn-email-template">E-Mail-Vorlage</button>` : ''}
         ` : ''}
-        ${canRegister ? `<button class="btn btn--primary" id="btn-register-course">Anmelden</button>` : ''}
         <a class="btn btn--outline" href="#/lehrgaenge">Zurück zur Übersicht</a>
       </div>
     </div>
