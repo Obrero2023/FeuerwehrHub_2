@@ -14,10 +14,11 @@ const MODULE_ACCENTS = {
   einsatzberichte: '#e63022',
   personal:        '#16a34a',
   fahrzeuge:       '#2563eb',
-  fahrzeug_checklist: '#0891b2',
+  fahrzeug_checklist: '#0891b3',
   fahrzeugbuchung: '#8b5cf6',  // violet
   verein:          '#7c3aed',
-  intranet:        '#0891b2',
+  intranet:        '#0891b3',
+  lehrgangsverwaltung: '#059669', // emerald/grün
 };
 
 const PAGE_MODULE = {
@@ -38,6 +39,9 @@ const PAGE_MODULE = {
   'hlf2-inspection':    'fahrzeugpruefung',
   'mtf-inspection':     'fahrzeugpruefung',
   'fahrzeugbuchung': 'fahrzeugbuchung',
+  'lehrgaenge':    'lehrgangsverwaltung',
+  'meine-anmeldungen': 'lehrgangsverwaltung',
+  'lehrgang':      'lehrgangsverwaltung',
   verein:          'verein',
   intranet:        'intranet',
 };
@@ -177,6 +181,11 @@ function buildShell() {
     { page: 'fahrzeugbuchung', label: 'Fahrzeugbuchung', icon: icon('calendar', 16) },
   ];
 
+  const lehrgangsverwaltungItems = [
+    { page: 'lehrgaenge', label: 'Lehrgänge', icon: icon('book', 16) },
+    { page: 'meine-anmeldungen', label: 'Meine Anmeldungen', icon: icon('user-check', 16) },
+  ];
+
   return `
     <div class="app-shell" style="--accent: ${accent}">
 
@@ -212,6 +221,7 @@ function buildShell() {
         ${showModule('verein', 'verein')               ? buildNavItem('verein',          'Verein',   vereinItems)   : ''}
         ${showModulePublic('intranet')         ? buildNavItem('intranet',        'Intranet', intranetItems) : ''}
         ${showModule('fahrzeugbuchung', 'fahrzeugbuchung') ? buildNavItem('fahrzeugbuchung', 'Fahrzeugbuchung', fahrzeugbuchungItems) : ''}
+        ${showModule('lehrgangsverwaltung', 'lehrgangsverwaltung') ? buildNavItem('lehrgangsverwaltung', 'Lehrgangsverwaltung', lehrgangsverwaltungItems) : ''}
 
         <div class="topnav__spacer"></div>
 
