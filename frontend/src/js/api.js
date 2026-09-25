@@ -315,6 +315,35 @@ export const api = {
   // Admin
   setupStatus: () => fetch("/api/auth/setup-status").then((r) => r.json()),
 
+  // Lehrgangsverwaltung
+  getCourses: (params) => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(params || {})) {
+      if (v != null && v !== "") p.append(k, v);
+    }
+    return request("GET", `/api/lehrgangsverwaltung/courses?${p}`);
+  },
+  getCourse: (id) => request("GET", `/api/lehrgangsverwaltung/courses/${id}`),
+  createCourse: (body) => request("POST", "/api/lehrgangsverwaltung/courses", body),
+  updateCourse: (id, body) => request("PUT", `/api/lehrgangsverwaltung/courses/${id}`, body),
+  deleteCourse: (id) => request("DELETE", `/api/lehrgangsverwaltung/courses/${id}`),
+  registerCourse: (courseId) => request("POST", `/api/lehrgangsverwaltung/courses/${courseId}/register`),
+  cancelRegistration: (courseId) => request("DELETE", `/api/lehrgangsverwaltung/courses/${courseId}/register`),
+  listMyRegistrations: () => request("GET", "/api/lehrgangsverwaltung/meine-anmeldungen"),
+  listCourseRegistrations: (courseId) =>
+    request("GET", `/api/lehrgangsverwaltung/courses/${courseId}/registrations`),
+  assignSeats: (courseId, registrationIds) =>
+    request("POST", `/api/lehrgangsverwaltung/courses/${courseId}/assign-seats`, { registration_ids: registrationIds }),
+  getEmailTemplate: (courseId) => {
+    return fetch(`/api/lehrgangsverwaltung/courses/${courseId}/email-template`, {
+      credentials: "include",
+    }).then(async (res) => {
+      const data = await res.blob().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+      return data;
+    });
+  },
+
   // Fahrzeugtypen
   getVehicleTypes: () => request("GET", "/vehicles/types"),
   createVehicleType: (body) => request("POST", "/vehicles/types", body),

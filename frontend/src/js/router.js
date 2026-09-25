@@ -5,6 +5,13 @@ const routePermissions = {};
 let scanHandler = null;
 let currentPage = null;
 
+export function registerParamRoute(pattern, fn) {
+  // Konvertiere z.B. "#/lehrgang/:id" in einen RegExp
+  const regexPattern = pattern.replace(/:([^/]+)/g, '([^/]+)');
+  const regex = new RegExp(`^${regexPattern}$`);
+  routes[pattern] = { fn, regex };
+}
+
 export function registerRoute(hash, fn, requiredPermission) {
   routes[hash] = fn;
   if (requiredPermission) routePermissions[hash] = requiredPermission;
@@ -47,9 +54,36 @@ export function initRouter() {
       return;
     }
 
-    const handler = routes[hash] || routes['*'];
+    // Handler auflösen: erst statische, dann parametrisierte Routen
+    let handler = null;
+    let match = null;
+    let params = {};
+    let requiredPerm = null;
+
+    const handlerStatic = routes[hash];
+    if (handlerStatic && typeof handlerStatic === 'function') {
+      handler = handlerStatic;
+      requiredPerm = routePermissions[hash];
+    } else {
+      // Prüfe parametrisierte Routen (Objekte mit {fn, regex})
+      for (const [pattern, routeObj] of Object.entries(routes)) {
+        if (routeObj && routeObj.regex) {
+          match = hash.match(routeObj.regex);
+          if (match) {
+            handler = routeObj.fn;
+            const paramNames = pattern.match(/:([^/]+)/g) || [];
+            paramNames.forEach((param, i) => {
+              params[param.slice(1)] = match[i + 1];
+            });
+            requiredPerm = routePermissions[pattern];
+            break;
+          }
+        }
+      }
+    }
+    if (!handler) handler = routes['*'];
+
     if (handler) {
-      const requiredPerm = routePermissions[hash];
       if (requiredPerm) {
         const user = await api.me().catch(() => null);
         const isAdmin = user?.role === 'admin' || user?.role === 'superuser';
@@ -67,7 +101,7 @@ export function initRouter() {
         document.querySelectorAll('.sidebar__item').forEach(b => b.classList.remove('active'));
       }
       currentPage = hash;
-      handler();
+      handler(params);
     }
   }
 

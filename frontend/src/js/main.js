@@ -26,6 +26,9 @@ import { renderDatenschutz } from './pages/datenschutz.js';
 import { renderDienstReports } from './pages/dienst-reports.js';
 import { renderIntranet } from './pages/intranet.js';
 import { renderVehicleBookings } from './pages/vehicle-bookings.js';
+import { renderLehrgaenge } from './pages/lehrgangsverwaltung.js';
+import { renderMeineAnmeldungen } from './pages/meine-anmeldungen.js';
+import { renderLehrgangDetail } from './pages/lehrgang-detail.js';
 
 // Routen registrieren
 registerRoute('#/login',     renderLogin);
@@ -54,6 +57,9 @@ registerRoute('#/datenschutz',     renderDatenschutz);
 registerRoute('#/dienstberichte', renderDienstReports);
 registerRoute('#/intranet', renderIntranet);
 registerRoute('#/fahrzeugbuchung', renderVehicleBookings, 'fahrzeugbuchung');
+registerRoute('#/lehrgaenge', renderLehrgaenge);
+registerRoute('#/meine-anmeldungen', renderMeineAnmeldungen);
+registerParamRoute('#/lehrgang/:id', renderLehrgangDetail);
 
 // Scan-Route (dynamisch, tokenbasiert)
 registerScanRoute(renderScanView);

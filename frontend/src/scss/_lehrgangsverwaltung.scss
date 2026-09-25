@@ -1,0 +1,35 @@
+@use 'variables' as *;
+
+// ── Lehrgangsverwaltung ──────────────────────────────────────
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.detail-item {
+  &__label {
+    font-size: $font-size-xs;
+    color: $text-muted;
+    margin-bottom: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  &__value {
+    color: $text;
+    font-weight: 500;
+    font-size: $font-size-sm;
+  }
+}
+
+.status-badge--lehrgang {
+  font-size: $font-size-xs;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: $radius-pill;
+  &--entwurf        { color: $gelb;  background: $orange-hell; }
+  &--veroeffentlicht { color: $gruen; background: $gruen-hell; }
+  &--abgeschlossen  { color: $blau;  background: #dbeafe; }
+  &--archiviert     { color: $text-muted; background: $bg-card-hover; }
+}

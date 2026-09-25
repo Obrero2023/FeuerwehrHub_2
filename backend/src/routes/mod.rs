@@ -9,6 +9,7 @@ pub mod incident_types;
 pub mod incidents;
 pub mod integrations;
 pub mod intranet;
+pub mod lehrgangsverwaltung;
 pub mod orders;
 pub mod personal;
 pub mod roles;
