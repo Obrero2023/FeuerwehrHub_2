@@ -209,7 +209,6 @@ async function loadProfileTab(user) {
       try {
         const sigRes = await api.getSignature();
         if (sigRes?.signature) {
-          localStorage.setItem('ff_signature', sigRes.signature);
           renderSignaturePreview(sigRes.signature);
         }
       } catch(e) {}
@@ -233,8 +232,8 @@ async function loadProfileTab(user) {
           if (!dataUrl) return;
           try {
             await api.uploadSignature(dataUrl);
-            localStorage.setItem('ff_signature', dataUrl);
-            renderSignaturePreview(dataUrl);
+            const sigRes = await api.getSignature();
+            if (sigRes?.signature) renderSignaturePreview(sigRes.signature);
             toast('Unterschrift gespeichert');
           } catch (e) { toast(e.message, 'error'); }
         };
@@ -245,7 +244,6 @@ async function loadProfileTab(user) {
         if (!confirm('Unterschrift wirklich entfernen?')) return;
         try {
           await api.uploadSignature('');
-          localStorage.removeItem('ff_signature');
           document.getElementById('sig-preview').innerHTML = '';
           document.getElementById('btn-upload-sig').style.display = 'inline-block';
           document.getElementById('btn-remove-sig').style.display = 'none';

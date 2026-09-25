@@ -16,7 +16,7 @@ use uuid::Uuid;
 use crate::{
     auth::middleware::{require_module, require_auth, Claims},
     errors::{AppError, AppResult},
-    pdf::PdfBuilder,
+    pdf::{load_from_memory, PdfBuilder},
     AppState,
 };
 
@@ -1265,13 +1265,27 @@ pub async fn upload_signature(
         .ok_or(AppError::BadRequest("Signature erforderlich".into()))?
         .to_string();
 
-    sqlx::query(
-        "UPDATE users SET signature = $1 WHERE id = $2"
-    )
-    .bind(&signature)
-    .bind(claims.sub)
-    .execute(&state.db)
-    .await?;
+    if !signature.is_empty() {
+        let (mime, bytes) = parse_data_uri(&signature).ok_or_else(|| {
+            AppError::BadRequest("Ungültiges Signaturformat (erwartet data:image/...;base64,...)".into())
+        })?;
+        if !matches!(mime.as_str(), "image/png" | "image/jpeg" | "image/jpg") {
+            return Err(AppError::BadRequest("Nur PNG oder JPEG erlaubt".into()));
+        }
+        const MAX_SIGNATURE_BYTES: usize = 500 * 1024;
+        if bytes.len() > MAX_SIGNATURE_BYTES {
+            return Err(AppError::BadRequest("Signatur zu groß (max. 500 KB)".into()));
+        }
+        if load_from_memory(&bytes).is_err() {
+            return Err(AppError::BadRequest("Ungültige Bilddaten".into()));
+        }
+    }
+
+    sqlx::query("UPDATE users SET signature = $1 WHERE id = $2")
+        .bind(&signature)
+        .bind(claims.sub)
+        .execute(&state.db)
+        .await?;
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }

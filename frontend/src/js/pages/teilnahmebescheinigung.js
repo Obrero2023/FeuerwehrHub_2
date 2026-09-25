@@ -140,19 +140,8 @@ export async function renderTeilnahmebescheinigung() {
         select.innerHTML = '<option>Wird verarbeitet...</option>';
 
         try {
-          const signature = localStorage.getItem('ff_signature') || '';
-
-          // Wenn Unterschreiben und Signatur vorhanden, zuerst hochladen
-          if (newStatus === 'signed' && signature) {
-            try {
-              await api.uploadSignature(signature);
-            } catch (sigErr) {
-              toast('Unterschrift konnte nicht gespeichert werden', 'error');
-            }
-          }
-
           await api.updateCertificateStatus(certId, { status: newStatus });
-          toast(newStatus === 'signed' ? 'Unterschrift registriert' : 'Status aktualisiert');
+          toast('Status aktualisiert');
           await loadCertificates();
         } catch(e) { toast(e.message, 'error'); }
       });

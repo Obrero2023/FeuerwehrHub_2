@@ -1,4 +1,4 @@
-use ::image::load_from_memory;
+pub(crate) use ::image::load_from_memory;
 use printpdf::{
     path::{PaintMode, WindingOrder},
     *,
