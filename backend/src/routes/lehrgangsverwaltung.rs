@@ -1,6 +1,7 @@
 use axum::{
     extract::{Path, Query, State},
     middleware,
+    response::IntoResponse,
     routing::{delete, get, post, put},
     Extension, Json, Router,
 };
