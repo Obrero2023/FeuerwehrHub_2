@@ -252,7 +252,7 @@ export async function renderAdmin() {
             Lade das offizielle Formular deiner Feuerwehr für Teilnahmebescheinigungen hoch.
             Dieses Template wird als Vorlage für alle Bescheinigungen verwendet.
             Derzeit wird das Template als DOCX unterstützt.
-            Das Template darf folgende Rich-Text-Inhaltssteuerelemente enthalten: Name, date, date2, time-start, time-stop, name-gf, sing, stempel.
+            Das Template darf folgende Rich-Text-Inhaltssteuerelemente enthalten: Name, date, date2, time-start, time-stop, name-gf, sing (Stempel), stempel.
           </p>
           <div id="tc-template-status" class="text-sm mb-sm"></div>
           <div class="form-group">
