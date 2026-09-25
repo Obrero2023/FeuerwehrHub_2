@@ -696,14 +696,11 @@ async fn generate_certificate_pdf(
         values.insert("name-gf".to_string(), serde_json::Value::String(
             certificate.unit_leader_name.clone().unwrap_or_default()
         ));
-        // sing: wird durch den Stempel (Admin Panel — Teilnahmebescheinigung Feuerwehreinsatz — Stempel) ersetzt
+        // sing: Unterschrift des Unterzeichnenden (uploaded unter "Mein Bereich → Mein Profil")
         values.insert("sing".to_string(), serde_json::Value::String(
-            stempel_image
+            signature_data
                 .as_ref()
-                .map(|data| {
-                    let b64 = general_purpose::STANDARD.encode(data);
-                    format!("data:image/png;base64,{}", b64)
-                })
+                .map(|s| s.to_string())
                 .unwrap_or_else(|| "—".to_string())
         ));
         // Stempel als Data-URI einbetten, falls vorhanden
