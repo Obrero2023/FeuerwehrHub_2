@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS course_registrations (
 
 -- Doppelte Registrierungen verhindern
 ALTER TABLE course_registrations
-    ADD CONSTRAINT IF NOT EXISTS uq_course_user UNIQUE (course_id, user_id);
+    ADD CONSTRAINT uq_course_user UNIQUE (course_id, user_id);
 
 CREATE INDEX IF NOT EXISTS idx_course_registrations_course_id ON course_registrations(course_id);
 CREATE INDEX IF NOT EXISTS idx_course_registrations_user_id ON course_registrations(user_id);
