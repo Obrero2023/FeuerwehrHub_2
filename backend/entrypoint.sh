@@ -10,7 +10,7 @@
 # als dieser gestartet.
 set -e
 
-mkdir -p /data
+mkdir -p /data /data/signaturen
 chown -R app:app /data
 
 exec runuser -u app -- /app/feuerwehrhub

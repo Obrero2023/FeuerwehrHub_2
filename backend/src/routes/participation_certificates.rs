@@ -202,6 +202,33 @@ async fn read_stempel_image(state: &AppState) -> AppResult<Option<Vec<u8>>> {
 
 // ── DOCX-Template-Hilfsfunktionen ──────────────────────────────────────
 
+/// Liest die Signatur einer Person (ID) und gibt sie als Data-URI zurück.
+/// Unterstützt das alte Format (Data-URI direkt in DB) und das neue Format (Dateiname).
+async fn resolve_signature_to_data_uri(state: &AppState, user_id: Uuid) -> Option<String> {
+    let signature_value: Option<String> = sqlx::query_scalar("SELECT signature FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten();
+
+    match signature_value {
+        Some(value) if value.starts_with("data:image/") => Some(value),
+        Some(filename) if !filename.is_empty() => {
+            let signature_path = FsPath::new(&state.config.data_dir)
+                .join("signaturen")
+                .join(&filename);
+            if let Ok(bytes) = tokio::fs::read(&signature_path).await {
+                let b64 = general_purpose::STANDARD.encode(&bytes);
+                Some(format!("data:image/png;base64,{}", b64))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
 /// Füllt die Rich-Text-Inhaltssteuerelemente eines DOCX-Templates mit den gegebenen Werten.
 /// Erwartet ein DOCX mit Content Controls, deren `w:alias` den Schlüsseln in `values` entspricht.
 /// Gibt das gefüllte DOCX als Vec<u8> zurück oder einen Fehler.
@@ -624,26 +651,13 @@ async fn generate_certificate_pdf(
     let stempel_image = read_stempel_image(state).await.unwrap_or(None);
 
     // Read signature from the person who signed the certificate (signed_by),
-    // falling back to the unit leader if no signer is set (e.g., for unsigned certs)
+    // falling back to the unit leader if no signer is set (e.g., for unsigned certs).
+    // Supported formats: old (data: URI stored directly in DB) and new (filename in /data/signaturen/).
     let signature_data: Option<String> =
         if let Some(signer_id) = certificate.signed_by {
-            sqlx::query_scalar::<_, String>(
-                "SELECT signature FROM users WHERE id = $1"
-            )
-            .bind(signer_id)
-            .fetch_optional(&state.db)
-            .await
-            .ok()
-            .flatten()
+            resolve_signature_to_data_uri(state, signer_id).await
         } else if let Some(leader_id) = certificate.unit_leader_id {
-            sqlx::query_scalar::<_, String>(
-                "SELECT signature FROM users WHERE id = $1"
-            )
-            .bind(leader_id)
-            .fetch_optional(&state.db)
-            .await
-            .ok()
-            .flatten()
+            resolve_signature_to_data_uri(state, leader_id).await
         } else {
             None
         };
@@ -1279,13 +1293,42 @@ pub async fn upload_signature(
         if load_from_memory(&bytes).is_err() {
             return Err(AppError::BadRequest("Ungültige Bilddaten".into()));
         }
-    }
 
-    sqlx::query("UPDATE users SET signature = $1 WHERE id = $2")
-        .bind(&signature)
-        .bind(claims.sub)
-        .execute(&state.db)
-        .await?;
+        // Signatur als Datei speichern (nicht als Data-URI in der DB)
+        let sig_filename = format!("{}.png", Uuid::new_v4());
+        let sig_dir = FsPath::new(&state.config.data_dir).join("signaturen");
+        tokio::fs::create_dir_all(&sig_dir).await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Signatur-Verzeichnis konnte nicht erstellt werden: {}", e))
+        })?;
+        let sig_path = sig_dir.join(&sig_filename);
+        tokio::fs::write(&sig_path, &bytes).await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Signatur konnte nicht gespeichert werden: {}", e))
+        })?;
+
+        sqlx::query("UPDATE users SET signature = $1 WHERE id = $2")
+            .bind(&sig_filename)
+            .bind(claims.sub)
+            .execute(&state.db)
+            .await?;
+    } else {
+        // Signatur entfernen: Datei löschen und DB bereinigen
+        let current_sig: Option<String> = sqlx::query_scalar("SELECT signature FROM users WHERE id = $1")
+            .bind(claims.sub)
+            .fetch_optional(&state.db)
+            .await?;
+        if let Some(ref current) = current_sig {
+            if !current.starts_with("data:image/") && !current.is_empty() {
+                let sig_path = FsPath::new(&state.config.data_dir)
+                    .join("signaturen")
+                    .join(current);
+                let _ = tokio::fs::remove_file(&sig_path).await;
+            }
+        }
+        sqlx::query("UPDATE users SET signature = '' WHERE id = $1")
+            .bind(claims.sub)
+            .execute(&state.db)
+            .await?;
+    }
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }
@@ -1294,15 +1337,36 @@ pub async fn get_signature(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> AppResult<Json<serde_json::Value>> {
-    let signature: Option<String> = sqlx::query_scalar(
+    let signature_value: Option<String> = sqlx::query_scalar(
         "SELECT signature FROM users WHERE id = $1"
     )
     .bind(claims.sub)
     .fetch_optional(&state.db)
     .await?;
 
+    let signature = match signature_value {
+        Some(value) if value.starts_with("data:image/") => {
+            // Altes Format: Data-URI direkt in DB
+            value
+        }
+        Some(filename) if !filename.is_empty() => {
+            // Neues Format: Dateiname → Datei als Data-URI lesen
+            let sig_path = FsPath::new(&state.config.data_dir)
+                .join("signaturen")
+                .join(&filename);
+            match tokio::fs::read(&sig_path).await {
+                Ok(bytes) => {
+                    let b64 = general_purpose::STANDARD.encode(&bytes);
+                    format!("data:image/png;base64,{}", b64)
+                }
+                Err(_) => String::new(),
+            }
+        }
+        _ => String::new(),
+    };
+
     Ok(Json(serde_json::json!({
-        "signature": signature.unwrap_or_default()
+        "signature": signature
     })))
 }
 
