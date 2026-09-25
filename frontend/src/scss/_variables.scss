@@ -52,6 +52,8 @@
   --verein-hell:   rgba(124, 58, 237, 0.12);
   --intranet-c:    #0891b2;
   --intranet-hell: rgba(8, 145, 178, 0.12);
+  --lehrgangsverwaltung-c: #059669;
+  --lehrgangsverwaltung-hell: rgba(5, 150, 105, 0.12);
 }
 
 // ── CSS Custom Properties — Dark Theme ───────────────────────────────────────
@@ -93,6 +95,8 @@
   --fahrzeug-hell: rgba(37, 99, 235, 0.15);
   --einsatz-hell:  rgba(230, 48, 34, 0.15);
   --verein-hell:   rgba(124, 58, 237, 0.15);
+  --intranet-hell: rgba(8, 145, 178, 0.15);
+  --lehrgangsverwaltung-hell: rgba(5, 150, 105, 0.15);
 }
 
 // ── SCSS-Variablen (zeigen auf CSS Custom Properties) ─────────────────────────

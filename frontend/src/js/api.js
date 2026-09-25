@@ -334,6 +334,8 @@ export const api = {
     request("GET", `/api/lehrgangsverwaltung/courses/${courseId}/registrations`),
   assignSeats: (courseId, registrationIds) =>
     request("POST", `/api/lehrgangsverwaltung/courses/${courseId}/assign-seats`, { registration_ids: registrationIds }),
+  updateRegistration: (registrationId, body) =>
+    request("PUT", `/api/lehrgangsverwaltung/registrations/${registrationId}`, body),
   getEmailTemplate: (courseId) => {
     return fetch(`/api/lehrgangsverwaltung/courses/${courseId}/email-template`, {
       credentials: "include",

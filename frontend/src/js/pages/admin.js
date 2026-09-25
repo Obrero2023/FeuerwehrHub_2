@@ -24,6 +24,8 @@ const MODULE_LABELS = {
   intranet:                  'Intranet',
   fahrzeugbuchung:           'Fahrzeugbuchung (Lesen)',
   'fahrzeugbuchung.verwalten': 'Fahrzeugbuchung (Verwalten)',
+  lehrgangsverwaltung:       'Lehrgangsverwaltung (Lesen)',
+  'lehrgangsverwaltung.verwalten': 'Lehrgangsverwaltung (Verwalten)',
 };
 
 export async function renderAdmin() {
@@ -1243,15 +1245,16 @@ async function loadUsers(me, roles = []) {
 }
 
 const MODULE_DEFS = [
-  { key: 'lager',           iconName: 'package',         label: 'Lager',           desc: 'Beschaffungsaufträge, Bestellübersicht, Artikelstamm' },
-  { key: 'personal',        iconName: 'users',           label: 'Personal',        desc: 'Mitgliederverwaltung, Qualifikationen, Ehrungen' },
-  { key: 'einsatzberichte', iconName: 'truck',           label: 'Einsatzberichte', desc: 'Einsatzberichte erfassen und verwalten' },
-  { key: 'verein',          iconName: 'building',        label: 'Verein',          desc: 'Vorstandsverwaltung, Schwarzes Brett, Dokumentenablage, Briefkopf' },
-  { key: 'fahrzeuge',       iconName: 'wrench',          label: 'Technik &amp; Geräte', desc: 'Fahrzeuge, Geräte, Fristen, Prüfungen, Checklisten' },
-  { key: 'fahrzeugpruefung',iconName: 'check-square',    label: 'Fahrzeugprüfung', desc: 'Prüfungen, Geräte, Protokolle pro Fahrzeug' },
-  { key: 'fahrzeugbuchung', iconName: 'calendar',        label: 'Fahrzeugbuchung', desc: 'Fahrzeuge buchen und verwalten' },
-  { key: 'jugendfeuerwehr', iconName: 'users',           label: 'Jugendfeuerwehr', desc: 'JF-Mitglieder, Termine, Wettbewerbe',                  soon: true },
-  { key: 'intranet',        iconName: 'globe',           label: 'Intranet',        desc: 'Links und Dokumente für alle' },
+  { key: 'lager',           iconName: 'package',           label: 'Lager',           desc: 'Beschaffungsaufträge, Bestellübersicht, Artikelstamm' },
+  { key: 'personal',        iconName: 'users',             label: 'Personal',        desc: 'Mitgliederverwaltung, Qualifikationen, Ehrungen' },
+  { key: 'einsatzberichte', iconName: 'truck',             label: 'Einsatzberichte', desc: 'Einsatzberichte erfassen und verwalten' },
+  { key: 'verein',          iconName: 'building',          label: 'Verein',          desc: 'Vorstandsverwaltung, Schwarzes Brett, Dokumentenablage, Briefkopf' },
+  { key: 'fahrzeuge',       iconName: 'wrench',            label: 'Technik &amp; Geräte', desc: 'Fahrzeuge, Geräte, Fristen, Prüfungen, Checklisten' },
+  { key: 'fahrzeugpruefung',iconName: 'check-square',      label: 'Fahrzeugprüfung', desc: 'Prüfungen, Geräte, Protokolle pro Fahrzeug' },
+  { key: 'fahrzeugbuchung', iconName: 'calendar',          label: 'Fahrzeugbuchung', desc: 'Fahrzeuge buchen und verwalten' },
+  { key: 'lehrgangsverwaltung', iconName: 'book-open',     label: 'Lehrgänge',       desc: 'Lehrgänge erstellen, anmelden, Plätze vergeben' },
+  { key: 'jugendfeuerwehr', iconName: 'users',             label: 'Jugendfeuerwehr', desc: 'JF-Mitglieder, Termine, Wettbewerbe',                  soon: true },
+  { key: 'intranet',        iconName: 'globe',             label: 'Intranet',        desc: 'Links und Dokumente für alle' },
 ];
 
 async function loadModules() {
