@@ -4,6 +4,7 @@ use printpdf::{
     *,
 };
 use std::io::BufWriter;
+use tracing::warn;
 
 // A4 in mm (f32 — printpdf Mm wrapper uses f32)
 const PAGE_W: f32 = 210.0;
@@ -201,6 +202,10 @@ impl<'a> PageRenderer<'a> {
                 scale_y: Some(height / decoded.height() as f32),
                 dpi: Some(300.0),
             },
+        );
+    } else {
+        warn!(
+            "PDF‑Renderer: Bild‑Dekodierung fehlgeschlagen (korruptes PNG/Daten); Bild wird weggelassen"
         );
     }
 

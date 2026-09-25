@@ -283,13 +283,21 @@ fn fill_docx_template(
     Ok(output)
 }
 
-/// Parst eine Data-URI wie `data:image/png;base64,...` in (MIME-Typ, Rohdaten).
+/// Parst eine Data-URI wie `data:image/png;base64,...` oder einen reinen
+/// Base64‑String in (MIME-Typ, Rohdaten). Bei reinem Base64 wird MIME
+/// automatisch auf `image/png` gesetzt.
 fn parse_data_uri(data_uri: &str) -> Option<(String, Vec<u8>)> {
-    let rest = data_uri.strip_prefix("data:")?;
-    let (mime, data_part) = rest.split_once(';')?;
-    let b64_data = data_part.strip_prefix("base64,")?;
-    let data = general_purpose::STANDARD.decode(b64_data).ok()?;
-    Some((mime.to_string(), data))
+    if let Some(rest) = data_uri.strip_prefix("data:") {
+        let (mime, data_part) = rest.split_once(';')?;
+        let b64_data = data_part.strip_prefix("base64,")?;
+        let data = general_purpose::STANDARD.decode(b64_data).ok()?;
+        return Some((mime.to_string(), data));
+    }
+    // Reiner Base64‑String (ohne Präfix) – wird z. B. bei alten Einträgen genutzt
+    if let Ok(data) = general_purpose::STANDARD.decode(data_uri) {
+        return Some(("image/png".to_string(), data));
+    }
+    None
 }
 
 /// Betten Bilder in das DOCX-ZIP ein und ersetze Content Controls durch Inline-Bilder.
