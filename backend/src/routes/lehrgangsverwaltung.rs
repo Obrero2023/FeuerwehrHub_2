@@ -639,9 +639,9 @@ pub async fn create_email_template(
     let course = fetch_course_detail(&state.db, id).await?;
 
     // Teilnehmer mit platzzugewiesen laden
-    let participants = sqlx::query_as::<_, (String, String, String)>(
+    let participants = sqlx::query_as::<_, (String, String)>(
         "SELECT COALESCE(u.display_name, u.username) as name,
-                u.username, u.email
+                u.username
          FROM course_registrations cr
          JOIN users u ON u.id = cr.user_id
          WHERE cr.course_id = $1 AND cr.status = 'platzzugewiesen'"
@@ -656,7 +656,7 @@ pub async fn create_email_template(
 
     // .eml generieren (RFC 822) — Empfänger als BCC
     let bcc_list = participants.iter()
-        .map(|(_, email, _)| format!("\"{}\" <{}>", name_escape(email), email))
+        .map(|(name, username)| format!("\"{}\" <{}>", name_escape(name), username))
         .collect::<Vec<_>>()
         .join(", ");
 
@@ -700,13 +700,10 @@ pub async fn create_email_template(
     // als .eml File zurückgeben
     let filename = format!("lehrgang_{}_teilnehmer.eml", id);
     Ok((
-        [(
-            axum::http::header::CONTENT_TYPE,
-            "message/rfc822",
-        ), (
-            axum::http::header::CONTENT_DISPOSITION,
-            format!("attachment; filename=\"{}\"", filename),
-        )],
+        [
+            (axum::http::header::CONTENT_TYPE, "message/rfc822".to_string()),
+            (axum::http::header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", filename)),
+        ],
         eml,
     ))
 }
