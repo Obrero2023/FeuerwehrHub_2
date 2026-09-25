@@ -36,6 +36,7 @@ pub struct Course {
     pub updated_at:        chrono::DateTime<Utc>,
     pub updated_by:        Option<Uuid>,
     pub updated_by_name:   Option<String>,
+    pub active_assignments: i64,
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -183,7 +184,10 @@ pub async fn list_courses(
         "SELECT id, title, description, location, start_date, end_date,
                 registration_deadline, max_participants, prerequisites, status,
                 created_by, created_by_name, created_at, updated_at,
-                updated_by, updated_by_name
+                updated_by, updated_by_name,
+                COALESCE((SELECT COUNT(*) FROM course_registrations cr
+                          WHERE cr.course_id = c.id AND cr.status = 'platzzugewiesen'), 0)
+                 as active_assignments
          FROM courses
          WHERE 1=1
            AND ($1::text IS NULL OR status = $1)
