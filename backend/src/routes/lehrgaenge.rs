@@ -46,9 +46,10 @@ pub struct LehrgangBody {
     pub registration_deadline: NaiveDate,
     pub max_places:           i32,
     pub prerequisites:        Option<Vec<Uuid>>,
+    pub status:               Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Validate)]
 pub struct UpdateLehrgangBody {
     #[validate(length(min = 1, max = 200))]
     pub titel:                Option<String>,
@@ -94,7 +95,7 @@ pub struct UpdateRegistrierungBody {
     pub notiz: Option<String>, // interne Notiz vom Admin
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, sqlx::FromRow)]
 pub struct ExportTeilnehmerResponse {
     pub email:      String,
     pub vorname:    Option<String>,
@@ -137,31 +138,33 @@ pub async fn list_lehrgaenge(
     Query(query): Query<LehrgangQuery>,
 ) -> AppResult<Json<Vec<Lehrgang>>> {
     let mut sql = "SELECT id, titel, description, veranstaltungsort, start_date, end_date, registration_deadline, max_places, prerequisites, status, creator_id, created_at, updated_at FROM lehrgaenge WHERE status = 'veröffentlicht'".to_string();
-    let mut bindings: Vec<sqlx::types::Json<Uuid>> = Vec::new();
 
-    if let Some(status) = query.status {
+    if query.status.is_some() {
         sql.push_str(" AND status = $1");
-        bindings.push(sqlx::types::Json(status));
     }
-    if let Some(start_after) = query.start_after {
-        let placeholder = if bindings.is_empty() { "$1" } else { format!("${}", bindings.len() + 1) };
-        sql.push_str(&format!(" AND start_date >= {}", placeholder));
-        bindings.push(sqlx::types::Json(start_after));
+    if query.start_after.is_some() {
+        let idx = if query.status.is_some() { 2 } else { 1 };
+        sql.push_str(&format!(" AND start_date >= ${}", idx));
     }
-    if let Some(end_before) = query.end_before {
-        let placeholder = if bindings.is_empty() { "$1" } else if bindings.len() == 1 { "$2" } else { format!("${}", bindings.len() + 1) };
-        sql.push_str(&format!(" AND end_date <= {}", placeholder));
-        bindings.push(sqlx::types::Json(end_before));
+    if query.end_before.is_some() {
+        let idx = if query.status.is_some() { 3 } else { 2 };
+        sql.push_str(&format!(" AND end_date <= ${}", idx));
     }
 
     sql.push_str(" ORDER BY start_date ASC, titel ASC");
 
-    let mut query = sqlx::query_as::<_, Lehrgang>(&sql);
-    for binding in bindings {
-        query = query.bind(binding);
+    let mut qry = sqlx::query_as::<_, Lehrgang>(&sql);
+    if let Some(status) = &query.status {
+        qry = qry.bind(status);
+    }
+    if let Some(start_after) = query.start_after {
+        qry = qry.bind(start_after);
+    }
+    if let Some(end_before) = query.end_before {
+        qry = qry.bind(end_before);
     }
 
-    let lehrgaenge = query.fetch_all(&state.db).await?;
+    let lehrgaenge = qry.fetch_all(&state.db).await?;
     Ok(Json(lehrgaenge))
 }
 
@@ -225,18 +228,24 @@ pub async fn update_lehrgang(
 
     // Validierung: Wenn status geändert wird auf "veröffentlicht", prüfen Anmeldefrist in der Zukunft
     let new_status = body.status.as_ref().unwrap_or(&existing.status);
-    if new_status == "veröffentlicht" && body.registration_deadline.unwrap_or(existing.registration_deadline) <= Utc::now().date_naive() {
+    let new_registration_deadline = body.registration_deadline.unwrap_or(existing.registration_deadline);
+    if new_status == "veröffentlicht" && new_registration_deadline <= Utc::now().date_naive() {
         return Err(AppError::BadRequest("Anmeldefrist muss in der Zukunft liegen für veröffentlichte Lehrgänge".into()));
     }
 
     let new_titel = body.titel.as_ref().unwrap_or(&existing.titel);
-    let new_description = body.description.as_ref().unwrap_or(&existing.description);
-    let new_veranstaltungsort = body.veranstaltungsort.as_ref().unwrap_or(&existing.veranstaltungsort);
+    let new_description = body.description.as_ref().or(existing.description.as_ref());
+    let new_veranstaltungsort = body.veranstaltungsort.as_ref().or(existing.veranstaltungsort.as_ref());
     let new_start_date = body.start_date.unwrap_or(existing.start_date);
     let new_end_date = body.end_date.unwrap_or(existing.end_date);
     let new_registration_deadline = body.registration_deadline.unwrap_or(existing.registration_deadline);
     let new_max_places = body.max_places.unwrap_or(existing.max_places);
-    let new_prerequisites = body.prerequisites.as_ref().unwrap_or(&existing.prerequisites);
+    // prerequisites: use new body value if Some, otherwise keep existing wrapped in SqlJson
+    let new_prerequisites = if let Some(preqs) = &body.prerequisites {
+        SqlJson(preqs.clone())
+    } else {
+        existing.prerequisites.clone()
+    };
 
     let lehrgang = sqlx::query_as::<_, Lehrgang>(
         "UPDATE lehrgaenge
@@ -425,6 +434,7 @@ pub async fn delete_registrierung(
 
 pub async fn export_teilnehmer(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(lehrgang_id): Path<Uuid>,
 ) -> AppResult<Json<Vec<ExportTeilnehmerResponse>>> {
     // Nur Admin kann exportieren
