@@ -354,18 +354,6 @@ export const api = {
 
   checkOverlap: (params) => request("POST", "/vehicle-bookings/check-overlap", params),
 
-  // Lehrgänge
-  getLehrgaenge: () => request("GET", "/lehrgaenge"),
-  getLehrgang: (id) => request("GET", `/lehrgaenge/${id}`),
-  createLehrgang: (body) => request("POST", "/lehrgaenge", body),
-  updateLehrgang: (id, body) => request("PUT", `/lehrgaenge/${id}`, body),
-  deleteLehrgang: (id) => request("DELETE", `/lehrgaenge/${id}`),
-  getLehrgangRegistrierungen: (id) => request("GET", `/lehrgaenge/${id}/registrierungen`),
-  createLehrgangRegistrierung: (id, body) => request("POST", `/lehrgaenge/${id}/registrierungen/create`, body),
-  updateRegistrierungStatus: (lehrgangId, regId, body) => request("PUT", `/lehrgaenge/${lehrgangId}/registrierungen/${regId}`, body),
-  deleteRegistrierung: (lehrgangId, regId) => request("DELETE", `/lehrgaenge/${lehrgangId}/registrierungen/${regId}`),
-  exportLehrgangTeilnehmer: (id) => request("GET", `/lehrgaenge/${id}/export`),
-
   // Fahrtenbuch
   getTrips: (vid) => request("GET", `/vehicles/${vid}/trips`),
   createTrip: (vid, body) => request("POST", `/vehicles/${vid}/trips`, body),
