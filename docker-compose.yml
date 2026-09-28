@@ -30,7 +30,7 @@ services:
 
   # ── Backend ───────────────────────────────────────────────────────────────────
   backend:
-    image: ghcr.io/obrero2023/FeuerwehrHub_2-backend:latest
+    image: ghcr.io/obrero2023/feuerwehrhub_2-backend:latest
     container_name: ${CONTAINER_BACKEND:-feuerwehrhub-backend}
     restart: unless-stopped
     depends_on:
@@ -68,7 +68,7 @@ services:
 
   # ── Frontend ──────────────────────────────────────────────────────────────────
   frontend:
-    image: ghcr.io/obrero2023/FeuerwehrHub_2-frontend:latest
+    image: ghcr.io/obrero2023/feuerwehrhub_2-frontend:latest
     container_name: ${CONTAINER_FRONTEND:-feuerwehrhub-frontend}
     restart: unless-stopped
     ports:

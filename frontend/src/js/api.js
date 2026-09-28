@@ -321,23 +321,23 @@ export const api = {
     for (const [k, v] of Object.entries(params || {})) {
       if (v != null && v !== "") p.append(k, v);
     }
-    return request("GET", `/api/lehrgangsverwaltung/courses?${p}`);
+    return request("GET", `/lehrgangsverwaltung/courses?${p}`);
   },
-  getCourse: (id) => request("GET", `/api/lehrgangsverwaltung/courses/${id}`),
-  createCourse: (body) => request("POST", "/api/lehrgangsverwaltung/courses", body),
-  updateCourse: (id, body) => request("PUT", `/api/lehrgangsverwaltung/courses/${id}`, body),
-  deleteCourse: (id) => request("DELETE", `/api/lehrgangsverwaltung/courses/${id}`),
-  registerCourse: (courseId) => request("POST", `/api/lehrgangsverwaltung/courses/${courseId}/register`),
-  cancelRegistration: (courseId) => request("DELETE", `/api/lehrgangsverwaltung/courses/${courseId}/register`),
-  listMyRegistrations: () => request("GET", "/api/lehrgangsverwaltung/meine-anmeldungen"),
+  getCourse: (id) => request("GET", `/lehrgangsverwaltung/courses/${id}`),
+  createCourse: (body) => request("POST", "/lehrgangsverwaltung/courses", body),
+  updateCourse: (id, body) => request("PUT", `/lehrgangsverwaltung/courses/${id}`, body),
+  deleteCourse: (id) => request("DELETE", `/lehrgangsverwaltung/courses/${id}`),
+  registerCourse: (courseId) => request("POST", `/lehrgangsverwaltung/courses/${courseId}/register`),
+  cancelRegistration: (courseId) => request("DELETE", `/lehrgangsverwaltung/courses/${courseId}/register`),
+  listMyRegistrations: () => request("GET", "/lehrgangsverwaltung/meine-anmeldungen"),
   listCourseRegistrations: (courseId) =>
-    request("GET", `/api/lehrgangsverwaltung/courses/${courseId}/registrations`),
+    request("GET", `/lehrgangsverwaltung/courses/${courseId}/registrations`),
   assignSeats: (courseId, registrationIds) =>
-    request("POST", `/api/lehrgangsverwaltung/courses/${courseId}/assign-seats`, { registration_ids: registrationIds }),
+    request("POST", `/lehrgangsverwaltung/courses/${courseId}/assign-seats`, { registration_ids: registrationIds }),
   updateRegistration: (registrationId, body) =>
-    request("PUT", `/api/lehrgangsverwaltung/registrations/${registrationId}`, body),
+    request("PUT", `/lehrgangsverwaltung/registrations/${registrationId}`, body),
   getEmailTemplate: (courseId) => {
-    return fetch(`/api/lehrgangsverwaltung/courses/${courseId}/email-template`, {
+    return fetch(`/lehrgangsverwaltung/courses/${courseId}/email-template`, {
       credentials: "include",
     }).then(async (res) => {
       const data = await res.blob().catch(() => null);
