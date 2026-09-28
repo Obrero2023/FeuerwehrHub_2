@@ -18,6 +18,7 @@ const MODULE_ACCENTS = {
   fahrzeugbuchung: '#8b5cf6',  // violet
   verein:          '#7c3aed',
   intranet:        '#0891b2',
+  lehrgaenge:       '#8b5cf6',  // same as fahrzeugbuchung
 };
 
 const PAGE_MODULE = {
@@ -40,17 +41,20 @@ const PAGE_MODULE = {
   'fahrzeugbuchung': 'fahrzeugbuchung',
   verein:          'verein',
   intranet:        'intranet',
+  lehrgaenge:      'lehrgaenge',
+  'meine-anmeldungen': 'lehrgaenge',
 };
 
 const MODULE_COLORS = {
   lager:           { c: 'var(--lager-c)',    hell: 'var(--lager-hell)' },
   personal:        { c: 'var(--personal-c)', hell: 'var(--personal-hell)' },
-  fahrzeuge:       { c: 'var(--fahrzeug-c)', hell: 'var(--fahrzeug-hell)' },
+  fahrzeuge:       { c: 'var(--fahrzeug-c)', hell: 'var(--fahrzeug_hell)' },
   fahrzeugpruefung: { c: 'var(--fahrzeug_checklist-c)', hell: 'var(--fahrzeug_checklist-hell)' },
   fahrzeugbuchung: { c: 'var(--fahrzeugbuchung-c)', hell: 'var(--fahrzeugbuchung-hell)' },
   einsatzberichte: { c: 'var(--einsatz-c)',  hell: 'var(--einsatz-hell)' },
   verein:          { c: 'var(--verein-c)',   hell: 'var(--verein-hell)' },
   intranet:        { c: 'var(--intranet-c)', hell: 'var(--intranet-hell)' },
+  lehrgaenge:       { c: 'var(--fahrzeugbuchung-c)', hell: 'var(--fahrzeugbuchung-hell)' },
 };
 
 export function setShellInfo(name, user, modules) {
@@ -177,6 +181,14 @@ function buildShell() {
     { page: 'fahrzeugbuchung', label: 'Fahrzeugbuchung', icon: icon('calendar', 16) },
   ];
 
+  const lehrgaengeItems = [
+    { page: 'lehrgaenge', label: 'Lehrgänge', icon: icon('book-open', 16) },
+    { page: 'meine-anmeldungen', label: 'Meine Anmeldungen', icon: icon('user-check', 16) },
+    ...(canAccess(currentUser, 'lehrgangsverwaltung.verwalten') ? [
+      { page: 'admin/lehrgaenge', label: 'Verwalten', icon: icon('settings', 16) },
+    ] : []),
+  ];
+
   return `
     <div class="app-shell" style="--accent: ${accent}">
 
@@ -212,6 +224,7 @@ function buildShell() {
         ${showModule('verein', 'verein')               ? buildNavItem('verein',          'Verein',   vereinItems)   : ''}
         ${showModulePublic('intranet')         ? buildNavItem('intranet',        'Intranet', intranetItems) : ''}
         ${showModule('fahrzeugbuchung', 'fahrzeugbuchung') ? buildNavItem('fahrzeugbuchung', 'Fahrzeugbuchung', fahrzeugbuchungItems) : ''}
+        ${showModule('lehrgangsverwaltung.lesen', 'lehrgaenge') ? buildNavItem('lehrgaenge', 'Lehrgänge', lehrgaengeItems) : ''}
 
         <div class="topnav__spacer"></div>
 
