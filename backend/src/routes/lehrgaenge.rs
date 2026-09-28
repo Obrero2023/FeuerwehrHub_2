@@ -89,7 +89,7 @@ pub struct RegistrierungBody {
     pub notiz: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Validate)]
 pub struct UpdateRegistrierungBody {
     pub status: Option<String>, // z.B. "platz_zugewiesen", "warteliste", "abgelehnt"
     pub notiz: Option<String>, // interne Notiz vom Admin
@@ -109,16 +109,14 @@ pub struct ExportTeilnehmerResponse {
 // ── Helper ──────────────────────────────────────────────────────────────
 
 async fn fetch_lehrgang_by_id(db: &sqlx::PgPool, id: Uuid) -> AppResult<Lehrgang> {
-    let lehrgang = sqlx::query_as::<_, Lehrgang>(
+    sqlx::query_as::<_, Lehrgang>(
         "SELECT id, titel, description, veranstaltungsort, start_date, end_date, registration_deadline, max_places, prerequisites, status, creator_id, created_at, updated_at
          FROM lehrgaenge WHERE id = $1"
     )
     .bind(id)
     .fetch_one(db)
     .await
-    .map_err(|_| AppError::NotFound);
-
-    Ok(lehrgang)
+    .map_err(|_| AppError::NotFound)
 }
 
 async fn count_aktuell_plaetze(db: &sqlx::PgPool, lehrgang_id: Uuid) -> AppResult<i32> {
@@ -400,7 +398,7 @@ pub async fn update_registrierung_status(
     .bind(lehrgang_id)
     .fetch_optional(&state.db)
     .await?
-    .ok_or(AppError::NotFound);
+    .ok_or(AppError::NotFound)?;
 
     Ok(Json(registrierung))
 }
