@@ -68,7 +68,6 @@ pub struct CreateLehrgang {
     pub titel: String,
     pub beschreibung: Option<String>,
     pub ort: Option<String>,
-    #[validate(length(min = 1, max = 200))]
     pub start_datum: NaiveDate,
     pub end_datum: NaiveDate,
     pub anmeldeschluss: Option<NaiveDate>,
