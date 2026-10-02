@@ -24,6 +24,8 @@ const MODULE_LABELS = {
   intranet:                  'Intranet',
   fahrzeugbuchung:           'Fahrzeugbuchung (Lesen)',
   'fahrzeugbuchung.verwalten': 'Fahrzeugbuchung (Verwalten)',
+  lehrgangsverwaltung:        'Lehrgangsverwaltung (Lesen)',
+  'lehrgangsverwaltung.verwalten': 'Lehrgangsverwaltung (Verwalten)',
 };
 
 export async function renderAdmin() {
@@ -1252,6 +1254,7 @@ const MODULE_DEFS = [
   { key: 'fahrzeugbuchung', iconName: 'calendar',        label: 'Fahrzeugbuchung', desc: 'Fahrzeuge buchen und verwalten' },
   { key: 'jugendfeuerwehr', iconName: 'users',           label: 'Jugendfeuerwehr', desc: 'JF-Mitglieder, Termine, Wettbewerbe',                  soon: true },
   { key: 'intranet',        iconName: 'globe',           label: 'Intranet',        desc: 'Links und Dokumente für alle' },
+  { key: 'lehrgaenge',      iconName: 'calendar',        label: 'Lehrgaenge',      desc: 'Lehrgänge und Anmeldungen verwalten' },
 ];
 
 async function loadModules() {

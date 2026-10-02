@@ -22,6 +22,7 @@ import { renderEditIncident } from './pages/edit-incident.js';
 import { renderVerein } from './pages/verein.js';
 import { renderClock } from './pages/clock.js';
 import { renderScanView } from './pages/scan.js';
+import { renderLehrgaenge } from './pages/lehrgaenge.js';
 import { renderDatenschutz } from './pages/datenschutz.js';
 import { renderDienstReports } from './pages/dienst-reports.js';
 import { renderIntranet } from './pages/intranet.js';
@@ -54,6 +55,7 @@ registerRoute('#/datenschutz',     renderDatenschutz);
 registerRoute('#/dienstberichte', renderDienstReports);
 registerRoute('#/intranet', renderIntranet);
 registerRoute('#/fahrzeugbuchung', renderVehicleBookings, 'fahrzeugbuchung');
+registerRoute('#/lehrgaenge', renderLehrgaenge, 'lehrgangsverwaltung');
 
 // Scan-Route (dynamisch, tokenbasiert)
 registerScanRoute(renderScanView);

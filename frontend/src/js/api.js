@@ -354,6 +354,28 @@ export const api = {
 
   checkOverlap: (params) => request("POST", "/vehicle-bookings/check-overlap", params),
 
+  // Lehrgänge
+  getLehrgaenge: (params) => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(params || {})) {
+      if (v != null && v !== "") p.append(k, v);
+    }
+    return request("GET", `/lehrgaenge?${p}`);
+  },
+  getLehrgang: (id) => request("GET", `/lehrgaenge/${id}`),
+  createLehrgang: (body) => request("POST", "/lehrgaenge", body),
+  updateLehrgang: (id, body) => request("PUT", `/lehrgaenge/${id}`, body),
+  deleteLehrgang: (id) => request("DELETE", `/lehrgaenge/${id}`),
+
+  // Anmeldungen
+  getAnmeldungen: (lehrgangId) => request("GET", `/lehrgaenge/${lehrgangId}/anmeldungen`),
+  createAnmeldung: (lehrgangId, body) =>
+    request("POST", `/lehrgaenge/${lehrgangId}/anmeldungen`, body),
+  updateAnmeldung: (lehrgangId, anmeldungId, body) =>
+    request("PUT", `/lehrgaenge/${lehrgangId}/anmeldungen/${anmeldungId}`, body),
+  deleteAnmeldung: (lehrgangId, anmeldungId) =>
+    request("DELETE", `/lehrgaenge/${lehrgangId}/anmeldungen/${anmeldungId}`),
+
   // Fahrtenbuch
   getTrips: (vid) => request("GET", `/vehicles/${vid}/trips`),
   createTrip: (vid, body) => request("POST", `/vehicles/${vid}/trips`, body),

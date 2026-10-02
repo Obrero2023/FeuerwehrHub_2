@@ -18,6 +18,7 @@ const MODULE_ACCENTS = {
   fahrzeugbuchung: '#8b5cf6',  // violet
   verein:          '#7c3aed',
   intranet:        '#0891b2',
+  lehrgaenge:      '#10b981',  // green
 };
 
 const PAGE_MODULE = {
@@ -40,6 +41,7 @@ const PAGE_MODULE = {
   'fahrzeugbuchung': 'fahrzeugbuchung',
   verein:          'verein',
   intranet:        'intranet',
+  lehrgaenge:      'lehrgaenge',
 };
 
 const MODULE_COLORS = {
@@ -51,6 +53,7 @@ const MODULE_COLORS = {
   einsatzberichte: { c: 'var(--einsatz-c)',  hell: 'var(--einsatz-hell)' },
   verein:          { c: 'var(--verein-c)',   hell: 'var(--verein-hell)' },
   intranet:        { c: 'var(--intranet-c)', hell: 'var(--intranet-hell)' },
+  lehrgaenge:      { c: '#10b981', hell: '#d1fae5' },
 };
 
 export function setShellInfo(name, user, modules) {
@@ -212,6 +215,7 @@ function buildShell() {
         ${showModule('verein', 'verein')               ? buildNavItem('verein',          'Verein',   vereinItems)   : ''}
         ${showModulePublic('intranet')         ? buildNavItem('intranet',        'Intranet', intranetItems) : ''}
         ${showModule('fahrzeugbuchung', 'fahrzeugbuchung') ? buildNavItem('fahrzeugbuchung', 'Fahrzeugbuchung', fahrzeugbuchungItems) : ''}
+        ${showModule('lehrgaenge', 'Lehrgaenge') ? buildNavItem('lehrgaenge', 'Lehrgaenge', []) : ''}
 
         <div class="topnav__spacer"></div>
 
