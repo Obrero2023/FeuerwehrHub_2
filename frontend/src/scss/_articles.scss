@@ -221,6 +221,22 @@
   font-size: $font-size-sm;
 }
 
+.camera-error {
+  padding: $space-md;
+  text-align: center;
+
+  &__icon {
+    font-size: 32px;
+    margin-bottom: $space-sm;
+  }
+
+  &__message {
+    color: $text;
+    font-size: $font-size-sm;
+    margin: 0 0 $space-sm 0;
+  }
+}
+
 // ── Scan-Detailansicht ────────────────────────────────────────────────────────
 .scan-card {
   max-width: 480px;

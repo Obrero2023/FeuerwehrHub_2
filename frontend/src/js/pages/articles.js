@@ -491,8 +491,35 @@ export async function renderArticles() {
 
   // ── QR-Kamera-Scanner ─────────────────────────────────────────────────────
 
+  function renderCameraError(message, canRetry = true) {
+    const reader = document.getElementById('qr-reader-lager');
+    reader.innerHTML = `
+      <div class="camera-error" style="padding: 16px; text-align: center;">
+        <div class="camera-error__icon" style="font-size: 28px; margin-bottom: 8px;">📷</div>
+        <p class="camera-error__message" style="color: #333; font-size: 14px; margin: 0 0 8px 0;">${message}</p>
+        ${canRetry
+          ? `<button class="btn btn--primary btn--sm" id="camera-error-retry">Erneut versuchen</button>`
+          : ''}
+      </div>`;
+    if (canRetry) {
+      document.getElementById('camera-error-retry').addEventListener('click', openScanModal);
+    }
+  }
+
+  // Prüft, ob Kamerazugriff verfügbar ist
+  async function hasCameraSupport() {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      return devices.some(d => d.kind === 'videoinput');
+    } catch {
+      return false;
+    }
+  }
+
   async function openScanModal() {
-    document.getElementById('scan-modal').classList.add('active');
+    const reader = document.getElementById('qr-reader-lager');
+    reader.innerHTML = '<p class="text-muted text-sm" style="text-align: center;">Kamera wird gestartet...</p>';
+
     try {
       qrScanner = new Html5Qrcode('qr-reader-lager');
       const qrConfig = { fps: 10, qrbox: { width: 240, height: 240 } };
@@ -507,20 +534,36 @@ export async function renderArticles() {
         document.getElementById('ean-modal').classList.add('active');
         searchEan(text);
       };
-      try {
+
+      // Zuerst Video-Stream testen (fragt Berechtigung auf mobilen Geräten an)
+      const hasPermission = await navigator.mediaDevices
+        .getUserMedia({ video: { facingMode: 'environment' } })
+        .then(() => true)
+        .catch(() => false);
+
+      if (hasPermission) {
         await qrScanner.start({ facingMode: 'environment' }, qrConfig, onDecode, () => {});
-        qrRunning = true;
-      } catch {
-        const devices = await Html5Qrcode.getCameras();
-        if (devices?.length) {
-          const cam = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[devices.length - 1];
-          await qrScanner.start(cam.id, qrConfig, onDecode, () => {});
-          qrRunning = true;
+      } else {
+        // fallback: andere Kamera ausprobieren
+        const videoDevices = await navigator.mediaDevices.enumerateDevices();
+        const cam = videoDevices.find(d => /back|rear|environment/i.test(d.label)) || videoDevices.find(d => d.kind === 'videoinput');
+        if (cam && cam.deviceId) {
+          await qrScanner.start({ deviceId: cam.deviceId }, qrConfig, onDecode, () => {});
+        } else {
+          throw new Error('permission');
         }
       }
-    } catch {
-      document.getElementById('qr-reader-lager').innerHTML =
-        '<p class="scan-no-camera">Kamera nicht verfügbar oder Zugriff verweigert.</p>';
+      qrRunning = true;
+    } catch (err) {
+      const hasCamera = await hasCameraSupport();
+      if (!hasCamera) {
+        renderCameraError('Dieses Gerät hat keine Kamera. QR-Code bitte per EAN-Scan eingeben.');
+      } else {
+        renderCameraError(
+          `Kamerazugriff verweigert. Klicken Sie unten und erlauben Sie den Kamerazugriff in den Browsereinstellungen.`,
+          true
+        );
+      }
     }
   }
 
