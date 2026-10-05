@@ -517,6 +517,7 @@ export async function renderArticles() {
   }
 
   async function openScanModal() {
+    document.getElementById('scan-modal').classList.add('active');
     const reader = document.getElementById('qr-reader-lager');
     reader.innerHTML = '<p class="text-muted text-sm" style="text-align: center;">Kamera wird gestartet...</p>';
     console.log('[QR Scanner] openScanModal called');
