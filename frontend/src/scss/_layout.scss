@@ -204,7 +204,8 @@
 .topnav__dropdown {
   position: absolute;
   top: calc(100% + 2px);
-  left: 0;
+  left: 50%;
+  transform: translateX(-50%);
   background: $bg-card;
   border: 1px solid $border;
   border-radius: $radius-lg;
@@ -214,8 +215,40 @@
   display: none;
   z-index: 300;
   animation: dd-in 0.12s ease;
+  white-space: normal;
+  max-width: 90vw;
 
   &.open { display: block; }
+}
+
+// Mobile-spezifische Dropdown-Anpassungen
+@media (width <= 768px) {
+  .topnav__dropdown {
+    // Auf mobil: volle Breite, zentriert, Scrollbalken bei langen Listen
+    position: fixed;
+    top: 92px; // direkt unter der Topnav
+    left: 0;
+    right: 0;
+    transform: none;
+    margin: 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    max-width: 100%;
+    width: 100%;
+    border-radius: 0;
+    padding: 10px $space-md;
+    min-width: auto;
+  }
+
+  // Label im Dropdown-Header auf mobil ausblenden
+  .topnav__dropdown-label {
+    display: none;
+  }
+
+  // Dropdown-Items größer für Touch
+  .topnav__dd-item {
+    padding: 10px $space-sm;
+    font-size: $font-size-2xs;
+  }
 }
 
 @keyframes dd-in {
@@ -300,6 +333,86 @@
   display: none;
 
   &.active { display: block; }
+}
+
+// ── Mobile ────────────────────────────────────────────────────────────────────
+// Anpassungen für Handys / kleine Bildschirme: horizontale Navigation mit
+// Scrollleiste, Dropdowns werden zu volllinigen, zentrierten Flächen.
+@media (width <= 768px) {
+  // Kompakterer Header
+  .app-header {
+    padding: 0 $space-md;
+    height: 50px;
+
+    &__emblem { width: 28px; height: 28px; font-size: 14px; }
+
+    &__title {
+      &__name { font-size: $font-size-sm; }
+      &__sub { font-size: $font-size-2xs; }
+    }
+
+    &__user {
+      display: none; // Benutzername auf dem Handy ausblenden
+    }
+
+    &__logout {
+      padding: 4px 10px;
+      font-size: $font-size-2xs;
+    }
+  }
+
+  // Horizontale Navigation zum Scrollen freigeben
+  .topnav {
+    top: 50px;
+    height: auto;
+    min-height: 42px;
+    padding: 0 $space-md;
+    white-space: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch; // iOS Momentum-Scrollen
+    scroll-behavior: smooth;
+
+    &::-webkit-scrollbar { display: none; }  // Chrome, Safari
+    scrollbar-width: none;                   // Firefox
+    -ms-overflow-style: none;                // IE / Edge
+
+    &__item {
+      padding: 0 $space-md;
+      font-size: $font-size-xs;
+      white-space: nowrap;
+    }
+
+    &__arrow {
+      // Pfeil beim Dropdown sichtbar und besser klickbar halten
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 34px;
+      margin-left: 0;
+      margin-right: $space-sm;
+      opacity: 1;
+    }
+
+    // Dropdown-Pfeil neben dem Label (bei Dropdown-Items)
+    .topnav__item--has-dd > span.topnav__arrow {
+      position: static;
+      width: 16px;
+      height: auto;
+      margin-left: 2px;
+      margin-right: 0;
+    }
+  }
+
+  .topnav__dropdown-wrap {
+    // Dropdown über dem Pfeil-Button aufgehen lassen
+    margin-right: 34px;
+  }
+
+  // Seiten-Inhalt-Anpassung für mobile Header-Höhe
+  .page-main {
+    padding-top: 92px; // 50px (Header) + 42px (Topnav min-height)
+  }
 }
 
 .page-header {
