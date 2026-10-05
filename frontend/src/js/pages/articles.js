@@ -519,11 +519,13 @@ export async function renderArticles() {
   async function openScanModal() {
     const reader = document.getElementById('qr-reader-lager');
     reader.innerHTML = '<p class="text-muted text-sm" style="text-align: center;">Kamera wird gestartet...</p>';
+    console.log('[QR Scanner] openScanModal called');
 
     try {
       qrScanner = new Html5Qrcode('qr-reader-lager');
       const qrConfig = { fps: 10, qrbox: { width: 240, height: 240 } };
       const onDecode = (text) => {
+        console.log('[QR Scanner] Decoded:', text);
         closeScanModal();
         if (text.startsWith('http://') || text.startsWith('https://')) {
           window.location.href = text;
@@ -535,36 +537,56 @@ export async function renderArticles() {
         searchEan(text);
       };
 
-      // Zuerst Video-Stream testen (fragt Berechtigung auf mobilen Geräten an)
-      let stream = null;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      } catch {}
+      const onCameraError = (err) => {
+        console.log('[QR Scanner] Camera error:', err);
+      };
 
-      if (stream) {
-        // Stream sofort stoppen, damit html5-qrcode seine eigene Verbindung herstellen kann
-        stream.getTracks().forEach(track => track.stop());
-        await qrScanner.start({ facingMode: 'environment' }, qrConfig, onDecode, () => {});
-      } else {
-        // fallback: andere Kamera ausprobieren
-        const videoDevices = await navigator.mediaDevices.enumerateDevices();
-        const cam = videoDevices.find(d => /back|rear|environment/i.test(d.label)) || videoDevices.find(d => d.kind === 'videoinput');
-        if (cam && cam.deviceId) {
-          await qrScanner.start({ deviceId: cam.deviceId }, qrConfig, onDecode, () => {});
-        } else {
-          throw new Error('permission');
-        }
-      }
+      console.log('[QR Scanner] Starting with facingMode environment...');
+      await qrScanner.start({ facingMode: 'environment' }, qrConfig, onDecode, onCameraError);
+      console.log('[QR Scanner] Started with facingMode');
       qrRunning = true;
     } catch (err) {
-      const hasCamera = await hasCameraSupport();
-      if (!hasCamera) {
-        renderCameraError('Dieses Gerät hat keine Kamera. QR-Code bitte per EAN-Scan eingeben.');
-      } else {
-        renderCameraError(
-          `Kamerazugriff verweigert. Klicken Sie unten und erlauben Sie den Kamerazugriff in den Browsereinstellungen.`,
-          true
-        );
+      console.warn('[QR Scanner] facingMode failed:', err);
+      // fallback: andere Kamera ausprobieren
+      try {
+        const devices = await Html5Qrcode.getCameras();
+        console.log('[QR Scanner] Available cameras:', devices.map(d => ({ id: d.id, label: d.label })));
+        const cam = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[devices.length - 1];
+        if (cam && cam.id) {
+          console.log('[QR Scanner] Starting with device:', cam.id);
+          await qrScanner.start(cam.id, qrConfig, onDecode, onCameraError);
+          qrRunning = true;
+        } else {
+          throw new Error('no camera');
+        }
+      } catch (fallbackErr) {
+        console.error('[QR Scanner] Fallback failed:', fallbackErr);
+        const hasCamera = await hasCameraSupport();
+        if (!hasCamera) {
+          renderCameraError('Dieses Gerät hat keine Kamera. QR-Code bitte per EAN-Scan eingeben.');
+        } else {
+          // Check if we're in a secure context for better error messaging
+          // iOS Safari blocks camera on HTTP for non-localhost origins
+          const isSecure =
+            window.isSecureContext ||
+            location.protocol === 'https:' ||
+            location.hostname === 'localhost' ||
+            location.hostname === '127.0.0.1' ||
+            location.hostname === ''; // file://
+
+          if (!isSecure) {
+            renderCameraError(
+              `Kamera-Zugriff blockiert: Aus Sicherheitsgründen blockiert der Browser den Kamerazugriff auf nicht-sicheren Verbindungen (HTTP). ` +
+              `Bitte verwenden Sie HTTPS oder greifen Sie über localhost zu, oder öffnen Sie die Seite in einem Browser, der HTTPS unterstützt.`,
+              true
+            );
+          } else {
+            renderCameraError(
+              `Kamerazugriff verweigert. Bitte erlauben Sie den Kamerazugriff in den Browser-Einstellungen und klicken Sie dann auf "Erneut versuchen".`,
+              true
+            );
+          }
+        }
       }
     }
   }
