@@ -536,12 +536,14 @@ export async function renderArticles() {
       };
 
       // Zuerst Video-Stream testen (fragt Berechtigung auf mobilen Geräten an)
-      const hasPermission = await navigator.mediaDevices
-        .getUserMedia({ video: { facingMode: 'environment' } })
-        .then(() => true)
-        .catch(() => false);
+      let stream = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      } catch {}
 
-      if (hasPermission) {
+      if (stream) {
+        // Stream sofort stoppen, damit html5-qrcode seine eigene Verbindung herstellen kann
+        stream.getTracks().forEach(track => track.stop());
         await qrScanner.start({ facingMode: 'environment' }, qrConfig, onDecode, () => {});
       } else {
         // fallback: andere Kamera ausprobieren
