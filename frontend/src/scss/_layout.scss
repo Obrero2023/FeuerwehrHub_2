@@ -226,7 +226,7 @@
   .topnav__dropdown {
     // Auf mobil: volle Breite, zentriert, Scrollbalken bei langen Listen
     position: fixed;
-    top: 92px; // direkt unter der Topnav
+    top: 106px; // direkt unter dem Header + Topnav (50px + 56px)
     left: 0;
     right: 0;
     transform: none;
@@ -365,7 +365,7 @@
   .topnav {
     top: 50px;
     height: auto;
-    min-height: 42px;
+    min-height: 56px; // Erhöhte Mindesthöhe für bessere Touch-Ziele auf Mobil
     padding: 0 $space-md;
     white-space: nowrap;
     overflow-x: auto;
@@ -377,8 +377,8 @@
     -ms-overflow-style: none;                // IE / Edge
 
     &__item {
-      padding: 0 $space-md;
-      font-size: $font-size-xs;
+      padding: 12px $space-md; // Vertikales Padding für größere Touch-Zone
+      font-size: $font-size-sm; // Etwas größere Schrift für bessere Lesbarkeit
       white-space: nowrap;
     }
 
@@ -411,7 +411,7 @@
 
   // Seiten-Inhalt-Anpassung für mobile Header-Höhe
   .page-main {
-    padding-top: 92px; // 50px (Header) + 42px (Topnav min-height)
+    padding-top: 106px; // 50px (Header) + 56px (Topnav min-height)
   }
 }
 
