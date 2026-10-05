@@ -516,7 +516,17 @@ export async function renderArticles() {
     }
   }
 
-  async function openScanModal() {
+  // Gibt den Browser-Namen zurück (für angepasste Fehlerhinweise)
+  function getBrowserName() {
+    const ua = navigator.userAgent.toLowerCase();
+    if (ua.includes('samsungbrowser')) return 'Samsung Browser';
+    if (ua.includes('chrome') && !ua.includes('edg')) return 'Chrome';
+    if (ua.includes('firefox')) return 'Firefox';
+    if (ua.includes('safari') && !ua.includes('chrome')) return 'Safari';
+    return 'anderer Browser';
+  }
+
+async function openScanModal() {
     document.getElementById('scan-modal').classList.add('active');
     const reader = document.getElementById('qr-reader-lager');
     reader.innerHTML = '<p class="text-muted text-sm" style="text-align: center;">Kamera wird gestartet...</p>';
@@ -540,50 +550,61 @@ export async function renderArticles() {
 
       const onCameraError = (err) => {
         console.log('[QR Scanner] Camera error:', err);
+        // Wir versuchen hier nicht, den Scanner neu zu starten - das übernimmt der catch-Block
       };
 
-      console.log('[QR Scanner] Starting with facingMode environment...');
+      console.log('[QR Scanner] Trying with facingMode: environment...');
       await qrScanner.start({ facingMode: 'environment' }, qrConfig, onDecode, onCameraError);
-      console.log('[QR Scanner] Started with facingMode');
+      console.log('[QR Scanner] Started successfully with facingMode');
       qrRunning = true;
     } catch (err) {
-      console.warn('[QR Scanner] facingMode failed:', err);
-      // fallback: andere Kamera ausprobieren
+      console.warn('[QR Scanner] facingMode failed:', err.name, err.message);
+      // fallback: andere Kamera ausprobieren oder getUserMedia versuchen
       try {
         const devices = await Html5Qrcode.getCameras();
-        console.log('[QR Scanner] Available cameras:', devices.map(d => ({ id: d.id, label: d.label })));
-        const cam = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[devices.length - 1];
+        console.log('[QR Scanner] Available cameras from Html5Qrcode:',
+          devices.map(d => ({ id: d.id, label: d.label || '(kein Label)' })));
+
+        const cam = devices.find(d => /back|rear|environment/i.test(d.label || '')) ||
+                   devices.find(d => d.label && !/front/i.test(d.label)) ||
+                   devices[0];
+
         if (cam && cam.id) {
-          console.log('[QR Scanner] Starting with device:', cam.id);
+          console.log('[QR Scanner] Starting with specific device:', cam.id, cam.label);
           await qrScanner.start(cam.id, qrConfig, onDecode, onCameraError);
           qrRunning = true;
         } else {
-          throw new Error('no camera');
+          console.error('[QR Scanner] No suitable camera found');
+          throw new Error('No suitable camera available');
         }
       } catch (fallbackErr) {
-        console.error('[QR Scanner] Fallback failed:', fallbackErr);
+        console.error('[QR Scanner] Fallback failed:', fallbackErr.name, fallbackErr.message);
         const hasCamera = await hasCameraSupport();
+        const browserName = getBrowserName();
+
         if (!hasCamera) {
           renderCameraError('Dieses Gerät hat keine Kamera. QR-Code bitte per EAN-Scan eingeben.');
         } else {
-          // Check if we're in a secure context for better error messaging
-          // iOS Safari blocks camera on HTTP for non-localhost origins
-          const isSecure =
-            window.isSecureContext ||
-            location.protocol === 'https:' ||
-            location.hostname === 'localhost' ||
-            location.hostname === '127.0.0.1' ||
-            location.hostname === ''; // file://
-
-          if (!isSecure) {
+          // Spezifische Behandlung für Samsung Browser und andere Browser
+          if (browserName === 'Samsung Browser') {
             renderCameraError(
-              `Kamera-Zugriff blockiert: Aus Sicherheitsgründen blockiert der Browser den Kamerazugriff auf nicht-sicheren Verbindungen (HTTP). ` +
-              `Bitte verwenden Sie HTTPS oder greifen Sie über localhost zu, oder öffnen Sie die Seite in einem Browser, der HTTPS unterstützt.`,
+              `Kamera nicht im Samsung Browser erkannt. ` +
+              `Bitte gehen Sie zu Einstellungen → Apps → Samsung Browser → Berechtigungen → Kamera und aktivieren Sie sie. ` +
+              `Dann die Seite neu laden und erneut versuchen.`,
               true
             );
           } else {
+            // Generische Fehlermeldung mit detaillierten Anweisungen
             renderCameraError(
-              `Kamerazugriff verweigert. Bitte erlauben Sie den Kamerazugriff in den Browser-Einstellungen und klicken Sie dann auf "Erneut versuchen".`,
+              `Kamera kann nicht gestartet werden. Mögliche Ursachen: ` +
+              `1. Kamera-Berechtigung wurde verweigert oder ist nicht erteilt ` +
+              `2. Der Browser blockiert den Kamera-Zugriff (besonders bei http:// statt https://) ` +
+              `3. Keine Kamera ist verfügbar oder wird nicht erkannt ` +
+              `Bitte prüfen Sie: ` +
+              `- Sind Sie auf einer sicheren Verbindung (https:// oder localhost)? ` +
+              `- Ist die Kamera in den Browser-Berechtigungen erlaubt? ` +
+              `- Funktioniert die Kamera in anderen Anwendungen? ` +
+              `Klicken Sie auf "Erneut versuchen" nach der Fehlerbehebung.`,
               true
             );
           }
