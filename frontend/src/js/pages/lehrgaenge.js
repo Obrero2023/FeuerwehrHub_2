@@ -59,23 +59,23 @@ export async function renderLehrgaenge() {
   const isVerwalter = user?.role === 'admin' || user?.role === 'superuser'
     || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten');
   const isReader = user?.permissions?.includes('lehrgangsverwaltung.lesen');
+  // Lehrgangsarten verwalten: Admin oder Nutzer mit Fahrzeugbuchung (Verwalten)-Recht
+  const canManageLehrgangsarten = user?.role === 'admin' || user?.role === 'superuser'
+    || (user?.permissions || []).includes('fahrzeugbuchung.verwalten');
 
   content.innerHTML = `
     <div class="page-header">
       <div><h2>Lehrgänge</h2><p>Übersicht der verfügbaren Lehrgänge und Anmeldungen</p></div>
-      ${isVerwalter ? '<button class="btn btn--primary" id="btn-new-lehrgang">+ Neuer Lehrgang</button>' : ''}
+      <div>
+        ${canManageLehrgangsarten ? `<button class="btn btn--secondary" id="btn-lehrgangsarten">Lehrgangsarten verwalten</button>` : ''}
+        ${isVerwalter ? '<button class="btn btn--primary" id="btn-new-lehrgang">+ Neuer Lehrgang</button>' : ''}
+      </div>
     </div>
+    <div id="lehrgangsarten-section" style="display:none"></div>
     <div id="lehrgang-form" style="display:none"></div>
     <div id="lehrgang-list" class="lehrgang-grid"></div>
   `;
   renderIcons(content);
-
-  const loadAndRender = async () => {
-    try {
-      const lehrgaenge = await api.getLehrgaenge().catch(() => []);
-      renderList(lehrgaenge, isVerwalter, user);
-    } catch (e) { toast(e.message, 'error'); }
-  };
 
   const renderList = (items, canManage, currentUser) => {
     const grid = document.getElementById('lehrgang-list');
@@ -146,6 +146,22 @@ export async function renderLehrgaenge() {
 
 // ── Formular (Neu/Bearbeiten) ─────────────────────────────────────────────────
 
+let _lehrgangsartenCache = null;
+let _lehrgangsartenLoaded = false;
+
+/** Lehrgangsarten laden (mit einfachem Cache). */
+async function loadLehrgangsarten() {
+  if (_lehrgangsartenLoaded) return _lehrgangsartenCache;
+  try {
+    const list = await api.getLehrgangsarten();
+    _lehrgangsartenCache = Array.isArray(list) ? list : [];
+  } catch (e) {
+    _lehrgangsartenCache = [];
+  }
+  _lehrgangsartenLoaded = true;
+  return _lehrgangsartenCache;
+}
+
 export const showForm = async (l = null) => {
   const formEl = document.getElementById('lehrgang-form');
   const listEl = document.getElementById('lehrgang-list');
@@ -153,12 +169,21 @@ export const showForm = async (l = null) => {
   formEl.style.display = 'block';
   if (listEl) listEl.style.display = 'none';
 
+  // Load Lehrgangsarten for the dropdown
+  const lehrgangsarten = await loadLehrgangsarten();
+
   formEl.innerHTML = `
     <div class="card">
       <h3>${l ? 'Lehrgang bearbeiten' : 'Neuer Lehrgang'}</h3>
       <form id="lehrgang-form-el" class="form-grid">
         <input type="text" id="fld-titel" placeholder="Titel / Bezeichnung" value="${l ? esc(l.titel) : ''}" required />
         <textarea id="feld-beschreibung" placeholder="Beschreibung">${l ? esc(l.beschreibung || '') : ''}</textarea>
+        <select id="feld-lehrgangsart">
+          <option value="">-- Lehrgangsart wählen --</option>
+          ${lehrgangsarten.map(la => `
+            <option value="${la.id}" ${l && l.lehrgangsart_id == la.id ? 'selected' : ''}>${esc(la.name)}</option>
+          `).join('')}
+        </select>
         <input type="text" id="feld-ort" placeholder="Veranstaltungsort" value="${l ? esc(l.ort || '') : ''}" />
         <div class="form-row">
           <input type="date" id="feld-start" value="${l && l.start_datum ? l.start_datum : ''}" required />
@@ -212,6 +237,7 @@ export const showForm = async (l = null) => {
       max_teilnehmer: parseInt(document.getElementById('feld-max').value) || null,
       kosten: parseFloat(document.getElementById('feld-kosten').value) || null,
       kosten_uebernommen_durch: document.getElementById('feld-kosten-durch').value || null,
+      lehrgangsart_id: document.getElementById('feld-lehrgangsart').value || null,
     };
     try {
       if (l) {
@@ -483,4 +509,173 @@ export async function renderLehrgangAnmeldungen() {
   }
 }
 
-// ── Helper für Listenladung (im Formular) ─────────────────────────────
+// ── Lehrgangsarten verwalten ────────────────────────────────────────────
+
+/** Sektion umschalten: Liste anzeigen / zum Lehrgänge-Overlay zurück */
+async function showLehrgangsartenSection() {
+  const formEl = document.getElementById('lehrgang-form');
+  const sectionEl = document.getElementById('lehrgangsarten-section');
+  const listEl = document.getElementById('lehrgang-list');
+  if (!sectionEl) return;
+
+  if (sectionEl.style.display === 'block') {
+    // Zurueck zur Lehrgaenge-Uebersicht
+    sectionEl.style.display = 'none';
+    if (formEl) formEl.style.display = 'none';
+    if (listEl) listEl.style.display = '';
+    return;
+  }
+
+  sectionEl.style.display = 'block';
+  if (formEl) formEl.style.display = 'none';
+  if (listEl) listEl.style.display = 'none';
+  renderLehrgangsarten();
+}
+
+let _currentLehrgangsartId = null;
+
+/** Lehrgangsarten-Liste laden und rendern */
+async function renderLehrgangsarten() {
+  const sectionEl = document.getElementById('lehrgangsarten-section');
+  if (!sectionEl) return;
+
+  let lehrgangsarten;
+  try {
+    lehrgangsarten = await api.getLehrgangsarten();
+  } catch (e) {
+    sectionEl.innerHTML = `<div class="card"><p class="error-msg">${esc(e.message)}</p></div>`;
+    return;
+  }
+
+  sectionEl.innerHTML = `
+    <div class="card">
+      <div class="card__header">
+        <span>Lehrgangsarten verwalten</span>
+        <button class="btn btn--primary btn--sm" id="btn-new-lehrgangsart">Neue Lehrgangsart</button>
+      </div>
+      <div class="card__body card__body--flush">
+        <div id="lehrgangsarten-form" style="display:none"></div>
+        <div id="lehrgangsarten-list">
+          <p class="wrap-loading">Lade...</p>
+        </div>
+      </div>
+    </div>
+  `;
+  renderIcons(sectionEl);
+
+  const listEl = document.getElementById('lehrgangsarten-list');
+  if (!listEl) return;
+
+  if (!lehrgangsarten.length) {
+    listEl.innerHTML = '<p class="text-muted">Noch keine Lehrgangsarten vorhanden.</p>';
+    return;
+  }
+
+  listEl.innerHTML = lehrgangsarten.map(la => `
+    <div class="lehrgangsart-row" data-id="${la.id}">
+      <div>
+        <div class="fw-bold">${esc(la.name)}</div>
+        ${la.beschreibung ? `<div class="text-muted text-sm">${esc(la.beschreibung)}</div>` : ''}
+        ${la.voraussetzung ? `<div class="text-muted text-sm">Voraussetzung: ${esc(la.voraussetzung)}</div>` : ''}
+      </div>
+      <div class="btn-group">
+        <button class="btn btn--outline btn--sm" data-action="edit" data-id="${la.id}"
+          data-name="${esc(la.name)}" data-beschreibung="${esc(la.beschreibung || '')}"
+          data-voraussetzung="${esc(la.voraussetzung || '')}">Bearbeiten</button>
+        <button class="btn btn--danger btn--sm" data-action="delete" data-id="${la.id}" data-name="${esc(la.name)}">
+          Löschen
+        </button>
+      </div>
+    </div>
+  `).join('');
+
+  renderIcons(listEl);
+
+  // Neue Lehrgangsart
+  document.getElementById('btn-new-lehrgangsart').onclick = () => {
+    _currentLehrgangsartId = null;
+    showLehrgangsartenForm();
+  };
+
+  // Bearbeiten
+  listEl.querySelectorAll('[data-action="edit"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _currentLehrgangsartId = btn.dataset.id;
+      showLehrgangsartenForm(btn.dataset.name, btn.dataset.beschreibung, btn.dataset.voraussetzung);
+    });
+  });
+
+  // Loeschen
+  listEl.querySelectorAll('[data-action="delete"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const name = btn.dataset.name;
+      if (!confirm(`Lehrgangsart "${name}" wirklich löschen?`)) return;
+      try {
+        await api.deleteLehrgangsart(btn.dataset.id);
+        toast('Lehrgangsart gelöscht', 'success');
+        renderLehrgangsarten();
+      } catch (e) { toast(e.message, 'error'); }
+    });
+  });
+}
+
+/** Formular zum Erstellen/Bearbeiten einer Lehrgangsart anzeigen */
+function showLehrgangsartenForm(name = '', beschreibung = '', voraussetzung = '') {
+  const formEl = document.getElementById('lehrgangsarten-form');
+  const listEl = document.getElementById('lehrgangsarten-list');
+  if (!formEl || !listEl) return;
+
+  formEl.style.display = 'block';
+  listEl.style.display = 'none';
+
+  formEl.innerHTML = `
+    <div class="card">
+      <h3>${_currentLehrgangsartId ? 'Lehrgangsart bearbeiten' : 'Neue Lehrgangsart'}</h3>
+      <form id="lehrgangsarten-form-el" class="form-grid">
+        <div class="form-group form-group--compact">
+          <label>Name des Lehrgangs <span class="required">*</span></label>
+          <input type="text" id="fld-name" placeholder="z.B. Grundlehrgang" value="${esc(name)}" required />
+        </div>
+        <div class="form-group form-group--compact">
+          <label>Beschreibung</label>
+          <textarea id="feld-beschreibung" placeholder="Beschreibung des Lehrgangs" rows="3">${esc(beschreibung)}</textarea>
+        </div>
+        <div class="form-group form-group--compact">
+          <label>Voraussetzung</label>
+          <textarea id="feld-voraussetzung" placeholder="Welche Voraussetzungen müssen Teilnehmer mitbringen?" rows="3">${esc(voraussetzung)}</textarea>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn--primary">${_currentLehrgangsartId ? 'Speichern' : 'Anlegen'}</button>
+          <button type="button" id="btn-cancel-lehrgangsart" class="btn btn--secondary">Abbrechen</button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.getElementById('btn-cancel-lehrgangsart').addEventListener('click', () => {
+    formEl.style.display = 'none';
+    listEl.style.display = 'block';
+    renderLehrgangsarten();
+  });
+
+  document.getElementById('lehrgangsarten-form-el').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = {
+      name: document.getElementById('fld-name').value,
+      beschreibung: document.getElementById('feld-beschreibung').value || null,
+      voraussetzung: document.getElementById('feld-voraussetzung').value || null,
+    };
+    try {
+      if (_currentLehrgangsartId) {
+        await api.updateLehrgangsart(_currentLehrgangsartId, body);
+        toast('Lehrgangsart aktualisiert', 'success');
+      } else {
+        await api.createLehrgangsart(body);
+        toast('Lehrgangsart angelegt', 'success');
+      }
+      formEl.style.display = 'none';
+      listEl.style.display = 'block';
+      renderLehrgangsarten();
+    } catch (e) { toast(e.message, 'error'); }
+  });
+}

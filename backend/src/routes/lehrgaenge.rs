@@ -635,6 +635,255 @@ pub async fn delete_anmeldung(
     Ok(Json(serde_json::json!({ "ok": true, "message": "Anmeldung storniert" })))
 }
 
+// ── Lehrgangsarten ───────────────────────────────────────────────────────
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct Lehrgangsart {
+    pub id: Uuid,
+    pub name: String,
+    pub beschreibung: Option<String>,
+    pub voraussetzung: Option<String>,
+    pub erstellt_am: chrono::DateTime<chrono::Utc>,
+    pub aktualisiert_am: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Deserialize, Validate)]
+pub struct CreateLehrgangsart {
+    #[validate(length(min = 1, max = 200))]
+    pub name: String,
+    pub beschreibung: Option<String>,
+    pub voraussetzung: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateLehrgangsart {
+    pub name: Option<String>,
+    pub beschreibung: Option<String>,
+    pub voraussetzung: Option<String>,
+}
+
+/// Alle Lehrgangsarten auflisten
+/// Öffentlich für alle authentifizierten User mit lehrgangsverwaltung Berechtigung
+pub async fn list_lehrgangsarten(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> AppResult<Json<Vec<Lehrgangsart>>> {
+    // Prüfen ob User Zugriff auf das Lehrgangsverwaltung-Modul hat
+    let has_access = if claims.is_admin_or_above() {
+        true
+    } else {
+        sqlx::query_scalar::<_, bool>(
+            "SELECT $1 = ANY(
+                SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
+                FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
+                UNION
+                SELECT unnest(fr.permissions)
+                FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
+            )"
+        )
+        .bind("lehrgangsverwaltung")
+        .bind(claims.sub)
+        .fetch_one(&state.db)
+        .await?
+    };
+
+    if !has_access {
+        return Err(AppError::Forbidden);
+    }
+
+    let lehrgangsarten = sqlx::query_as::<_, Lehrgangsart>(
+        "SELECT id, name, beschreibung, voraussetzung, erstellt_am, aktualisiert_am
+         FROM lehrgangsarten
+         ORDER BY name ASC"
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    Ok(Json(lehrgangsarten))
+}
+
+/// Neue Lehrgangsart anlegen
+/// Nur für Admins oder Nutzer mit fahrzeugbuchung.verwalten permission
+pub async fn create_lehrgangsart(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateLehrgangsart>,
+) -> AppResult<Json<Lehrgangsart>> {
+    // Nur Admins oder Nutzer mit fahrzeugbuchung.verwalten dürfen Lehrgangsarten anlegen
+    let is_admin = claims.is_admin_or_above();
+    let is_verwalten = if is_admin {
+        true
+    } else {
+        sqlx::query_scalar::<_, bool>(
+            "SELECT $1 = ANY(
+                SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
+                FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
+                UNION
+                SELECT unnest(fr.permissions)
+                FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
+            )"
+        )
+        .bind("fahrzeugbuchung.verwalten")
+        .bind(claims.sub)
+        .fetch_one(&state.db)
+        .await?
+    };
+
+    if !is_admin && !is_verwalten {
+        return Err(AppError::Forbidden);
+    }
+
+    body.validate()?;
+
+    let lehrgangsart = sqlx::query_as::<_, Lehrgangsart>(
+        "INSERT INTO lehrgangsarten (name, beschreibung, voraussetzung)
+         VALUES ($1, $2, $3)
+         RETURNING id, name, beschreibung, voraussetzung, erstellt_am, aktualisiert_am"
+    )
+    .bind(&body.name)
+    .bind(&body.beschreibung)
+    .bind(&body.voraussetzung)
+    .fetch_one(&state.db)
+    .await?;
+
+    audit::log(&state.db, Some(claims.sub), &claims.username, "LEHRGANGSART_CREATED",
+        Some("lehrgangsarten"), Some(lehrgangsart.id), None).await;
+
+    Ok(Json(lehrgangsart))
+}
+
+/// Lehrgangsart aktualisieren
+/// Nur für Admins oder Nutzer mit fahrzeugbuchung.verwalten permission
+pub async fn update_lehrgangsart(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateLehrgangsart>,
+) -> AppResult<Json<Lehrgangsart>> {
+    // Prüfen ob Lehrgangsart existiert
+    let exists: Option<i32> = sqlx::query_scalar("SELECT 1 FROM lehrgangsarten WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?;
+
+    if exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    // Nur Admins oder Nutzer mit fahrzeugbuchung.verwalten dürfen Lehrgangsarten aktualisieren
+    let is_admin = claims.is_admin_or_above();
+    let is_verwalten = if is_admin {
+        true
+    } else {
+        sqlx::query_scalar::<_, bool>(
+            "SELECT $1 = ANY(
+                SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
+                FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
+                UNION
+                SELECT unnest(fr.permissions)
+                FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
+            )"
+        )
+        .bind("fahrzeugbuchung.verwalten")
+        .bind(claims.sub)
+        .fetch_one(&state.db)
+        .await?
+    };
+
+    if !is_admin && !is_verwalten {
+        return Err(AppError::Forbidden);
+    }
+
+    let lehrgangsart = sqlx::query_as::<_, Lehrgangsart>(
+        "UPDATE lehrgangsarten
+         SET name = COALESCE($1, name),
+             beschreibung = COALESCE($2, beschreibung),
+             voraussetzung = COALESCE($3, voraussetzung),
+             aktualisiert_am = NOW()
+         WHERE id = $4
+         RETURNING id, name, beschreibung, voraussetzung, erstellt_am, aktualisiert_am"
+    )
+    .bind(body.name)
+    .bind(body.beschreibung)
+    .bind(body.voraussetzung)
+    .bind(id)
+    .fetch_one(&state.db)
+    .await?;
+
+    audit::log(&state.db, Some(claims.sub), &claims.username, "LEHRGANGSART_UPDATED",
+        Some("lehrgangsarten"), Some(id), None).await;
+
+    Ok(Json(lehrgangsart))
+}
+
+/// Lehrgangsart loeschen
+/// Nur fuer Admins oder Nutzer mit fahrzeugbuchung.verwalten permission
+pub async fn delete_lehrgangsart(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> AppResult<Json<serde_json::Value>> {
+    // Pruefen ob Lehrgangsart existiert
+    let exists: Option<i32> = sqlx::query_scalar("SELECT 1 FROM lehrgangsarten WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?;
+
+    if exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    // Pruefen ob Lehrgangsart von Lehrgaengen verwendet wird
+    let used_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM lehrgaenge WHERE lehrgangsart_id = $1")
+        .bind(id)
+        .fetch_one(&state.db)
+        .await?;
+
+    if used_count > 0 {
+        return Err(AppError::BadRequest(format!(
+            "Lehrgangsart wird von {} Lehrgaengen verwendet und kann nicht geloescht werden", used_count
+        )));
+    }
+
+    // Nur Admins oder Nutzer mit fahrzeugbuchung.verwalten dürfen Lehrgangsarten loeschen
+    let is_admin = claims.is_admin_or_above();
+    let is_verwalten = if is_admin {
+        true
+    } else {
+        sqlx::query_scalar::<_, bool>(
+            "SELECT $1 = ANY(
+                SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
+                FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
+                UNION
+                SELECT unnest(fr.permissions)
+                FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
+            )"
+        )
+        .bind("fahrzeugbuchung.verwalten")
+        .bind(claims.sub)
+        .fetch_one(&state.db)
+        .await?
+    };
+
+    if !is_admin && !is_verwalten {
+        return Err(AppError::Forbidden);
+    }
+
+    let result = sqlx::query("DELETE FROM lehrgangsarten WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    audit::log(&state.db, Some(claims.sub), &claims.username, "LEHRGANGSART_DELETED",
+        Some("lehrgangsarten"), Some(id), None).await;
+
+    Ok(Json(serde_json::json!({ "ok": true, "message": "Lehrgangsart geloescht" })))
+}
+
 // ── E-Mail-Vorlage ───────────────────────────────────────────────────────
 
 /// Erzeugt eine E-Mail-Vorlage aus Teilnehmern mit zugewiesenem Platz (status = 'bestaetigt')
@@ -771,6 +1020,12 @@ pub fn router(state: AppState) -> Router<AppState> {
             get(get_anmeldungen_for_user))
         .route("/:lehrgang_id/email-template",
                get(generate_email_template))
+        .route("/lehrgangsarten",
+            get(list_lehrgangsarten)
+            .post(create_lehrgangsart))
+        .route("/lehrgangsarten/:id",
+            put(update_lehrgangsart)
+            .delete(delete_lehrgangsart))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_module("lehrgangsverwaltung")))
         .route_layer(middleware::from_fn_with_state(state, require_auth))
 }
