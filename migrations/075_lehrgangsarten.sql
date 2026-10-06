@@ -8,3 +8,8 @@ CREATE TABLE lehrgangsarten (
 );
 
 CREATE INDEX idx_lehrgangsarten_aktiv ON lehrgangsarten(aktiv);
+
+-- Fremdschlüssel aus 071_lehrgaenge.sql nachziehen
+ALTER TABLE lehrgaenge
+    ADD CONSTRAINT lehrgaenge_lehrgangsart_id_fkey
+    FOREIGN KEY (lehrgangsart_id) REFERENCES lehrgangsarten(id) ON DELETE SET NULL;

@@ -12,7 +12,9 @@ CREATE TABLE lehrgaenge (
         CHECK (status IN ('geplant', 'offen', 'voll', 'abgesagt', 'abgeschlossen')),
     kosten NUMERIC(10,2),
     kosten_uebernommen_durch TEXT CHECK (kosten_uebernommen_durch IN ('feuerwehr', 'teilnehmer', 'teilweise')),
-    lehrgangsart_id UUID REFERENCES lehrgangsarten(id) ON DELETE SET NULL,
+    -- Fremdschlüssel auf lehrgangsarten wird in 075_lehrgangsarten.sql ergänzt
+    -- (Tabelle existiert zu diesem Zeitpunkt noch nicht)
+    lehrgangsart_id UUID,
     voraussetzung TEXT,
     voraussetzungen_erfuellt BOOLEAN DEFAULT FALSE,
     erstellt_von UUID REFERENCES users(id) ON DELETE SET NULL,
