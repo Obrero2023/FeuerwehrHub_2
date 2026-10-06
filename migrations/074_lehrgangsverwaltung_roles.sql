@@ -1,3 +1,6 @@
 -- Lehrgangsverwaltung: Rollen/Module
--- Hier können weitere Rollen-Definitionen für die Lehrgangsverwaltung hinzugefügt werden
--- z.B. spezifische Permission-Strings für unterschiedliche Verwaltungsrechte
+-- Standard-Rollen als Vorlagen (können im Admin Panel angepasst werden)
+INSERT INTO roles (name, permissions, type, level) VALUES
+    ('Lehrgangsverwaltung Leser',    ARRAY['lehrgangsverwaltung.lesen'],    'funktion', NULL),
+    ('Lehrgangsverwaltung Admin',    ARRAY['lehrgangsverwaltung.verwalten'], 'funktion', NULL)
+ON CONFLICT (name) DO NOTHING;
