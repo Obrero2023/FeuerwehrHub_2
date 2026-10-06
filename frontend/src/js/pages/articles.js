@@ -491,45 +491,249 @@ export async function renderArticles() {
 
   // ── QR-Kamera-Scanner ─────────────────────────────────────────────────────
 
+  // html5-qrcode wirft an vielen Stellen reine Strings statt Error-Objekten
+  // ("navigator.mediaDevices not supported", "'config.qrbox' ..."). Ohne
+  // Normalisierung sind err.name/err.message undefined.
+  function errInfo(e) {
+    if (typeof e === 'string') return { name: '', message: e };
+    return { name: e?.name || '', message: e?.message || String(e ?? '') };
+  }
+
+  function renderCameraError(message, hints = [], canRetry = true) {
+    const reader = document.getElementById('qr-reader-lager');
+    if (!reader) return;
+    reader.innerHTML = `
+      <div class="camera-error">
+        <div class="camera-error__icon">📷</div>
+        <p class="camera-error__message">${esc(message)}</p>
+        ${hints.length
+          ? `<ul class="camera-error__hints">${hints.map(h => `<li>${esc(h)}</li>`).join('')}</ul>`
+          : ''}
+        ${canRetry
+          ? `<button class="btn btn--primary btn--sm" id="camera-error-retry">Erneut versuchen</button>`
+          : ''}
+      </div>`;
+    if (canRetry) {
+      document.getElementById('camera-error-retry').addEventListener('click', openScanModal);
+    }
+  }
+
+  // Gibt den Browser-Namen zurück (für angepasste Fehlerhinweise)
+  function getBrowserName() {
+    const ua = navigator.userAgent.toLowerCase();
+    if (ua.includes('samsungbrowser')) return 'Samsung Browser';
+    if (ua.includes('firefox')) return 'Firefox';
+    if (ua.includes('edg')) return 'Edge';
+    if (ua.includes('chrome') || ua.includes('crios')) return 'Chrome';
+    if (ua.includes('safari')) return 'Safari';
+    return 'anderer Browser';
+  }
+
+  // Prüft VOR dem Start, ob der Browser überhaupt eine Kamera-API anbietet.
+  // Häufigster Grund, warum die Handykamera "nicht erkannt" wird: Der Hub wird
+  // über http://<LAN-IP> aufgerufen. Außerhalb von localhost ist das kein
+  // "secure context", dadurch ist navigator.mediaDevices komplett undefined —
+  // es erscheint nicht einmal eine Berechtigungsanfrage.
+  function checkCameraApi() {
+    if (navigator.mediaDevices?.getUserMedia) return { ok: true };
+
+    if (!window.isSecureContext) {
+      return {
+        ok: false,
+        message: 'Der Browser gibt die Kamera nur über eine sichere Verbindung frei. '
+          + `Diese Seite läuft über ${location.protocol}//${location.host} und gilt deshalb als unsicher.`,
+        hints: [
+          'Den Hub über https:// aufrufen (z. B. Reverse-Proxy mit Zertifikat).',
+          'Direkt am Gerät funktioniert die Kamera auch über http://localhost.',
+          'Übergangsweise den Code über "EAN scannen" per Hand oder USB-Scanner erfassen.',
+        ],
+        canRetry: false,
+      };
+    }
+
+    return {
+      ok: false,
+      message: 'Dieser Browser unterstützt keinen Kamerazugriff (navigator.mediaDevices fehlt).',
+      hints: ['Bitte einen aktuellen Chrome, Firefox, Edge oder Safari verwenden.'],
+      canRetry: false,
+    };
+  }
+
+  // Scan-Fläche abhängig vom tatsächlichen Videobild. Ein fester Wert (240px)
+  // ist im Hochformat größer als die Videohöhe — html5-qrcode verwirft dann den
+  // Rahmen komplett und der Nutzer sieht keine Scan-Markierung.
+  function qrboxFor(viewWidth, viewHeight) {
+    const size = Math.max(120, Math.floor(Math.min(viewWidth, viewHeight) * 0.75));
+    return { width: size, height: size };
+  }
+
+  // Rückkamera aus der Geräteliste bestimmen (Labels sind je Hersteller anders).
+  async function pickBackCamera() {
+    const devices = await Html5Qrcode.getCameras();
+    console.log('[QR Scanner] Kameras:',
+      (devices || []).map(d => ({ id: d.id, label: d.label || '(ohne Label)' })));
+    if (!devices?.length) return null;
+    return devices.find(d => /back|rear|environment|rück|haupt/i.test(d.label || ''))
+      || devices.find(d => !/front|user|face|selfie/i.test(d.label || ''))
+      // Auf Android ist die letzte Kamera in der Liste meist die Rückkamera
+      || devices[devices.length - 1];
+  }
+
+  // Übersetzt die gesammelten Startfehler in eine konkrete Handlungsanweisung.
+  function describeCameraFailure(errors) {
+    const names = errors.map(e => e.name);
+    const text  = errors.map(e => `${e.name} ${e.message}`).join(' ');
+    const has   = (...n) => n.some(x => names.includes(x));
+
+    if (has('NotAllowedError', 'SecurityError') || /permission|denied|not allowed/i.test(text)) {
+      const hints = ['Auf das Schloss-/Kamerasymbol in der Adressleiste tippen und die Kamera erlauben.'];
+      switch (getBrowserName()) {
+        case 'Samsung Browser':
+          hints.push('Android: Einstellungen → Apps → Samsung Internet → Berechtigungen → Kamera → Zulassen.');
+          break;
+        case 'Chrome':
+          hints.push('Android: Chrome → ⋮ → Einstellungen → Website-Einstellungen → Kamera → diese Seite zulassen.');
+          break;
+        case 'Safari':
+          hints.push('iOS: Einstellungen → Apps → Safari → Kamera → "Fragen" oder "Erlauben".');
+          break;
+      }
+      hints.push('Danach die Seite neu laden und erneut versuchen.');
+      return { message: 'Der Kamerazugriff wurde blockiert oder abgelehnt.', hints };
+    }
+
+    if (has('NotReadableError', 'TrackStartError', 'AbortError') || /in use|could not start/i.test(text)) {
+      return {
+        message: 'Die Kamera ist belegt und konnte nicht gestartet werden.',
+        hints: [
+          'Andere Apps oder Browser-Tabs schließen, die gerade die Kamera nutzen.',
+          'Danach erneut versuchen.',
+        ],
+      };
+    }
+
+    if (has('NotFoundError', 'OverconstrainedError', 'DevicesNotFoundError')
+        || /no camera|not found|keine kamera/i.test(text)) {
+      return {
+        message: 'Es wurde keine nutzbare Kamera gefunden.',
+        hints: ['Bei Geräten ohne Kamera den Code über "EAN scannen" eingeben.'],
+      };
+    }
+
+    const technical = errors.map(e => e.name || e.message).filter(Boolean).join(' / ');
+    return {
+      message: 'Die Kamera konnte nicht gestartet werden.',
+      hints: [
+        'Kamera-Berechtigung für diese Seite prüfen und die Seite neu laden.',
+        `Technische Meldung: ${technical || 'unbekannt'}`,
+      ],
+    };
+  }
+
+  // Beendet eine laufende/halb gestartete Instanz vollständig. Ohne stop()
+  // bleibt der Videotrack offen und ein zweiter Startversuch scheitert mit
+  // NotReadableError ("Kamera belegt").
+  async function teardownScanner() {
+    const scanner = qrScanner;
+    qrScanner = null;
+    qrRunning = false;
+    if (!scanner) return;
+    try { await scanner.stop(); } catch {}
+    try { scanner.clear(); } catch {}
+  }
+
   async function openScanModal() {
-    document.getElementById('scan-modal').classList.add('active');
-    try {
-      qrScanner = new Html5Qrcode('qr-reader-lager');
-      const qrConfig = { fps: 10, qrbox: { width: 240, height: 240 } };
-      const onDecode = (text) => {
-        closeScanModal();
-        if (text.startsWith('http://') || text.startsWith('https://')) {
+    const modal  = document.getElementById('scan-modal');
+    const reader = document.getElementById('qr-reader-lager');
+    if (!modal || !reader) return;
+
+    // Modal muss sichtbar sein, BEVOR gestartet wird: html5-qrcode leitet die
+    // Videobreite aus parentElement.clientWidth ab — bei display:none ist das 0.
+    modal.classList.add('active');
+
+    // openScanModal ist auch der Retry-Handler → erst alte Instanz aufräumen.
+    await teardownScanner();
+    reader.innerHTML = '<p class="text-muted text-sm" style="text-align:center">Kamera wird gestartet…</p>';
+
+    const support = checkCameraApi();
+    if (!support.ok) {
+      console.warn('[QR Scanner] Kamera-API nicht verfügbar:', support.message);
+      renderCameraError(support.message, support.hints, support.canRetry);
+      return;
+    }
+
+    const qrConfig = {
+      fps: 10,
+      qrbox: qrboxFor,
+      // Nutzt den nativen BarcodeDetector (Chrome/Android) — deutlich
+      // zuverlässiger auf Handys; fällt sonst automatisch auf zxing zurück.
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+    };
+
+    let handled = false;
+    const onDecode = (text) => {
+      if (handled) return;          // stop() braucht einen Moment → Doppeltreffer verhindern
+      handled = true;
+      console.log('[QR Scanner] Erkannt:', text);
+      closeScanModal();
+
+      // Nur eigene Hub-Links direkt öffnen; fremde URLs landen als Text im
+      // EAN-Feld, statt den Nutzer auf eine beliebige Seite zu schicken.
+      if (/^https?:\/\//i.test(text)) {
+        let sameOrigin = false;
+        try { sameOrigin = new URL(text).origin === window.location.origin; } catch {}
+        if (sameOrigin) {
           window.location.href = text;
           return;
         }
-        document.getElementById('ean-input').value = text;
-        document.getElementById('ean-result').innerHTML = '';
-        document.getElementById('ean-modal').classList.add('active');
-        searchEan(text);
-      };
-      try {
-        await qrScanner.start({ facingMode: 'environment' }, qrConfig, onDecode, () => {});
-        qrRunning = true;
-      } catch {
-        const devices = await Html5Qrcode.getCameras();
-        if (devices?.length) {
-          const cam = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[devices.length - 1];
-          await qrScanner.start(cam.id, qrConfig, onDecode, () => {});
-          qrRunning = true;
-        }
       }
-    } catch {
-      document.getElementById('qr-reader-lager').innerHTML =
-        '<p class="scan-no-camera">Kamera nicht verfügbar oder Zugriff verweigert.</p>';
+
+      document.getElementById('ean-input').value = text;
+      document.getElementById('ean-result').innerHTML = '';
+      document.getElementById('ean-modal').classList.add('active');
+      searchEan(text);
+    };
+
+    // Wird pro Frame ohne Treffer aufgerufen — bewusst leer (kein Logging).
+    const onScanFailure = () => {};
+
+    // Startstrategien, sortiert nach Zuverlässigkeit auf Mobilgeräten.
+    const attempts = [
+      { label: 'facingMode environment (ideal)', source: { facingMode: { ideal: 'environment' } } },
+      { label: 'Geräte-ID der Rückkamera',       source: pickBackCamera },
+      { label: 'facingMode user (Frontkamera)',  source: { facingMode: 'user' } },
+    ];
+
+    const errors = [];
+    for (const attempt of attempts) {
+      try {
+        let source = attempt.source;
+        if (typeof source === 'function') {
+          const cam = await source();
+          if (!cam?.id) throw 'Keine Kamera in der Geräteliste gefunden';
+          source = cam.id;
+        }
+        reader.innerHTML = '';   // Platzhalter entfernen, bevor das Video eingehängt wird
+        qrScanner = new Html5Qrcode('qr-reader-lager', { verbose: false });
+        await qrScanner.start(source, qrConfig, onDecode, onScanFailure);
+        qrRunning = true;
+        console.log('[QR Scanner] gestartet via', attempt.label);
+        return;
+      } catch (e) {
+        const info = errInfo(e);
+        console.warn(`[QR Scanner] Versuch fehlgeschlagen (${attempt.label}):`, info.name, info.message);
+        errors.push(info);
+        await teardownScanner();
+      }
     }
+
+    const { message, hints } = describeCameraFailure(errors);
+    renderCameraError(message, hints);
   }
 
   async function closeScanModal() {
     document.getElementById('scan-modal').classList.remove('active');
-    if (qrScanner && qrRunning) {
-      try { await qrScanner.stop(); } catch {}
-      qrRunning = false;
-    }
+    await teardownScanner();
     const reader = document.getElementById('qr-reader-lager');
     if (reader) reader.innerHTML = '';
   }
