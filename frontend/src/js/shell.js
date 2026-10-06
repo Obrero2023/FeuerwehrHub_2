@@ -65,7 +65,13 @@ export function setShellInfo(name, user, modules) {
 export function canAccess(user, permission) {
   if (!user) return false;
   if (user.role === 'admin' || user.role === 'superuser') return true;
-  return (user.permissions || []).includes(permission);
+  const perms = user.permissions || [];
+  if (perms.includes(permission)) return true;
+  // Hierarchie für Module prüfen: Admin-Rechte erlauben auch die Basis-Permission
+  // z.B. 'lehrgangsverwaltung.verwalten' → auch 'lehrgangsverwaltung.lesen'
+  const base = permission.split('.')[0];
+  if (base !== permission && perms.includes(base)) return true;
+  return false;
 }
 
 function showModule(minPerm, moduleKey) {
@@ -219,7 +225,7 @@ function buildShell() {
         ${showModule('verein', 'verein')               ? buildNavItem('verein',          'Verein',   vereinItems)   : ''}
         ${showModulePublic('intranet')         ? buildNavItem('intranet',        'Intranet', intranetItems) : ''}
         ${showModule('fahrzeugbuchung', 'fahrzeugbuchung') ? buildNavItem('fahrzeugbuchung', 'Fahrzeugbuchung', fahrzeugbuchungItems) : ''}
-        ${showModule('lehrgangsverwaltung', 'lehrgangsverwaltung') ? buildNavItem('lehrgangsverwaltung', 'Lehrgänge', lehrgaengeItems) : ''}
+        ${showModule('lehrgangsverwaltung.lesen', 'lehrgangsverwaltung') || showModule('lehrgangsverwaltung.verwalten', 'lehrgangsverwaltung') ? buildNavItem('lehrgangsverwaltung', 'Lehrgänge', lehrgaengeItems) : ''}
 
         <div class="topnav__spacer"></div>
 

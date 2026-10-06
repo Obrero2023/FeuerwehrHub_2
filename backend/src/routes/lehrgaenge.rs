@@ -115,7 +115,22 @@ pub struct LehrgangQuery {
 pub async fn list_lehrgaenge(
     State(state): State<AppState>,
     Query(query): Query<LehrgangQuery>,
+    Extension(claims): Extension<Claims>,
 ) -> AppResult<Json<Vec<Lehrgang>>> {
+    let is_verw = is_verwalter(&state.db, &claims).await;
+    let is_rdr = is_reader(&state.db, &claims).await;
+
+    if !is_verw && !is_rdr {
+        return Err(AppError::Forbidden);
+    }
+
+    let status_filter: Option<String> = if is_rdr {
+        // Leser sehen nur veröffentlichte Lehrgänge (oder 'offen' als Fallback)
+        Some("veröffentlicht".to_string())
+    } else {
+        query.status
+    };
+
     let lehrgaenge = sqlx::query_as::<_, Lehrgang>(
         r#"
         SELECT l.id, l.titel, l.beschreibung, l.ort,
@@ -135,7 +150,7 @@ pub async fn list_lehrgaenge(
         ORDER BY l.start_datum ASC
         "#,
     )
-    .bind(query.status)
+    .bind(status_filter)
     .bind(query.art)
     .bind(query.ab_datum)
     .fetch_all(&state.db)
@@ -147,7 +162,15 @@ pub async fn list_lehrgaenge(
 pub async fn get_lehrgang(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
+    Extension(claims): Extension<Claims>,
 ) -> AppResult<Json<Lehrgang>> {
+    let is_verw = is_verwalter(&state.db, &claims).await;
+    let is_rdr = is_reader(&state.db, &claims).await;
+
+    if !is_verw && !is_rdr {
+        return Err(AppError::Forbidden);
+    }
+
     let lehrgang = sqlx::query_as::<_, Lehrgang>(
         r#"
         SELECT l.id, l.titel, l.beschreibung, l.ort,
@@ -161,9 +184,11 @@ pub async fn get_lehrgang(
         FROM lehrgaenge l
         LEFT JOIN lehrgangsarten la ON la.id = l.lehrgangsart_id
         WHERE l.id = $1
+          AND ($2::boolean OR l.status = 'veröffentlicht')
         "#,
     )
     .bind(id)
+    .bind(is_verw)
     .fetch_one(&state.db)
     .await
     .map_err(|_| AppError::NotFound)?;
@@ -342,7 +367,13 @@ pub async fn delete_lehrgang(
 pub async fn list_anmeldungen(
     State(state): State<AppState>,
     Path(lehrgang_id): Path<Uuid>,
+    Extension(claims): Extension<Claims>,
 ) -> AppResult<Json<Vec<Anmeldung>>> {
+    // Nur Verwalter dürfen alle Registrierungen sehen
+    if !is_verwalter(&state.db, &claims).await {
+        return Err(AppError::Forbidden);
+    }
+
     // Prüfen ob Lehrgang existiert und nicht abgesagt ist
     let lehrgang_exists: Option<i32> = sqlx::query_scalar(
         "SELECT 1 FROM lehrgaenge WHERE id = $1 AND status != 'abgesagt'"
@@ -422,7 +453,7 @@ pub async fn create_anmeldung(
         None => return Err(AppError::NotFound),
     };
 
-    if status != "offen" && status != "geplant" {
+    if status != "offen" && status != "geplant" && status != "veröffentlicht" {
         return Err(AppError::BadRequest("Dieser Lehrgang nimmt keine neuen Anmeldungen mehr an".into()));
     }
 
@@ -604,9 +635,79 @@ pub async fn delete_anmeldung(
     Ok(Json(serde_json::json!({ "ok": true, "message": "Anmeldung storniert" })))
 }
 
+// ── E-Mail-Vorlage ───────────────────────────────────────────────────────
+
+/// Erzeugt eine E-Mail-Vorlage aus Teilnehmern mit zugewiesenem Platz (status = 'bestaetigt')
+/// Nur für Lehrgangsverwaltung-Admins.
+pub async fn generate_email_template(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(lehrgang_id): Path<Uuid>,
+) -> AppResult<Json<serde_json::Value>> {
+    if !is_verwalter(&state.db, &claims).await {
+        return Err(AppError::Forbidden);
+    }
+
+    // Prüfen ob Lehrgang existiert
+    let lehrgang_exists: Option<i32> = sqlx::query_scalar("SELECT 1 FROM lehrgaenge WHERE id = $1")
+        .bind(lehrgang_id)
+        .fetch_optional(&state.db)
+        .await?;
+
+    if lehrgang_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    // Teilnehmer mit bestätigtem Platz holen
+    let teilnehmer: Vec<TeilnehmerRow> = sqlx::query_as::<_, TeilnehmerRow>(
+        r#"
+        SELECT
+            COALESCE(u.display_name, u.username) as user_name,
+            u.username,
+            la.status, la.anmeldedatum
+        FROM lehrgang_anmeldungen la
+        JOIN users u ON u.id = la.user_id
+        WHERE la.lehrgang_id = $1
+          AND la.status = 'bestaetigt'
+        ORDER BY la.anmeldedatum ASC
+        "#,
+    )
+    .bind(lehrgang_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let lines: Vec<String> = teilnehmer.iter().map(|t| {
+        format!("{}\t{}\t{}", t.user_name, t.username, t.anmeldedatum.format("%d.%m.%Y %H:%M"))
+    }).collect();
+
+    let csv_content = lines.join("\n");
+
+    audit::log(&state.db, Some(claims.sub), &claims.username, "EMAIL_TEMPLATE_GENERATED",
+        Some("lehrgaenge"), Some(lehrgang_id), None).await;
+
+    Ok(Json(serde_json::json!({
+        "lehrgang_id": lehrgang_id,
+        "anzahl": teilnehmer.len(),
+        "csv": csv_content,
+        "teilnehmer": teilnehmer.iter().map(|t| serde_json::json!({
+            "name": t.user_name,
+            "username": t.username,
+            "anmeldedatum": t.anmeldedatum.format("%d.%m.%Y %H:%M")
+        })).collect::<Vec<_>>()
+    })))
+}
+
+#[derive(sqlx::FromRow)]
+struct TeilnehmerRow {
+    user_name: String,
+    username: String,
+    status: String,
+    anmeldedatum: chrono::DateTime<chrono::Utc>,
+}
+
 // ── Helper ────────────────────────────────────────────────────────────────────
 
-/// Prüft ob der User Lehrgangsverwalter-Rechte hat (Admin oder "lehrgangsverwaltung.verwalten")
+/// Prüft ob der User Lehrgangsverwalter-Rechte hat (Admin, Superuser oder "lehrgangsverwaltung.verwalten")
 async fn is_verwalter(pool: &PgPool, claims: &Claims) -> bool {
     if claims.is_admin_or_above() {
         return true;
@@ -621,6 +722,27 @@ async fn is_verwalter(pool: &PgPool, claims: &Claims) -> bool {
         )"
     )
     .bind("lehrgangsverwaltung.verwalten")
+    .bind(claims.sub)
+    .fetch_one(pool)
+    .await
+    .unwrap_or(false)
+}
+
+/// Prüft ob der User Leserechte für Lehrgänge hat ("lehrgangsverwaltung.lesen")
+async fn is_reader(pool: &PgPool, claims: &Claims) -> bool {
+    if claims.is_admin_or_above() {
+        return true;
+    }
+    sqlx::query_scalar::<_, bool>(
+        "SELECT $1 = ANY(
+            SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
+            FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
+            UNION
+            SELECT unnest(fr.permissions)
+            FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
+        )"
+    )
+    .bind("lehrgangsverwaltung.lesen")
     .bind(claims.sub)
     .fetch_one(pool)
     .await
@@ -647,6 +769,8 @@ pub fn router(state: AppState) -> Router<AppState> {
             .delete(delete_anmeldung))
         .route("/user/anmeldungen",
             get(get_anmeldungen_for_user))
+        .route("/:lehrgang_id/email-template",
+               get(generate_email_template))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_module("lehrgangsverwaltung")))
         .route_layer(middleware::from_fn_with_state(state, require_auth))
 }

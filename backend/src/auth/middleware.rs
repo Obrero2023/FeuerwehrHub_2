@@ -133,7 +133,7 @@ fn accepted_permissions(module: &str) -> Option<Vec<&'static str>> {
         "einsatzberichte.read"    => Some(vec!["einsatzberichte.read", "einsatzberichte", "einsatzberichte.approve"]),
         "einsatzberichte"         => Some(vec!["einsatzberichte", "einsatzberichte.approve"]),
         "fahrzeugbuchung"         => Some(vec!["fahrzeugbuchung", "fahrzeugbuchung.verwalten"]),
-        "lehrgangsverwaltung"     => Some(vec!["lehrgangsverwaltung", "lehrgangsverwaltung.verwalten"]),
+        "lehrgangsverwaltung"     => Some(vec!["lehrgangsverwaltung", "lehrgangsverwaltung.verwalten", "lehrgangsverwaltung.lesen"]),
         _                         => None,
     }
 }

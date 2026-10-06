@@ -371,6 +371,7 @@ export const api = {
   createAnmeldung: (lehrgangId, body) => request("POST", `/lehrgaenge/${lehrgangId}/anmeldungen`, body),
   updateAnmeldung: (lehrgangId, anmeldungId, body) => request("PUT", `/lehrgaenge/${lehrgangId}/anmeldungen/${anmeldungId}`, body),
   deleteAnmeldung: (lehrgangId, anmeldungId) => request("DELETE", `/lehrgaenge/${lehrgangId}/anmeldungen/${anmeldungId}`),
+  generateEmailTemplate: (lehrgangId) => request("GET", `/lehrgaenge/${lehrgangId}/email-template`),
 
   // Fahrtenbuch
   getTrips: (vid) => request("GET", `/vehicles/${vid}/trips`),
