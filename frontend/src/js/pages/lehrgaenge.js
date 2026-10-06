@@ -77,6 +77,12 @@ export async function renderLehrgaenge() {
   `;
   renderIcons(content);
 
+  // Event listener für "Lehrgangsarten verwalten" Button
+  const btnLehrgangsarten = document.getElementById('btn-lehrgangsarten');
+  if (btnLehrgangsarten) {
+    btnLehrgangsarten.addEventListener('click', showLehrgangsartenSection);
+  }
+
   const renderList = (items, canManage, currentUser) => {
     const grid = document.getElementById('lehrgang-list');
     if (!grid) return;
