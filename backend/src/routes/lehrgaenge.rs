@@ -692,7 +692,7 @@ pub async fn generate_email_template(
         "teilnehmer": teilnehmer.iter().map(|t| serde_json::json!({
             "name": t.user_name,
             "username": t.username,
-            "anmeldedatum": t.anmeldedatum.format("%d.%m.%Y %H:%M")
+            "anmeldedatum": t.anmeldedatum.format("%d.%m.%Y %H:%M").to_string()
         })).collect::<Vec<_>>()
     })))
 }
