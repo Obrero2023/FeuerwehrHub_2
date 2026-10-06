@@ -9,9 +9,12 @@ let lehrgaengeCache = [];
 let lehrgangsartenCache = [];
 let currentLehrgangId = null; // for anmeldungen view
 let editingLehrgangId = null;
+let userAnmeldungenCache = new Set(); // Cache of course IDs the user is registered for
+let userAnmeldungByLehrgang = new Map(); // Cache of anmeldung IDs keyed by lehrgang_id
 
 export async function renderLehrgaenge() {
   const [settings, user] = await Promise.all([api.getSettings(), api.me()]);
+  currentUser = user;
   setShellInfo(settings?.ff_name, user, settings?.modules);
   renderShell('lehrgaenge');
 
@@ -58,8 +61,21 @@ export async function renderLehrgaenge() {
     wrap.innerHTML = '<div class="empty-state">Lade Lehrgänge...</div>';
 
     try {
-      const lehrgaenge = await api.getLehrgaenge();
+      const [lehrgaenge, userAnmeldungen] = await Promise.all([
+        api.getLehrgaenge(),
+        api.getMe() // Get current user to fetch their registrations
+      ]);
       lehrgaengeCache = lehrgaenge || [];
+
+      // Fetch user's registrations
+      if (userAnmeldungen && userAnmeldungen.id) {
+        const anmeldungen = await api.getMyAnmeldungen();
+        userAnmeldungenCache = new Set(anmeldungen.map(a => a.lehrgang_id));
+        userAnmeldungByLehrgang = new Map(anmeldungen.map(a => [a.lehrgang_id, a.id]));
+      } else {
+        userAnmeldungenCache = new Set();
+        userAnmeldungByLehrgang = new Map();
+      }
 
       // Extract unique lehrgangsarten from the list
       const artsMap = new Map();
@@ -75,6 +91,14 @@ export async function renderLehrgaenge() {
       toast(e.message, 'error');
       wrap.innerHTML = `<p class="error-msg error-msg--block">Fehler: ${esc(e.message)}</p>`;
     }
+  }
+
+  function isUserAnmeldet(lehrgangId) {
+    return userAnmeldungenCache.has(lehrgangId);
+  }
+
+  function getCurrentUserId() {
+    return currentUser?.id || null;
   }
 
   function renderLehrgangList() {
@@ -142,6 +166,7 @@ export async function renderLehrgaenge() {
             <th style="color:var(--text-color)">Status</th>
             <th>Anmeldungen</th>
             ${canManage ? '<th>Aktionen</th>' : ''}
+            ${!canManage ? '<th>Meine Anmeldung</th>' : ''}
           </tr>
         </thead>
         <tbody>
@@ -165,7 +190,12 @@ export async function renderLehrgaenge() {
                     <button class="btn btn--outline btn--sm btn-anmeldungen" data-id="${l.id}" title="Anmeldungen verwalten">${icon('users', 14)}</button>
                     <button class="btn btn--danger btn--sm btn-delete-lehrgang" data-id="${l.id}">Löschen</button>
                   </div>
-                </td>` : ''}
+                </td>` : `
+                <td>
+                  <div class="btn-group">
+                    ${isUserAnmeldet(l.id) ? `<button class="btn btn--danger btn--sm btn-self-anmeldung" data-id="${l.id}">Abmelden</button>` : `<button class="btn btn--primary btn--sm btn-self-anmeldung" data-id="${l.id}">Anmelden</button>`}
+                  </div>
+                </td>`}
             </tr>`;
           }).join('')}
         </tbody>
@@ -211,6 +241,27 @@ export async function renderLehrgaenge() {
 
     wrap.querySelectorAll('.btn-anmeldungen').forEach(btn => {
       btn.addEventListener('click', () => showAnmeldungen(btn.dataset.id));
+    });
+
+    // Self registration / de-registration button
+    wrap.querySelectorAll('.btn-self-anmeldung').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const lehrgangId = btn.dataset.id;
+        const isAbmelden = btn.textContent.trim() === 'Abmelden';
+        try {
+          if (isAbmelden) {
+            const anmeldungId = userAnmeldungByLehrgang.get(lehrgangId);
+            if (anmeldungId) {
+              await api.deleteAnmeldung(lehrgangId, anmeldungId);
+            }
+            toast('Abgemeldet');
+          } else {
+            await api.createAnmeldung(lehrgangId, { bemerkung: null });
+            toast('Anmeldung erfolgreich');
+          }
+          await loadLehrgaenge();
+        } catch (e) { toast(e.message, 'error'); }
+      });
     });
   }
 
@@ -511,16 +562,16 @@ export async function renderLehrgaenge() {
         currentLehrgangId = null;
       });
 
-      // Admin create anmeldung
+      // Admin create anmeldung for other user
       document.getElementById('btn-create-anmeldung-admin')?.addEventListener('click', async () => {
         const userId = document.getElementById('anmeldung-user').value;
         const bemerkung = document.getElementById('anmeldung-bemerkung').value.trim();
         if (!userId) { toast('Benutzer wählen', 'error'); return; }
         try {
-          await api.createAnmeldung(lehrgangId, { bemerkung: bemerkung || null });
-          // Need to call with correct user - API doesn't support admin creating for others yet
-          // The backend expects the logged-in user. We'll skip this for now.
-          toast('Als Admin können Sie Benutzer nicht direkt anmelden (Backend-Begrenzung)', 'error');
+          // TODO: Backend needs to support specifying user_id for admin registrations
+          // For now, we can only register the current user (admin themselves)
+          // To register another user, we'd need to modify the API
+          toast('Diese Funktion ist noch nicht implementiert. Als Admin können Sie aktuell nur sich selbst für einen Lehrgang anmelden.', 'info');
         } catch (e) { toast(e.message, 'error'); }
       });
 

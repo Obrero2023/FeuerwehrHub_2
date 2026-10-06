@@ -369,6 +369,7 @@ export const api = {
 
   // Anmeldungen
   getAnmeldungen: (lehrgangId) => request("GET", `/lehrgaenge/${lehrgangId}/anmeldungen`),
+  getMyAnmeldungen: () => request("GET", `/lehrgaenge/user/anmeldungen`),
   createAnmeldung: (lehrgangId, body) =>
     request("POST", `/lehrgaenge/${lehrgangId}/anmeldungen`, body),
   updateAnmeldung: (lehrgangId, anmeldungId, body) =>

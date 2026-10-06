@@ -383,6 +383,33 @@ pub async fn list_anmeldungen(
     Ok(Json(anmeldungen))
 }
 
+pub async fn get_anmeldungen_for_user(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> AppResult<Json<Vec<Anmeldung>>> {
+    let anmeldungen = sqlx::query_as::<_, Anmeldung>(
+        r#"
+        SELECT
+            la.id, la.lehrgang_id, la.user_id,
+            COALESCE(u.display_name, u.username) as user_name,
+            la.status, la.anmeldedatum, la.aktualisiert_am,
+            la.bemerkung, la.bestaetigt_von,
+            COALESCE(sc.display_name, sc.username) as bestaetigt_von_name,
+            la.bestaetigt_am
+        FROM lehrgang_anmeldungen la
+        JOIN users u ON u.id = la.user_id
+        LEFT JOIN users sc ON sc.id = la.bestaetigt_von
+        WHERE la.user_id = $1
+        ORDER BY la.anmeldedatum ASC
+        "#,
+    )
+    .bind(claims.sub)
+    .fetch_all(&state.db)
+    .await?;
+
+    Ok(Json(anmeldungen))
+}
+
 pub async fn create_anmeldung(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -618,6 +645,8 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/:lehrgang_id/anmeldungen/:anmeldung_id",
             put(update_anmeldung)
             .delete(delete_anmeldung))
+        .route("/user/anmeldungen",
+            get(get_anmeldungen_for_user))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_module("lehrgangsverwaltung")))
         .route_layer(middleware::from_fn_with_state(state, require_auth))
 }
