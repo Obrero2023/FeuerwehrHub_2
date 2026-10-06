@@ -63,7 +63,7 @@ export async function renderLehrgaenge() {
     try {
       const [lehrgaenge, userAnmeldungen] = await Promise.all([
         api.getLehrgaenge(),
-        api.getMe() // Get current user to fetch their registrations
+        api.me() // Get current user to fetch their registrations
       ]);
       lehrgaengeCache = lehrgaenge || [];
 
