@@ -1,0 +1,3 @@
+-- Lehrgangsverwaltung: Rollen/Module
+-- Hier können weitere Rollen-Definitionen für die Lehrgangsverwaltung hinzugefügt werden
+-- z.B. spezifische Permission-Strings für unterschiedliche Verwaltungsrechte

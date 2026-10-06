@@ -18,6 +18,7 @@ const MODULE_ACCENTS = {
   fahrzeugbuchung: '#8b5cf6',  // violet
   verein:          '#7c3aed',
   intranet:        '#0891b2',
+  lehrgangsverwaltung: '#c026d3',  // pink-violet
 };
 
 const PAGE_MODULE = {
@@ -37,9 +38,10 @@ const PAGE_MODULE = {
   'hlf1-inspection':    'fahrzeugpruefung',
   'hlf2-inspection':    'fahrzeugpruefung',
   'mtf-inspection':     'fahrzeugpruefung',
-  'fahrzeugbuchung': 'fahrzeugbuchung',
+  'vehicle_bookings':    'fahrzeugbuchung',
   verein:          'verein',
   intranet:        'intranet',
+  lehrgaenge:      'lehrgangsverwaltung',
 };
 
 const MODULE_COLORS = {
@@ -48,6 +50,7 @@ const MODULE_COLORS = {
   fahrzeuge:       { c: 'var(--fahrzeug-c)', hell: 'var(--fahrzeug-hell)' },
   fahrzeugpruefung: { c: 'var(--fahrzeug_checklist-c)', hell: 'var(--fahrzeug_checklist-hell)' },
   fahrzeugbuchung: { c: 'var(--fahrzeugbuchung-c)', hell: 'var(--fahrzeugbuchung-hell)' },
+  lehrgangsverwaltung: { c: 'var(--lehrgangsverwaltung-c)', hell: 'var(--lehrgangsverwaltung-hell)' },
   einsatzberichte: { c: 'var(--einsatz-c)',  hell: 'var(--einsatz-hell)' },
   verein:          { c: 'var(--verein-c)',   hell: 'var(--verein-hell)' },
   intranet:        { c: 'var(--intranet-c)', hell: 'var(--intranet-hell)' },
@@ -177,6 +180,10 @@ function buildShell() {
     { page: 'fahrzeugbuchung', label: 'Fahrzeugbuchung', icon: icon('calendar', 16) },
   ];
 
+  const lehrgaengeItems = [
+    { page: 'lehrgaenge', label: 'Lehrgänge', icon: icon('calendar-check', 16) },
+  ];
+
   return `
     <div class="app-shell" style="--accent: ${accent}">
 
@@ -212,6 +219,7 @@ function buildShell() {
         ${showModule('verein', 'verein')               ? buildNavItem('verein',          'Verein',   vereinItems)   : ''}
         ${showModulePublic('intranet')         ? buildNavItem('intranet',        'Intranet', intranetItems) : ''}
         ${showModule('fahrzeugbuchung', 'fahrzeugbuchung') ? buildNavItem('fahrzeugbuchung', 'Fahrzeugbuchung', fahrzeugbuchungItems) : ''}
+        ${showModule('lehrgangsverwaltung', 'lehrgangsverwaltung') ? buildNavItem('lehrgangsverwaltung', 'Lehrgänge', lehrgaengeItems) : ''}
 
         <div class="topnav__spacer"></div>
 
