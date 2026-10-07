@@ -110,7 +110,6 @@ export async function renderLehrgaenge() {
           ${l.ort ? `<span>📍 ${esc(l.ort)}</span>` : ''}
           ${l.anmeldeschluss ? `<span>📝 Bis ${l.anmeldeschluss}</span>` : ''}
           <span>👥 ${l.anmeldungen_count || 0}/${l.max_teilnehmer || '?'}</span>
-          ${l.kosten !== undefined && l.kosten !== null ? `<span>💶 ${l.kosten} €${l.kosten_uebernommen_durch ? ' (' + l.kosten_uebernommen_durch + ')' : ''}</span>` : ''}
         </div>
         ${l.beschreibung ? `<p class="lehrgang-desc">${esc(l.beschreibung)}</p>` : ''}
         <div class="lehrgang-actions">
@@ -177,38 +176,68 @@ export const showForm = async (l = null) => {
 
   // Load Lehrgangsarten for the dropdown
   const lehrgangsarten = await loadLehrgangsarten();
+  const _currentLehrgangsartId = l?.lehrgangsart_id || null;
+
+  /** Beschreibung und Veranstaltungsort aus der ausgewählten Lehrgangsart füllen */
+  function fillFromLehrgangsart() {
+    const selected = document.getElementById('feld-lehrgangsart')?.value;
+    if (!selected) return;
+    const la = lehrgangsarten.find(x => x.id == selected);
+    if (!la) return;
+    document.getElementById('feld-beschreibung').value = la.beschreibung || '';
+    document.getElementById('feld-ort').value = la.veranstaltungsort || '';
+  }
 
   formEl.innerHTML = `
     <div class="card">
-      <h3>${l ? 'Lehrgang bearbeiten' : 'Neuer Lehrgang'}</h3>
-      <form id="lehrgang-form-el" class="form-grid">
-        <input type="text" id="fld-titel" placeholder="Titel / Bezeichnung" value="${l ? esc(l.titel) : ''}" required />
-        <textarea id="feld-beschreibung" placeholder="Beschreibung">${l ? esc(l.beschreibung || '') : ''}</textarea>
-        <select id="feld-lehrgangsart">
-          <option value="">-- Lehrgangsart wählen --</option>
-          ${lehrgangsarten.map(la => `
-            <option value="${la.id}" ${l && l.lehrgangsart_id == la.id ? 'selected' : ''}>${esc(la.name)}</option>
-          `).join('')}
-        </select>
-        <input type="text" id="feld-ort" placeholder="Veranstaltungsort" value="${l ? esc(l.ort || '') : ''}" />
-        <div class="form-row">
-          <input type="date" id="feld-start" value="${l && l.start_datum ? l.start_datum : ''}" required />
-          <input type="date" id="feld-ende" value="${l && l.end_datum ? l.end_datum : ''}" required />
-        </div>
-        <div class="form-row">
-          <input type="date" id="feld-anmeldeschluss" placeholder="Anmeldefrist" value="${l && l.anmeldeschluss ? l.anmeldeschluss : ''}" />
-          <input type="number" id="feld-max" placeholder="Max. Plätze" value="${l && l.max_teilnehmer ? l.max_teilnehmer : ''}" min="1" />
-        </div>
-        <div class="form-row">
-          <input type="number" id="feld-kosten" placeholder="Kosten (€)" value="${l && l.kosten ? l.kosten : ''}" step="0.01" />
-          <select id="feld-kosten-durch">
-            <option value="">Kostenübernahme</option>
-            <option value="feuerwehr" ${l && l.kosten_uebernommen_durch === 'feuerwehr' ? 'selected' : ''}>Feuerwehr</option>
-            <option value="teilnehmer" ${l && l.kosten_uebernommen_durch === 'teilnehmer' ? 'selected' : ''}>Teilnehmer</option>
-            <option value="teilweise" ${l && l.kosten_uebernommen_durch === 'teilweise' ? 'selected' : ''}>Teilweise</option>
-          </select>
-        </div>
-        ${l && l.status ? `<div class="form-row"><select id="feld-status">
+      <div class="card__header">
+        <span>${l ? 'Lehrgang bearbeiten' : 'Neuer Lehrgang'}</span>
+        <button type="button" class="btn btn--sm btn--outline" id="btn-cancel">Abbrechen</button>
+      </div>
+      <div class="card__body card__body--flush">
+        <form id="lehrgang-form-el" class="form-grid">
+          <div class="form-group form-group--full">
+            <label>Titel / Bezeichnung <span class="required">*</span></label>
+            <input type="text" id="fld-titel" placeholder="Titel / Bezeichnung" value="${l ? esc(l.titel) : ''}" required />
+          </div>
+          <div class="form-group form-group--full">
+            <label>Beschreibung</label>
+            <textarea id="feld-beschreibung" placeholder="Beschreibung">${l ? esc(l.beschreibung || '') : ''}</textarea>
+          </div>
+          <div class="form-group form-group--full">
+            <label>Lehrgangsart</label>
+            <select id="feld-lehrgangsart">
+              <option value="">-- Lehrgangsart wählen --</option>
+              ${lehrgangsarten.map(la => `
+                <option value="${la.id}" ${l && l.lehrgangsart_id == la.id ? 'selected' : ''}>${esc(la.name)}</option>
+              `).join('')}
+            </select>
+          </div>
+          <div class="form-group form-group--full">
+            <label>Veranstaltungsort</label>
+            <input type="text" id="feld-ort" placeholder="Veranstaltungsort" value="${l ? esc(l.ort || '') : ''}" />
+          </div>
+          <div class="form-group form-group--full">
+            <label>Kosten (€)</label>
+            <input type="number" id="feld-kosten" placeholder="Kosten (€)" value="${l && l.kosten ? l.kosten : ''}" step="0.01" min="0" />
+          </div>
+          <div class="form-group form-group--full">
+            <label>Startdatum <span class="required">*</span></label>
+            <input type="date" id="feld-start" value="${l && l.start_datum ? l.start_datum : ''}" required />
+          </div>
+          <div class="form-group form-group--full">
+            <label>Enddatum <span class="required">*</span></label>
+            <input type="date" id="feld-ende" value="${l && l.end_datum ? l.end_datum : ''}" required />
+          </div>
+          <div class="form-group form-group--full">
+            <label>Anmeldefrist</label>
+            <input type="date" id="feld-anmeldeschluss" placeholder="Anmeldefrist" value="${l && l.anmeldeschluss ? l.anmeldeschluss : ''}" />
+          </div>
+          <div class="form-group form-group--full">
+            <label>Max. Plätze</label>
+            <input type="number" id="feld-max" placeholder="Max. Plätze" value="${l && l.max_teilnehmer ? l.max_teilnehmer : ''}" min="1" />
+          </div>
+          ${l && l.status ? `<div class="form-group form-group--full"><label>Status</label><select id="feld-status">
             <option value="geplant" ${l.status === 'geplant' ? 'selected' : ''}>Geplant</option>
             <option value="offen" ${l.status === 'offen' ? 'selected' : ''}>Offen</option>
             <option value="voll" ${l.status === 'voll' ? 'selected' : ''}>Voll</option>
@@ -218,13 +247,15 @@ export const showForm = async (l = null) => {
             <option value="veröffentlicht" ${l.status === 'veröffentlicht' ? 'selected' : ''}>Veröffentlicht</option>
             <option value="archiviert" ${l.status === 'archiviert' ? 'selected' : ''}>Archiviert</option>
           </select></div>` : ''}
-        <div class="form-actions">
-          <button type="submit" class="btn btn--primary">${l ? 'Speichern' : 'Anlegen'}</button>
-          <button type="button" id="btn-cancel" class="btn btn--secondary">Abbrechen</button>
-        </div>
-      </form>
+          <div class="form-group form-group--full" style="margin-top: 12px;">
+            <button type="submit" class="btn btn--primary">${l ? 'Speichern' : 'Anlegen'}</button>
+          </div>
+        </form>
+      </div>
     </div>
   `;
+
+  document.getElementById('feld-lehrgangsart').addEventListener('change', fillFromLehrgangsart);
 
   document.getElementById('btn-cancel').addEventListener('click', () => {
     formEl.style.display = 'none';
@@ -242,7 +273,6 @@ export const showForm = async (l = null) => {
       anmeldeschluss: document.getElementById('feld-anmeldeschluss').value || null,
       max_teilnehmer: parseInt(document.getElementById('feld-max').value) || null,
       kosten: parseFloat(document.getElementById('feld-kosten').value) || null,
-      kosten_uebernommen_durch: document.getElementById('feld-kosten-durch').value || null,
       lehrgangsart_id: document.getElementById('feld-lehrgangsart').value || null,
     };
     try {
@@ -582,11 +612,13 @@ async function renderLehrgangsarten() {
       <div>
         <div class="fw-bold">${esc(la.name)}</div>
         ${la.beschreibung ? `<div class="text-muted text-sm">${esc(la.beschreibung)}</div>` : ''}
+        ${la.veranstaltungsort ? `<div class="text-muted text-sm">📍 ${esc(la.veranstaltungsort)}</div>` : ''}
         ${la.voraussetzung ? `<div class="text-muted text-sm">Voraussetzung: ${esc(la.voraussetzung)}</div>` : ''}
       </div>
       <div class="btn-group">
         <button class="btn btn--outline btn--sm" data-action="edit" data-id="${la.id}"
           data-name="${esc(la.name)}" data-beschreibung="${esc(la.beschreibung || '')}"
+          data-veranstaltungsort="${esc(la.veranstaltungsort || '')}"
           data-voraussetzung="${esc(la.voraussetzung || '')}">Bearbeiten</button>
         <button class="btn btn--danger btn--sm" data-action="delete" data-id="${la.id}" data-name="${esc(la.name)}">
           Löschen
@@ -600,14 +632,14 @@ async function renderLehrgangsarten() {
   // Neue Lehrgangsart
   document.getElementById('btn-new-lehrgangsart').onclick = () => {
     _currentLehrgangsartId = null;
-    showLehrgangsartenForm();
+    showLehrgangsartenForm('', '', '', '');
   };
 
   // Bearbeiten
   listEl.querySelectorAll('[data-action="edit"]').forEach(btn => {
     btn.addEventListener('click', () => {
       _currentLehrgangsartId = btn.dataset.id;
-      showLehrgangsartenForm(btn.dataset.name, btn.dataset.beschreibung, btn.dataset.voraussetzung);
+      showLehrgangsartenForm(btn.dataset.name, btn.dataset.beschreibung, btn.dataset.veranstaltungsort, btn.dataset.voraussetzung);
     });
   });
 
@@ -626,7 +658,7 @@ async function renderLehrgangsarten() {
 }
 
 /** Formular zum Erstellen/Bearbeiten einer Lehrgangsart anzeigen */
-function showLehrgangsartenForm(name = '', beschreibung = '', voraussetzung = '') {
+function showLehrgangsartenForm(name = '', beschreibung = '', veranstaltungsort = '', voraussetzung = '') {
   const formEl = document.getElementById('lehrgangsarten-form');
   const listEl = document.getElementById('lehrgangsarten-list');
   if (!formEl || !listEl) return;
@@ -636,25 +668,33 @@ function showLehrgangsartenForm(name = '', beschreibung = '', voraussetzung = ''
 
   formEl.innerHTML = `
     <div class="card">
-      <h3>${_currentLehrgangsartId ? 'Lehrgangsart bearbeiten' : 'Neue Lehrgangsart'}</h3>
-      <form id="lehrgangsarten-form-el" class="form-grid">
-        <div class="form-group form-group--compact">
-          <label>Name des Lehrgangs <span class="required">*</span></label>
-          <input type="text" id="fld-name" placeholder="z.B. Grundlehrgang" value="${esc(name)}" required />
-        </div>
-        <div class="form-group form-group--compact">
-          <label>Beschreibung</label>
-          <textarea id="feld-beschreibung" placeholder="Beschreibung des Lehrgangs" rows="3">${esc(beschreibung)}</textarea>
-        </div>
-        <div class="form-group form-group--compact">
-          <label>Voraussetzung</label>
-          <textarea id="feld-voraussetzung" placeholder="Welche Voraussetzungen müssen Teilnehmer mitbringen?" rows="3">${esc(voraussetzung)}</textarea>
-        </div>
-        <div class="form-actions">
-          <button type="submit" class="btn btn--primary">${_currentLehrgangsartId ? 'Speichern' : 'Anlegen'}</button>
-          <button type="button" id="btn-cancel-lehrgangsart" class="btn btn--secondary">Abbrechen</button>
-        </div>
-      </form>
+      <div class="card__header">
+        <span>${_currentLehrgangsartId ? 'Lehrgangsart bearbeiten' : 'Neue Lehrgangsart'}</span>
+        <button type="button" class="btn btn--sm btn--outline" id="btn-cancel-lehrgangsart">Abbrechen</button>
+      </div>
+      <div class="card__body card__body--flush">
+        <form id="lehrgangsarten-form-el" class="form-grid">
+          <div class="form-group form-group--full">
+            <label>Name der Lehrgangsart <span class="required">*</span></label>
+            <input type="text" id="fld-name" placeholder="z.B. Grundlehrgang" value="${esc(name)}" required />
+          </div>
+          <div class="form-group form-group--full">
+            <label>Beschreibung</label>
+            <textarea id="feld-beschreibung" placeholder="Beschreibung des Lehrgangs" rows="3">${esc(beschreibung)}</textarea>
+          </div>
+          <div class="form-group form-group--full">
+            <label>Veranstaltungsort</label>
+            <input type="text" id="feld-veranstaltungsort" placeholder="Für welchen Veranstaltungsort ist diese Lehrgangsart vorgesehen?" value="${esc(veranstaltungsort || '')}" />
+          </div>
+          <div class="form-group form-group--full">
+            <label>Voraussetzung</label>
+            <textarea id="feld-voraussetzung" placeholder="Welche Voraussetzungen müssen Teilnehmer mitbringen?" rows="3">${esc(voraussetzung)}</textarea>
+          </div>
+          <div class="form-group form-group--full" style="margin-top: 12px;">
+            <button type="submit" class="btn btn--primary">${_currentLehrgangsartId ? 'Speichern' : 'Anlegen'}</button>
+          </div>
+        </form>
+      </div>
     </div>
   `;
 
@@ -669,6 +709,7 @@ function showLehrgangsartenForm(name = '', beschreibung = '', voraussetzung = ''
     const body = {
       name: document.getElementById('fld-name').value,
       beschreibung: document.getElementById('feld-beschreibung').value || null,
+      veranstaltungsort: document.getElementById('feld-veranstaltungsort').value || null,
       voraussetzung: document.getElementById('feld-voraussetzung').value || null,
     };
     try {

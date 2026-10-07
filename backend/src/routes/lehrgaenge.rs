@@ -31,7 +31,6 @@ pub struct Lehrgang {
     pub max_teilnehmer: Option<i32>,
     pub status: String,
     pub kosten: Option<f64>,
-    pub kosten_uebernommen_durch: Option<String>,
     pub lehrgangsart_id: Option<Uuid>,
     pub lehrgangsart_name: Option<String>,
     pub voraussetzung: Option<String>,
@@ -69,7 +68,6 @@ pub struct CreateLehrgang {
     pub anmeldeschluss: Option<NaiveDate>,
     pub max_teilnehmer: Option<i32>,
     pub kosten: Option<f64>,
-    pub kosten_uebernommen_durch: Option<String>,
     pub lehrgangsart_id: Option<Uuid>,
     pub voraussetzung: Option<String>,
     pub voraussetzungen_erfuellt: Option<bool>,
@@ -86,7 +84,6 @@ pub struct UpdateLehrgang {
     pub max_teilnehmer: Option<i32>,
     pub status: Option<String>,
     pub kosten: Option<f64>,
-    pub kosten_uebernommen_durch: Option<String>,
     pub lehrgangsart_id: Option<Uuid>,
     pub voraussetzung: Option<String>,
     pub voraussetzungen_erfuellt: Option<bool>,
@@ -136,7 +133,7 @@ pub async fn list_lehrgaenge(
         SELECT l.id, l.titel, l.beschreibung, l.ort,
                l.start_datum, l.end_datum, l.anmeldeschluss,
                l.max_teilnehmer, l.status, l.kosten,
-               l.kosten_uebernommen_durch, l.lehrgangsart_id,
+               l.lehrgangsart_id,
                la.name as lehrgangsart_name, l.voraussetzung,
                l.voraussetzungen_erfuellt,
                COALESCE((SELECT COUNT(*) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = l.id), 0) as anmeldungen_count,
@@ -176,7 +173,7 @@ pub async fn get_lehrgang(
         SELECT l.id, l.titel, l.beschreibung, l.ort,
                l.start_datum, l.end_datum, l.anmeldeschluss,
                l.max_teilnehmer, l.status, l.kosten,
-               l.kosten_uebernommen_durch, l.lehrgangsart_id,
+               l.lehrgangsart_id,
                la.name as lehrgangsart_name, l.voraussetzung,
                l.voraussetzungen_erfuellt,
                COALESCE((SELECT COUNT(*) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = l.id), 0) as anmeldungen_count,
@@ -226,15 +223,15 @@ pub async fn create_lehrgang(
         r#"
         INSERT INTO lehrgaenge
             (titel, beschreibung, ort, start_datum, end_datum, anmeldeschluss,
-             max_teilnehmer, status, kosten, kosten_uebernommen_durch,
+             max_teilnehmer, status, kosten,
              lehrgangsart_id, voraussetzung, voraussetzungen_erfuellt,
              erstellt_von, erstellt_von_name)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         RETURNING
             id, titel, beschreibung, ort,
             start_datum, end_datum, anmeldeschluss,
             max_teilnehmer, status, kosten,
-            kosten_uebernommen_durch, lehrgangsart_id,
+            lehrgangsart_id,
             (SELECT name FROM lehrgangsarten WHERE id = lehrgangsart_id) as lehrgangsart_name,
             voraussetzung, voraussetzungen_erfuellt,
             0 as anmeldungen_count,
@@ -250,7 +247,6 @@ pub async fn create_lehrgang(
     .bind(body.max_teilnehmer)
     .bind(status)
     .bind(body.kosten)
-    .bind(body.kosten_uebernommen_durch)
     .bind(body.lehrgangsart_id)
     .bind(body.voraussetzung)
     .bind(body.voraussetzungen_erfuellt.unwrap_or(false))
@@ -298,17 +294,16 @@ pub async fn update_lehrgang(
             max_teilnehmer = COALESCE($7, max_teilnehmer),
             status = COALESCE($8, status),
             kosten = COALESCE($9, kosten),
-            kosten_uebernommen_durch = COALESCE($10, kosten_uebernommen_durch),
-            lehrgangsart_id = COALESCE($11, lehrgangsart_id),
-            voraussetzung = COALESCE($12, voraussetzung),
-            voraussetzungen_erfuellt = COALESCE($13, voraussetzungen_erfuellt),
+            lehrgangsart_id = COALESCE($10, lehrgangsart_id),
+            voraussetzung = COALESCE($11, voraussetzung),
+            voraussetzungen_erfuellt = COALESCE($12, voraussetzungen_erfuellt),
             aktualisiert_am = NOW()
-        WHERE id = $14
+        WHERE id = $13
         RETURNING
             id, titel, beschreibung, ort,
             start_datum, end_datum, anmeldeschluss,
             max_teilnehmer, status, kosten,
-            kosten_uebernommen_durch, lehrgangsart_id,
+            lehrgangsart_id,
             (SELECT name FROM lehrgangsarten WHERE id = lehrgangsart_id) as lehrgangsart_name,
             voraussetzung, voraussetzungen_erfuellt,
             COALESCE((SELECT COUNT(*) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = lehrgaenge.id), 0) as anmeldungen_count,
@@ -324,7 +319,6 @@ pub async fn update_lehrgang(
     .bind(body.max_teilnehmer)
     .bind(body.status)
     .bind(body.kosten)
-    .bind(body.kosten_uebernommen_durch)
     .bind(body.lehrgangsart_id)
     .bind(body.voraussetzung)
     .bind(body.voraussetzungen_erfuellt)
@@ -642,6 +636,7 @@ pub struct Lehrgangsart {
     pub id: Uuid,
     pub name: String,
     pub beschreibung: Option<String>,
+    pub veranstaltungsort: Option<String>,
     pub voraussetzung: Option<String>,
     pub erstellt_am: chrono::DateTime<chrono::Utc>,
     pub aktualisiert_am: chrono::DateTime<chrono::Utc>,
@@ -652,6 +647,7 @@ pub struct CreateLehrgangsart {
     #[validate(length(min = 1, max = 200))]
     pub name: String,
     pub beschreibung: Option<String>,
+    pub veranstaltungsort: Option<String>,
     pub voraussetzung: Option<String>,
 }
 
@@ -659,6 +655,7 @@ pub struct CreateLehrgangsart {
 pub struct UpdateLehrgangsart {
     pub name: Option<String>,
     pub beschreibung: Option<String>,
+    pub veranstaltungsort: Option<String>,
     pub voraussetzung: Option<String>,
 }
 
@@ -692,7 +689,7 @@ pub async fn list_lehrgangsarten(
     }
 
     let lehrgangsarten = sqlx::query_as::<_, Lehrgangsart>(
-        "SELECT id, name, beschreibung, voraussetzung, erstellt_am, aktualisiert_am
+        "SELECT id, name, beschreibung, veranstaltungsort, voraussetzung, erstellt_am, aktualisiert_am
          FROM lehrgangsarten
          ORDER BY name ASC"
     )
@@ -736,12 +733,13 @@ pub async fn create_lehrgangsart(
     body.validate()?;
 
     let lehrgangsart = sqlx::query_as::<_, Lehrgangsart>(
-        "INSERT INTO lehrgangsarten (name, beschreibung, voraussetzung)
-         VALUES ($1, $2, $3)
-         RETURNING id, name, beschreibung, voraussetzung, erstellt_am, aktualisiert_am"
+        "INSERT INTO lehrgangsarten (name, beschreibung, veranstaltungsort, voraussetzung)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, name, beschreibung, veranstaltungsort, voraussetzung, erstellt_am, aktualisiert_am"
     )
     .bind(&body.name)
     .bind(&body.beschreibung)
+    .bind(&body.veranstaltungsort)
     .bind(&body.voraussetzung)
     .fetch_one(&state.db)
     .await?;
@@ -798,13 +796,15 @@ pub async fn update_lehrgangsart(
         "UPDATE lehrgangsarten
          SET name = COALESCE($1, name),
              beschreibung = COALESCE($2, beschreibung),
-             voraussetzung = COALESCE($3, voraussetzung),
+             veranstaltungsort = COALESCE($3, veranstaltungsort),
+             voraussetzung = COALESCE($4, voraussetzung),
              aktualisiert_am = NOW()
-         WHERE id = $4
-         RETURNING id, name, beschreibung, voraussetzung, erstellt_am, aktualisiert_am"
+         WHERE id = $5
+         RETURNING id, name, beschreibung, veranstaltungsort, voraussetzung, erstellt_am, aktualisiert_am"
     )
     .bind(body.name)
     .bind(body.beschreibung)
+    .bind(body.veranstaltungsort)
     .bind(body.voraussetzung)
     .bind(id)
     .fetch_one(&state.db)
