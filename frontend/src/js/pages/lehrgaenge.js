@@ -260,16 +260,50 @@ export const showForm = async (l = null) => {
 
   document.getElementById('lehrgang-form-el').addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    // Client-side validation für bessere Fehlermeldungen
+    const titel = document.getElementById('fld-titel').value.trim();
+    if (!titel) {
+      toast('Bitte geben Sie einen Titel ein', 'error');
+      return;
+    }
+    if (titel.length > 200) {
+      toast('Titel darf maximal 200 Zeichen haben', 'error');
+      return;
+    }
+
+    const start_datum = document.getElementById('feld-start').value;
+    const end_datum = document.getElementById('feld-ende').value;
+    if (!start_datum || !end_datum) {
+      toast('Start- und Enddatum sind Pflichtfelder', 'error');
+      return;
+    }
+    if (end_datum < start_datum) {
+      toast('Enddatum muss nach dem Startdatum liegen', 'error');
+      return;
+    }
+
+    const anmeldeschluss = document.getElementById('feld-anmeldeschluss').value;
+    if (anmeldeschluss && anmeldeschluss > start_datum) {
+      toast('Anmeldeschluss muss vor dem Startdatum liegen', 'error');
+      return;
+    }
+
+    const max_tn = document.getElementById('feld-max').value;
+    const max_teilnehmer = max_tn ? Math.max(1, parseInt(max_tn)) : null;
+    const lehrgangsart_id = document.getElementById('feld-lehrgangsart').value || null;
+
     const body = {
-      titel: document.getElementById('fld-titel').value,
+      titel,
       beschreibung: document.getElementById('feld-beschreibung').value || null,
       ort: document.getElementById('feld-ort').value || null,
-      start_datum: document.getElementById('feld-start').value || null,
-      end_datum: document.getElementById('feld-ende').value || null,
-      anmeldeschluss: document.getElementById('feld-anmeldeschluss').value || null,
-      max_teilnehmer: parseInt(document.getElementById('feld-max').value) || null,
-      lehrgangsart_id: document.getElementById('feld-lehrgangsart').value || null,
+      start_datum: start_datum || null,
+      end_datum: end_datum || null,
+      anmeldeschluss: anmeldeschluss || null,
+      max_teilnehmer: max_teilnehmer,
+      lehrgangsart_id: lehrgangsart_id,
     };
+
     try {
       if (l) {
         await api.updateLehrgang(l.id, body);
@@ -280,7 +314,10 @@ export const showForm = async (l = null) => {
       }
       // Zurück zur Übersicht navigieren, um die Liste zu aktualisieren
       window.location.hash = '#/lehrgaenge';
-    } catch (e) { toast(e.message, 'error'); }
+    } catch (e) {
+      console.error('Lehrgang speichern fehlgeschlagen:', e);
+      toast(e.message, 'error');
+    }
   });
 };
 
