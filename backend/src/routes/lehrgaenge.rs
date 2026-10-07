@@ -73,8 +73,9 @@ pub struct CreateLehrgang {
     pub voraussetzungen_erfuellt: Option<bool>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Validate)]
 pub struct UpdateLehrgang {
+    #[validate(length(min = 1, max = 200))]
     pub titel: Option<String>,
     pub beschreibung: Option<String>,
     pub ort: Option<String>,
@@ -268,18 +269,48 @@ pub async fn update_lehrgang(
     Json(body): Json<UpdateLehrgang>,
 ) -> AppResult<Json<Lehrgang>> {
     // Prüfen ob Lehrgang existiert
-    let exists: Option<i32> = sqlx::query_scalar("SELECT 1 FROM lehrgaenge WHERE id = $1")
-        .bind(id)
-        .fetch_optional(&state.db)
-        .await?;
-
-    if exists.is_none() {
-        return Err(AppError::NotFound);
-    }
+    let lehrgang = sqlx::query_as::<_, Lehrgang>(
+        r#"
+        SELECT l.id, l.titel, l.beschreibung, l.ort,
+               l.start_datum, l.end_datum, l.anmeldeschluss,
+               l.max_teilnehmer, l.status, l.kosten,
+               l.lehrgangsart_id,
+               la.name as lehrgangsart_name, l.voraussetzung,
+               l.voraussetzungen_erfuellt,
+               COALESCE((SELECT COUNT(*) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = l.id), 0) as anmeldungen_count,
+               l.erstellt_von, l.erstellt_von_name, l.erstellt_am, l.aktualisiert_am
+        FROM lehrgaenge l
+        LEFT JOIN lehrgangsarten la ON la.id = l.lehrgangsart_id
+        WHERE l.id = $1
+        "#,
+    )
+    .bind(id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|_| AppError::NotFound)?;
 
     // Nur Verwalter dürfen Lehrgänge bearbeiten
     if !is_verwalter(&state.db, &claims).await {
         return Err(AppError::Forbidden);
+    }
+
+    body.validate()?;
+
+    // Neuartige/aktualisierte Werte ermitteln (bei COALESCE-Logik)
+    let final_start = body.start_datum.unwrap_or(lehrgang.start_datum);
+    let final_end = body.end_datum.unwrap_or(lehrgang.end_datum);
+
+    // Validierung: end_datum muss nach start_datum liegen
+    if final_end < final_start {
+        return Err(AppError::BadRequest("Enddatum muss nach Startdatum liegen".into()));
+    }
+
+    // Validierung: anmeldeschluss muss vor dem Startdatum liegen
+    let final_schluss = body.anmeldeschluss;
+    if let Some(schluss) = final_schluss {
+        if schluss > final_start {
+            return Err(AppError::BadRequest("Anmeldeschluss muss vor dem Startdatum liegen".into()));
+        }
     }
 
     let lehrgang = sqlx::query_as::<_, Lehrgang>(
