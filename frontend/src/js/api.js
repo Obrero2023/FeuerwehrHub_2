@@ -355,10 +355,10 @@ export const api = {
   checkOverlap: (params) => request("POST", "/vehicle-bookings/check-overlap", params),
 
   // ── Lehrgangsarten ─────────────────────────────────────────────
-  getLehrgangsarten: () => request("GET", "/lehrgangsarten"),
-  createLehrgangsart: (body) => request("POST", "/lehrgangsarten", body),
-  updateLehrgangsart: (id, body) => request("PUT", `/lehrgangsarten/${id}`, body),
-  deleteLehrgangsart: (id) => request("DELETE", `/lehrgangsarten/${id}`),
+  getLehrgangsarten: () => request("GET", "/lehrgaenge/lehrgangsarten"),
+  createLehrgangsart: (body) => request("POST", "/lehrgaenge/lehrgangsarten", body),
+  updateLehrgangsart: (id, body) => request("PUT", `/lehrgaenge/lehrgangsarten/${id}`, body),
+  deleteLehrgangsart: (id) => request("DELETE", `/lehrgaenge/lehrgangsarten/${id}`),
 
   // ── Lehrgangsverwaltung ──────────────────────────────────────────
   getLehrgaenge: (params) => {
