@@ -218,10 +218,6 @@ export const showForm = async (l = null) => {
             <input type="text" id="feld-ort" placeholder="Veranstaltungsort" value="${l ? esc(l.ort || '') : ''}" />
           </div>
           <div class="form-group form-group--full">
-            <label>Kosten (€)</label>
-            <input type="number" id="feld-kosten" placeholder="Kosten (€)" value="${l && l.kosten ? l.kosten : ''}" step="0.01" min="0" />
-          </div>
-          <div class="form-group form-group--full">
             <label>Startdatum <span class="required">*</span></label>
             <input type="date" id="feld-start" value="${l && l.start_datum ? l.start_datum : ''}" required />
           </div>
@@ -272,7 +268,6 @@ export const showForm = async (l = null) => {
       end_datum: document.getElementById('feld-ende').value,
       anmeldeschluss: document.getElementById('feld-anmeldeschluss').value || null,
       max_teilnehmer: parseInt(document.getElementById('feld-max').value) || null,
-      kosten: parseFloat(document.getElementById('feld-kosten').value) || null,
       lehrgangsart_id: document.getElementById('feld-lehrgangsart').value || null,
     };
     try {
