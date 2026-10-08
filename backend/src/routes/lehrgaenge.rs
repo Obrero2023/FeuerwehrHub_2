@@ -199,27 +199,40 @@ pub async fn create_lehrgang(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateLehrgang>,
 ) -> AppResult<Json<Lehrgang>> {
+    tracing::info!("POST /api/lehrgaenge - creating lehrgang for user {:?}: titel={:?}, start={:?}, end={:?}, anmeldeschluss={:?}, max_teilnehmer={:?}, lehrgangsart_id={:?}",
+        claims.sub, body.titel, body.start_datum, body.end_datum, body.anmeldeschluss, body.max_teilnehmer, body.lehrgangsart_id);
+
     // Nur Verwalter dürfen Lehrgänge erstellen
     if !is_verwalter(&state.db, &claims).await {
+        tracing::warn!("Forbidden - user {:?} has no lehrgangsverwaltung.verwalten permission", claims.sub);
         return Err(AppError::Forbidden);
     }
 
-    body.validate()?;
+    match body.validate() {
+        Ok(()) => tracing::info!("POST /api/lehrgaenge - body validation passed"),
+        Err(e) => {
+            tracing::warn!("POST /api/lehrgaenge - body validation failed: {:#?}", e);
+            return Err(AppError::BadRequest(e.to_string()));
+        }
+    }
 
     // Validierung: end_datum muss nach start_datum liegen
     if body.end_datum < body.start_datum {
+        tracing::warn!("POST /api/lehrgaenge - invalid date range: start={} end={}", body.start_datum, body.end_datum);
         return Err(AppError::BadRequest("Enddatum muss nach Startdatum liegen".into()));
     }
 
     // Validierung: anmeldeschluss muss vor start_datum liegen
     if let Some(schluss) = body.anmeldeschluss {
         if schluss > body.start_datum {
+            tracing::warn!("POST /api/lehrgaenge - invalid anmeldeschluss: start={} schluss={}", body.start_datum, schluss);
             return Err(AppError::BadRequest("Anmeldeschluss muss vor dem Startdatum liegen".into()));
         }
     }
 
     let status = "geplant".to_string();
 
+    tracing::info!("POST /api/lehrgaenge - inserting into database");
     let lehrgang = sqlx::query_as::<_, Lehrgang>(
         r#"
         INSERT INTO lehrgaenge
@@ -254,8 +267,13 @@ pub async fn create_lehrgang(
     .bind(claims.sub)
     .bind(&claims.username)
     .fetch_one(&state.db)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("POST /api/lehrgaenge - database error: {:#?}", e);
+        AppError::Database(e)
+    })?;
 
+    tracing::info!("POST /api/lehrgaenge - lehrgang created successfully, id={}", lehrgang.id);
     audit::log(&state.db, Some(claims.sub), &claims.username, "LEHRGANG_CREATED",
         Some("lehrgaenge"), Some(lehrgang.id), None).await;
 

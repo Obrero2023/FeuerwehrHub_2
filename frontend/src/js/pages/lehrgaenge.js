@@ -149,6 +149,53 @@ export async function renderLehrgaenge() {
   await loadAndRender();
 }
 
+// Load and render the lehrgang list
+async function loadAndRender() {
+  try {
+    const [settings, user] = await Promise.all([api.getSettings(), api.me()]);
+    setShellInfo(settings?.ff_name, user, settings?.modules);
+    renderShell('lehrgaenge');
+
+    const isVerwalter = user?.role === 'admin' || user?.role === 'superuser'
+      || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten');
+    const isReader = user?.permissions?.includes('lehrgangsverwaltung.lesen');
+    const canManageLehrgangsarten = user?.role === 'admin' || user?.role === 'superuser'
+      || (user?.permissions || []).includes('fahrzeugbuchung.verwalten');
+
+    const lehrgaenge = await api.getLehrgaenge({
+      status: isReader ? 'veröffentlicht' : undefined
+    });
+
+    const content = document.getElementById('page-content');
+    if (!content) return;
+
+    content.innerHTML = `
+      <div class="page-header">
+        <div><h2>Lehrgänge</h2><p>Übersicht der verfügbaren Lehrgänge und Anmeldungen</p></div>
+        <div>
+          ${canManageLehrgangsarten ? `<button class="btn btn--secondary" id="btn-lehrgangsarten">Lehrgangsarten verwalten</button>` : ''}
+          ${isVerwalter ? '<button class="btn btn--primary" id="btn-new-lehrgang">+ Neuer Lehrgang</button>' : ''}
+        </div>
+      </div>
+      <div id="lehrgangsarten-section" style="display:none"></div>
+      <div id="lehrgang-form" style="display:none"></div>
+      <div id="lehrgang-list" class="lehrgang-grid"></div>
+    `;
+    renderIcons(content);
+
+    // Event listener für "Lehrgangsarten verwalten" Button
+    const btnLehrgangsarten = document.getElementById('btn-lehrgangsarten');
+    if (btnLehrgangsarten) {
+      btnLehrgangsarten.addEventListener('click', showLehrgangsartenSection);
+    }
+
+    renderList(lehrgaenge, isVerwalter, user);
+  } catch (e) {
+    console.error('Failed to load lehrgaenge:', e);
+    toast('Lehrgänge konnten nicht geladen werden', 'error');
+  }
+}
+
 // ── Formular (Neu/Bearbeiten) ─────────────────────────────────────────────────
 
 let _lehrgangsartenCache = null;
