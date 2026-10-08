@@ -59,7 +59,7 @@ pub struct Anmeldung {
 
 #[derive(Deserialize, Validate)]
 pub struct CreateLehrgang {
-    #[validate(length(min = 1, max = 200))]
+    #[validate(length(min = 1, max = 200).chars())]
     pub titel: String,
     pub beschreibung: Option<String>,
     pub ort: Option<String>,
@@ -75,7 +75,7 @@ pub struct CreateLehrgang {
 
 #[derive(Deserialize, Validate)]
 pub struct UpdateLehrgang {
-    #[validate(length(min = 1, max = 200))]
+    #[validate(length(min = 1, max = 200).chars())]
     pub titel: Option<String>,
     pub beschreibung: Option<String>,
     pub ort: Option<String>,
@@ -669,7 +669,7 @@ pub struct Lehrgangsart {
 
 #[derive(Deserialize, Validate)]
 pub struct CreateLehrgangsart {
-    #[validate(length(min = 1, max = 200))]
+    #[validate(length(min = 1, max = 200).chars())]
     pub name: String,
     pub beschreibung: Option<String>,
     pub veranstaltungsort: Option<String>,
