@@ -738,8 +738,20 @@ function showLehrgangsartenForm(name = '', beschreibung = '', veranstaltungsort 
 
   document.getElementById('lehrgangsarten-form-el').addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    // Client-side validation für Name
+    const name = document.getElementById('fld-name').value.trim();
+    if (!name) {
+      toast('Bitte geben Sie einen Namen ein', 'error');
+      return;
+    }
+    if (name.length > 200) {
+      toast('Name darf maximal 200 Zeichen haben', 'error');
+      return;
+    }
+
     const body = {
-      name: document.getElementById('fld-name').value,
+      name,
       beschreibung: document.getElementById('feld-beschreibung').value || null,
       veranstaltungsort: document.getElementById('feld-veranstaltungsort').value || null,
       voraussetzung: document.getElementById('feld-voraussetzung').value || null,
