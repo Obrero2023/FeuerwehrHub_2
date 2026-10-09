@@ -312,7 +312,10 @@ export const showForm = async (l = null) => {
       end_datum: end_datum || null,
       anmeldeschluss: anmeldeschluss || null,
       max_teilnehmer: max_teilnehmer,
+      kosten: null,
       lehrgangsart_id: lehrgangsart_id,
+      voraussetzung: null,
+      voraussetzungen_erfuellt: null,
     };
 
     try {
@@ -327,6 +330,12 @@ export const showForm = async (l = null) => {
       window.location.hash = '#/lehrgaenge';
     } catch (e) {
       console.error('Lehrgang speichern fehlgeschlagen:', e);
+      // Versuche, den Rohkörper der Antwort zu bekommen
+      let rawResponse = '';
+      if (e?.response) {
+        rawResponse = await e.response.text().catch(() => 'Konnte Antwort nicht lesen');
+      }
+
       // Detaillierte Fehleranzeige: Body + Fehlermeldung vom Server
       const bodyStr = esc(JSON.stringify(body, null, 2));
       const errorMsg = e?.message || 'Unbekannter Fehler';
@@ -334,7 +343,9 @@ export const showForm = async (l = null) => {
         <div class="error-detail-box">
           <p class="text-sm"><strong>Die Anfrage an den Server war:</strong></p>
           <pre class="error-pre text-sm">${bodyStr}</pre>
-          <p class="text-sm"><strong>Fehlermeldung vom Server:</strong></p>
+          <p class="text-sm"><strong>Rohantwort vom Server:</strong></p>
+          <pre class="error-pre text-sm">${esc(rawResponse)}</pre>
+          <p class="text-sm"><strong>Verarbeitete Fehlermeldung:</strong></p>
           <pre class="error-pre text-sm">${esc(errorMsg)}</pre>
           <button class="btn btn--sm btn--outline" onclick="this.closest('.error-overlay').style.display='none'">Schließen</button>
         </div>
