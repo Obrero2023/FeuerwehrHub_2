@@ -296,6 +296,12 @@ export const showForm = async (l = null) => {
     const max_teilnehmer = max_tn ? Math.max(1, parseInt(max_tn)) : null;
     const lehrgangsart_id = document.getElementById('feld-lehrgangsart').value || null;
 
+    // Client-side validation: Lehrgangsart ist optional, aber wenn gewählt, muss es eine gültige UUID sein
+    if (lehrgangsart_id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lehrgangsart_id)) {
+      toast('Ungültige Lehrgangsart ausgewählt', 'error');
+      return;
+    }
+
     const body = {
       titel,
       beschreibung: document.getElementById('feld-beschreibung').value || null,
