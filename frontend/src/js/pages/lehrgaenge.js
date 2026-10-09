@@ -314,12 +314,9 @@ export const showForm = async (l = null) => {
       max_teilnehmer: max_teilnehmer,
       kosten: null,
       lehrgangsart_id: lehrgangsart_id,
-      // voraussetzung und voraussetzungen_erfuellt sind optionale Felder,
-      // aber das Backend erwartet explizit false (nicht null) für neue Lehrgänge
-      voraussetzung: document.getElementById('feld-voraussetzung').value || null,
-      voraussetzungen_erfuellt: document.getElementById('feld-voraussetzungen_erfuellt')
-        ? document.getElementById('feld-voraussetzungen_erfuellt').checked
-        : false,
+      // Voraussetzungen sind optionale Felder (keine UI im Lehrgang-Formular)
+      voraussetzung: null,
+      voraussetzungen_erfuellt: false, // Always send boolean, not null
     };
 
     try {
