@@ -23,10 +23,23 @@ async function request(method, path, body) {
     return null;
   }
 
-  const data = await res.json().catch(() => null);
+  // Try to get the raw text first, then parse as JSON if possible
+  const rawText = await res.text();
+  let data = null;
+  try {
+    if (rawText) {
+      data = JSON.parse(rawText);
+    }
+  } catch (_) {
+    // Not JSON, keep data as null
+  }
 
   if (!res.ok) {
-    throw new Error(data?.error || `HTTP ${res.status}`);
+    const err = new Error(data?.error || rawText || `HTTP ${res.status}`);
+    // Attach the raw response for debugging
+    err.rawResponse = rawText;
+    err.status = res.status;
+    throw err;
   }
 
   return data;

@@ -332,8 +332,8 @@ export const showForm = async (l = null) => {
     } catch (e) {
       console.error('Lehrgang speichern fehlgeschlagen:', e);
       // Versuche, den Rohkörper der Antwort zu bekommen
-      let rawResponse = '';
-      if (e?.response) {
+      let rawResponse = e?.rawResponse || '';
+      if (!rawResponse && e?.response) {
         rawResponse = await e.response.text().catch(() => 'Konnte Antwort nicht lesen');
       }
 
