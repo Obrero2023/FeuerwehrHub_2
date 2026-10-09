@@ -294,7 +294,9 @@ export const showForm = async (l = null) => {
 
     const max_tn = document.getElementById('feld-max').value;
     const max_teilnehmer = max_tn ? Math.max(1, parseInt(max_tn)) : null;
-    const lehrgangsart_id = document.getElementById('feld-lehrgangsart').value || null;
+    let lehrgangsart_id = document.getElementById('feld-lehrgangsart').value;
+    // Convert empty string to null for proper handling
+    lehrgangsart_id = lehrgangsart_id === '' ? null : lehrgangsart_id;
 
     // Client-side validation: Lehrgangsart ist optional, aber wenn gewählt, muss es eine gültige UUID sein
     if (lehrgangsart_id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lehrgangsart_id)) {
@@ -325,7 +327,24 @@ export const showForm = async (l = null) => {
       window.location.hash = '#/lehrgaenge';
     } catch (e) {
       console.error('Lehrgang speichern fehlgeschlagen:', e);
-      toast(e.message, 'error');
+      // Detaillierte Fehleranzeige: Body + Fehlermeldung vom Server
+      const bodyStr = esc(JSON.stringify(body, null, 2));
+      const errorMsg = e?.message || 'Unbekannter Fehler';
+      const html = `
+        <div class="error-detail-box">
+          <p class="text-sm"><strong>Die Anfrage an den Server war:</strong></p>
+          <pre class="error-pre text-sm">${bodyStr}</pre>
+          <p class="text-sm"><strong>Fehlermeldung vom Server:</strong></p>
+          <pre class="error-pre text-sm">${esc(errorMsg)}</pre>
+          <button class="btn btn--sm btn--outline" onclick="this.closest('.error-overlay').style.display='none'">Schließen</button>
+        </div>
+      `;
+      const overlay = document.createElement('div');
+      overlay.className = 'error-overlay';
+      overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;';
+      overlay.innerHTML = html;
+      document.body.appendChild(overlay);
+      window.errorOverlay = overlay;
     }
   });
 };
