@@ -312,11 +312,9 @@ export const showForm = async (l = null) => {
       end_datum: end_datum || null,
       anmeldeschluss: anmeldeschluss || null,
       max_teilnehmer: max_teilnehmer,
-      kosten: null,
       lehrgangsart_id: lehrgangsart_id,
       // Voraussetzungen sind optionale Felder (keine UI im Lehrgang-Formular)
       voraussetzung: null,
-      voraussetzungen_erfuellt: false, // Always send boolean, not null
     };
 
     try {

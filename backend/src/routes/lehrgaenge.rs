@@ -30,7 +30,6 @@ pub struct Lehrgang {
     pub anmeldeschluss: Option<NaiveDate>,
     pub max_teilnehmer: Option<i32>,
     pub status: String,
-    pub kosten: Option<f64>,
     pub lehrgangsart_id: Option<Uuid>,
     pub lehrgangsart_name: Option<String>,
     pub voraussetzung: Option<String>,
@@ -67,10 +66,8 @@ pub struct CreateLehrgang {
     pub end_datum: NaiveDate,
     pub anmeldeschluss: Option<NaiveDate>,
     pub max_teilnehmer: Option<i32>,
-    pub kosten: Option<f64>,
     pub lehrgangsart_id: Option<Uuid>,
     pub voraussetzung: Option<String>,
-    pub voraussetzungen_erfuellt: Option<bool>,
 }
 
 #[derive(Deserialize, Validate)]
@@ -84,7 +81,6 @@ pub struct UpdateLehrgang {
     pub anmeldeschluss: Option<NaiveDate>,
     pub max_teilnehmer: Option<i32>,
     pub status: Option<String>,
-    pub kosten: Option<f64>,
     pub lehrgangsart_id: Option<Uuid>,
     pub voraussetzung: Option<String>,
     pub voraussetzungen_erfuellt: Option<bool>,
@@ -133,7 +129,7 @@ pub async fn list_lehrgaenge(
         r#"
         SELECT l.id, l.titel, l.beschreibung, l.ort,
                l.start_datum, l.end_datum, l.anmeldeschluss,
-               l.max_teilnehmer, l.status, l.kosten,
+               l.max_teilnehmer, l.status,
                l.lehrgangsart_id,
                la.name as lehrgangsart_name, l.voraussetzung,
                l.voraussetzungen_erfuellt,
@@ -173,7 +169,7 @@ pub async fn get_lehrgang(
         r#"
         SELECT l.id, l.titel, l.beschreibung, l.ort,
                l.start_datum, l.end_datum, l.anmeldeschluss,
-               l.max_teilnehmer, l.status, l.kosten,
+               l.max_teilnehmer, l.status,
                l.lehrgangsart_id,
                la.name as lehrgangsart_name, l.voraussetzung,
                l.voraussetzungen_erfuellt,
@@ -237,17 +233,15 @@ pub async fn create_lehrgang(
         r#"
         INSERT INTO lehrgaenge
             (titel, beschreibung, ort, start_datum, end_datum, anmeldeschluss,
-             max_teilnehmer, status, kosten,
-             lehrgangsart_id, voraussetzung, voraussetzungen_erfuellt,
-             erstellt_von, erstellt_von_name)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+             max_teilnehmer, status,
+             lehrgangsart_id, erstellt_von, erstellt_von_name)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING
             id, titel, beschreibung, ort,
             start_datum, end_datum, anmeldeschluss,
-            max_teilnehmer, status, kosten,
+            max_teilnehmer, status,
             lehrgangsart_id,
             (SELECT name FROM lehrgangsarten WHERE id = lehrgangsart_id) as lehrgangsart_name,
-            voraussetzung, voraussetzungen_erfuellt,
             0 as anmeldungen_count,
             erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
         "#,
@@ -260,10 +254,7 @@ pub async fn create_lehrgang(
     .bind(body.anmeldeschluss)
     .bind(body.max_teilnehmer)
     .bind(status)
-    .bind(body.kosten)
     .bind(body.lehrgangsart_id)
-    .bind(body.voraussetzung)
-    .bind(body.voraussetzungen_erfuellt.unwrap_or(false))
     .bind(claims.sub)
     .bind(&claims.username)
     .fetch_one(&state.db)
@@ -336,16 +327,15 @@ pub async fn update_lehrgang(
             anmeldeschluss = COALESCE($6, anmeldeschluss),
             max_teilnehmer = COALESCE($7, max_teilnehmer),
             status = COALESCE($8, status),
-            kosten = COALESCE($9, kosten),
-            lehrgangsart_id = COALESCE($10, lehrgangsart_id),
-            voraussetzung = COALESCE($11, voraussetzung),
-            voraussetzungen_erfuellt = COALESCE($12, voraussetzungen_erfuellt),
+            lehrgangsart_id = COALESCE($9, lehrgangsart_id),
+            voraussetzung = COALESCE($10, voraussetzung),
+            voraussetzungen_erfuellt = COALESCE($11, voraussetzungen_erfuellt),
             aktualisiert_am = NOW()
-        WHERE id = $13
+        WHERE id = $12
         RETURNING
             id, titel, beschreibung, ort,
             start_datum, end_datum, anmeldeschluss,
-            max_teilnehmer, status, kosten,
+            max_teilnehmer, status,
             lehrgangsart_id,
             (SELECT name FROM lehrgangsarten WHERE id = lehrgangsart_id) as lehrgangsart_name,
             voraussetzung, voraussetzungen_erfuellt,
@@ -361,7 +351,6 @@ pub async fn update_lehrgang(
     .bind(body.anmeldeschluss)
     .bind(body.max_teilnehmer)
     .bind(body.status)
-    .bind(body.kosten)
     .bind(body.lehrgangsart_id)
     .bind(body.voraussetzung)
     .bind(body.voraussetzungen_erfuellt)

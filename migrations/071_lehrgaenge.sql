@@ -10,8 +10,6 @@ CREATE TABLE IF NOT EXISTS lehrgaenge (
     max_teilnehmer INTEGER CHECK (max_teilnehmer > 0),
     status TEXT DEFAULT 'geplant'
         CHECK (status IN ('geplant', 'offen', 'voll', 'abgesagt', 'abgeschlossen')),
-    kosten NUMERIC(10,2),
-    kosten_uebernommen_durch TEXT CHECK (kosten_uebernommen_durch IN ('feuerwehr', 'teilnehmer', 'teilweise')),
     lehrgangsart_id UUID,
     voraussetzung TEXT,
     voraussetzungen_erfuellt BOOLEAN DEFAULT FALSE,
