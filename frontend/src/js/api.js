@@ -381,11 +381,11 @@ export const api = {
     }
     return request("GET", `/lehrgaenge?${p}`);
   },
-  getLehrgang: (id) => request(`/lehrgaenge/${id}`),
+  getLehrgang: (id) => request("GET", `/lehrgaenge/${id}`),
   createLehrgang: (body) => request("POST", "/lehrgaenge", body),
   updateLehrgang: (id, body) => request("PUT", `/lehrgaenge/${id}`, body),
   deleteLehrgang: (id) => request("DELETE", `/lehrgaenge/${id}`),
-  getAnmeldungen: (lehrgangId) => request(`/lehrgaenge/${lehrgangId}/anmeldungen`),
+  getAnmeldungen: (lehrgangId) => request("GET", `/lehrgaenge/${lehrgangId}/anmeldungen`),
   getMyAnmeldungen: () => request("GET", "/lehrgaenge/user/anmeldungen"),
   createAnmeldung: (lehrgangId, body) => request("POST", `/lehrgaenge/${lehrgangId}/anmeldungen`, body),
   updateAnmeldung: (lehrgangId, anmeldungId, body) => request("PUT", `/lehrgaenge/${lehrgangId}/anmeldungen/${anmeldungId}`, body),
