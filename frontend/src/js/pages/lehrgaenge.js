@@ -98,7 +98,7 @@ export async function renderLehrgaenge() {
           ${canManage ? '<button class="btn btn--primary" id="btn-new-lehrgang">Neuer Lehrgang</button>' : ''}
         </div>`;
       const nb = document.getElementById('btn-new-lehrgang');
-      if (nb) nb.addEventListener('click', showForm);
+      if (nb) nb.addEventListener('click', () => showForm());
       return;
     }
 
@@ -149,7 +149,7 @@ export async function renderLehrgaenge() {
 
   renderList(lehrgaenge, isVerwalter);
 
-  document.getElementById('btn-new-lehrgang').addEventListener('click', showForm);
+  document.getElementById('btn-new-lehrgang').addEventListener('click', () => showForm());
 }
 
 // ── Formular (Neu/Bearbeiten) ─────────────────────────────────────────────────
