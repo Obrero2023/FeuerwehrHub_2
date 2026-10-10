@@ -234,14 +234,16 @@ pub async fn create_lehrgang(
         INSERT INTO lehrgaenge
             (titel, beschreibung, ort, start_datum, end_datum, anmeldeschluss,
              max_teilnehmer, status,
-             lehrgangsart_id, erstellt_von, erstellt_von_name)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             lehrgangsart_id, voraussetzung, voraussetzungen_erfuellt,
+             erstellt_von, erstellt_von_name)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING
             id, titel, beschreibung, ort,
             start_datum, end_datum, anmeldeschluss,
             max_teilnehmer, status,
             lehrgangsart_id,
             (SELECT name FROM lehrgangsarten WHERE id = lehrgangsart_id) as lehrgangsart_name,
+            voraussetzung, voraussetzungen_erfuellt,
             0 as anmeldungen_count,
             erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
         "#,
@@ -255,6 +257,8 @@ pub async fn create_lehrgang(
     .bind(body.max_teilnehmer)
     .bind(status)
     .bind(body.lehrgangsart_id)
+    .bind(body.voraussetzung)
+    .bind(false)
     .bind(claims.sub)
     .bind(&claims.username)
     .fetch_one(&state.db)
