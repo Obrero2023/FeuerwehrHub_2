@@ -59,9 +59,9 @@ export async function renderLehrgaenge() {
   const isVerwalter = user?.role === 'admin' || user?.role === 'superuser'
     || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten');
   const isReader = user?.permissions?.includes('lehrgangsverwaltung.lesen');
-  // Lehrgangsarten verwalten: Admin oder Nutzer mit Fahrzeugbuchung (Verwalten)-Recht
+  // Lehrgangsarten verwalten: Admin oder Nutzer mit lehrgangsverwaltung (Verwalten)-Recht
   const canManageLehrgangsarten = user?.role === 'admin' || user?.role === 'superuser'
-    || (user?.permissions || []).includes('fahrzeugbuchung.verwalten');
+    || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten');
 
   content.innerHTML = `
     <div class="page-header">
@@ -635,7 +635,7 @@ async function showLehrgangsartenSection() {
   sectionEl.style.display = 'block';
   if (formEl) formEl.style.display = 'none';
   if (listEl) listEl.style.display = 'none';
-  renderLehrgangsarten();
+  await renderLehrgangsarten();
 }
 
 let _currentLehrgangsartId = null;
@@ -733,7 +733,7 @@ function showLehrgangsartenForm(name = '', beschreibung = '', veranstaltungsort 
   const listEl = document.getElementById('lehrgangsarten-list');
   if (!formEl || !listEl) return;
 
-  formEl.removeAttribute('style');
+  formEl.style.display = 'block';
   listEl.style.display = 'none';
 
   formEl.innerHTML = `
