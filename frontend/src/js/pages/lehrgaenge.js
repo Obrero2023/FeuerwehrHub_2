@@ -733,7 +733,7 @@ function showLehrgangsartenForm(name = '', beschreibung = '', veranstaltungsort 
   const listEl = document.getElementById('lehrgangsarten-list');
   if (!formEl || !listEl) return;
 
-  formEl.style.display = 'block';
+  formEl.removeAttribute('style');
   listEl.style.display = 'none';
 
   formEl.innerHTML = `
