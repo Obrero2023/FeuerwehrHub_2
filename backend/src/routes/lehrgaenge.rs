@@ -34,7 +34,7 @@ pub struct Lehrgang {
     pub lehrgangsart_name: Option<String>,
     pub voraussetzung: Option<String>,
     pub voraussetzungen_erfuellt: bool,
-    pub anmeldungen_count: i64,
+    pub anmeldungen_count: i32,
     pub erstellt_von: Option<Uuid>,
     pub erstellt_von_name: Option<String>,
     pub erstellt_am: chrono::DateTime<chrono::Utc>,
@@ -244,7 +244,7 @@ pub async fn create_lehrgang(
             lehrgangsart_id,
             (SELECT name FROM lehrgangsarten WHERE id = lehrgangsart_id) as lehrgangsart_name,
             voraussetzung, voraussetzungen_erfuellt,
-            0 as anmeldungen_count,
+            COALESCE((SELECT COUNT(*) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = id), 0)::int4 as anmeldungen_count,
             erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
         "#,
     )
