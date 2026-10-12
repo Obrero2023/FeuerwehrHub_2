@@ -700,10 +700,10 @@ async function renderLehrgangsarten() {
   renderIcons(listEl);
 
   // Neue Lehrgangsart
-  document.getElementById('btn-new-lehrgangsart').onclick = () => {
+  document.getElementById('btn-new-lehrgangsart').addEventListener('click', () => {
     _currentLehrgangsartId = null;
     showLehrgangsartenForm('', '', '', '');
-  };
+  });
 
   // Bearbeiten
   listEl.querySelectorAll('[data-action="edit"]').forEach(btn => {
