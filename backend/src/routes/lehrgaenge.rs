@@ -736,13 +736,13 @@ pub async fn list_lehrgangsarten(
 }
 
 /// Neue Lehrgangsart anlegen
-/// Nur für Admins oder Nutzer mit fahrzeugbuchung.verwalten permission
+/// Nur für Admins oder Nutzer mit lehrgangsverwaltung.verwalten permission
 pub async fn create_lehrgangsart(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateLehrgangsart>,
 ) -> AppResult<Json<Lehrgangsart>> {
-    // Nur Admins oder Nutzer mit fahrzeugbuchung.verwalten dürfen Lehrgangsarten anlegen
+    // Nur Admins oder Nutzer mit lehrgangsverwaltung.verwalten dürfen Lehrgangsarten anlegen
     let is_admin = claims.is_admin_or_above();
     let is_verwalten = if is_admin {
         true
@@ -756,7 +756,7 @@ pub async fn create_lehrgangsart(
                 FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
             )"
         )
-        .bind("fahrzeugbuchung.verwalten")
+        .bind("lehrgangsverwaltung.verwalten")
         .bind(claims.sub)
         .fetch_one(&state.db)
         .await?
@@ -787,7 +787,7 @@ pub async fn create_lehrgangsart(
 }
 
 /// Lehrgangsart aktualisieren
-/// Nur für Admins oder Nutzer mit fahrzeugbuchung.verwalten permission
+/// Nur für Admins oder Nutzer mit lehrgangsverwaltung.verwalten permission
 pub async fn update_lehrgangsart(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -804,7 +804,7 @@ pub async fn update_lehrgangsart(
         return Err(AppError::NotFound);
     }
 
-    // Nur Admins oder Nutzer mit fahrzeugbuchung.verwalten dürfen Lehrgangsarten aktualisieren
+    // Nur Admins oder Nutzer mit lehrgangsverwaltung.verwalten dürfen Lehrgangsarten aktualisieren
     let is_admin = claims.is_admin_or_above();
     let is_verwalten = if is_admin {
         true
@@ -818,7 +818,7 @@ pub async fn update_lehrgangsart(
                 FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
             )"
         )
-        .bind("fahrzeugbuchung.verwalten")
+        .bind("lehrgangsverwaltung.verwalten")
         .bind(claims.sub)
         .fetch_one(&state.db)
         .await?
@@ -853,7 +853,7 @@ pub async fn update_lehrgangsart(
 }
 
 /// Lehrgangsart loeschen
-/// Nur fuer Admins oder Nutzer mit fahrzeugbuchung.verwalten permission
+/// Nur fuer Admins oder Nutzer mit lehrgangsverwaltung.verwalten permission
 pub async fn delete_lehrgangsart(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -881,7 +881,7 @@ pub async fn delete_lehrgangsart(
         )));
     }
 
-    // Nur Admins oder Nutzer mit fahrzeugbuchung.verwalten dürfen Lehrgangsarten loeschen
+    // Nur Admins oder Nutzer mit lehrgangsverwaltung.verwalten dürfen Lehrgangsarten loeschen
     let is_admin = claims.is_admin_or_above();
     let is_verwalten = if is_admin {
         true
@@ -895,7 +895,7 @@ pub async fn delete_lehrgangsart(
                 FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
             )"
         )
-        .bind("fahrzeugbuchung.verwalten")
+        .bind("lehrgangsverwaltung.verwalten")
         .bind(claims.sub)
         .fetch_one(&state.db)
         .await?
