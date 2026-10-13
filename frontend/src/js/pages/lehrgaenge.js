@@ -190,6 +190,17 @@ export const showForm = async (l = null) => {
     document.getElementById('feld-beschreibung').value = la.beschreibung || '';
     document.getElementById('feld-ort').value = la.veranstaltungsort || '';
   }
+  const _currentLehrgangsartId = l?.lehrgangsart_id || null;
+
+  /** Beschreibung und Veranstaltungsort aus der ausgewählten Lehrgangsart füllen */
+  function fillFromLehrgangsart() {
+    const selected = document.getElementById('feld-lehrgangsart')?.value;
+    if (!selected) return;
+    const la = lehrgangsarten.find(x => x.id == selected);
+    if (!la) return;
+    document.getElementById('feld-beschreibung').value = la.beschreibung || '';
+    document.getElementById('feld-ort').value = la.veranstaltungsort || '';
+  }
 
   formEl.innerHTML = `
     <div class="card">
@@ -236,16 +247,17 @@ export const showForm = async (l = null) => {
             <label>Max. Plätze</label>
             <input type="number" id="feld-max" placeholder="Max. Plätze" value="${l && l.max_teilnehmer ? l.max_teilnehmer : ''}" min="1" />
           </div>
-          ${l && l.status ? `<div class="form-group form-group--full"><label>Status</label><select id="feld-status">
-            <option value="geplant" ${l.status === 'geplant' ? 'selected' : ''}>Geplant</option>
-            <option value="offen" ${l.status === 'offen' ? 'selected' : ''}>Offen</option>
-            <option value="voll" ${l.status === 'voll' ? 'selected' : ''}>Voll</option>
-            <option value="abgesagt" ${l.status === 'abgesagt' ? 'selected' : ''}>Abgesagt</option>
-            <option value="abgeschlossen" ${l.status === 'abgeschlossen' ? 'selected' : ''}>Abgeschlossen</option>
-            <option value="entwurf" ${l.status === 'entwurf' ? 'selected' : ''}>Entwurf</option>
-            <option value="veröffentlicht" ${l.status === 'veröffentlicht' ? 'selected' : ''}>Veröffentlicht</option>
-            <option value="archiviert" ${l.status === 'archiviert' ? 'selected' : ''}>Archiviert</option>
-          </select></div>` : ''}
+          <div class="form-group form-group--full">
+            <label>Status</label><select id="feld-status">
+              <option value="geplant" selected>Geplant</option>
+              <option value="offen">Offen</option>
+              <option value="voll">Voll</option>
+              <option value="abgesagt">Abgesagt</option>
+              <option value="abgeschlossen">Abgeschlossen</option>
+              <option value="entwurf">Entwurf</option>
+              <option value="veröffentlicht">Veröffentlicht</option>
+              <option value="archiviert">Archiviert</option>
+            </select></div>
           <div class="form-group form-group--full" style="margin-top: 12px;">
             <button type="submit" class="btn btn--primary">${l ? 'Speichern' : 'Anlegen'}</button>
           </div>
@@ -304,6 +316,8 @@ export const showForm = async (l = null) => {
       return;
     }
 
+    const status = document.getElementById('feld-status').value;
+
     const body = {
       titel,
       beschreibung: document.getElementById('feld-beschreibung').value || null,
@@ -313,6 +327,7 @@ export const showForm = async (l = null) => {
       anmeldeschluss: anmeldeschluss || null,
       max_teilnehmer: max_teilnehmer,
       lehrgangsart_id: lehrgangsart_id,
+      status: status || 'geplant',
       // Voraussetzungen sind optionale Felder (keine UI im Lehrgang-Formular)
       voraussetzung: null,
     };
@@ -325,8 +340,12 @@ export const showForm = async (l = null) => {
         await api.createLehrgang(body);
         toast('Lehrgang angelegt', 'success');
       }
-      // Zurück zur Übersicht navigieren, um die Liste zu aktualisieren
+      // Zurück zur Übersicht navigieren, um die Liste zu aktualisieren.
+      // Der hashchange-Trigger funktioniert nicht, wenn der Hash bereits
+      // '#/lehrgaenge' ist (Formular wurde von der Listenansicht aufgerufen),
+      // daher wird renderLehrgaenge() direkt aufgerufen, um die Liste neu zu laden.
       window.location.hash = '#/lehrgaenge';
+      await renderLehrgaenge();
     } catch (e) {
       console.error('Lehrgang speichern fehlgeschlagen:', e);
       // Versuche, den Rohkörper der Antwort zu bekommen

@@ -105,12 +105,12 @@ function ddIcon(icon, module) {
 
 function buildNavItem(moduleKey, label, items) {
   const primaryPage = items[0].page;
-  const isActive = isModuleActive(moduleKey);
+  const moduleActive = isModuleActive(moduleKey);
   const extraItems = items.slice(1);
 
   // No extra items → plain direct link
   if (!extraItems.length) {
-    return `<button class="topnav__item${isActive_(primaryPage) ? ' active' : ''}" data-page="${primaryPage}">${label}</button>`;
+    return `<button class="topnav__item${isActive(primaryPage) ? ' active' : ''}" data-page="${primaryPage}">${label}</button>`;
   }
 
   // Has extra items → direct link + dropdown arrow for secondary pages
