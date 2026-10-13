@@ -672,6 +672,12 @@ async function renderLehrgangsarten() {
   const listEl = document.getElementById('lehrgangsarten-list');
   if (!listEl) return;
 
+  // Neue Lehrgangsart Klick-Handler immer registrieren (auch bei leerer Liste)
+  document.getElementById('btn-new-lehrgangsart').addEventListener('click', () => {
+    _currentLehrgangsartId = null;
+    showLehrgangsartenForm('', '', '', '');
+  });
+
   if (!lehrgangsarten.length) {
     listEl.innerHTML = '<p class="text-muted">Noch keine Lehrgangsarten vorhanden.</p>';
     return;
@@ -698,12 +704,6 @@ async function renderLehrgangsarten() {
   `).join('');
 
   renderIcons(listEl);
-
-  // Neue Lehrgangsart
-  document.getElementById('btn-new-lehrgangsart').addEventListener('click', () => {
-    _currentLehrgangsartId = null;
-    showLehrgangsartenForm('', '', '', '');
-  });
 
   // Bearbeiten
   listEl.querySelectorAll('[data-action="edit"]').forEach(btn => {
