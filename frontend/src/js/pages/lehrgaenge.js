@@ -190,9 +190,8 @@ export const showForm = async (l = null) => {
     document.getElementById('feld-beschreibung').value = la.beschreibung || '';
     document.getElementById('feld-ort').value = la.veranstaltungsort || '';
   }
-  const _currentLehrgangsartId = l?.lehrgangsart_id || null;
 
-  /** Beschreibung und Veranstaltungsort aus der ausgewählten Lehrgangsart füllen */
+/** Beschreibung und Veranstaltungsort aus der ausgewählten Lehrgangsart füllen */
   function fillFromLehrgangsart() {
     const selected = document.getElementById('feld-lehrgangsart')?.value;
     if (!selected) return;
