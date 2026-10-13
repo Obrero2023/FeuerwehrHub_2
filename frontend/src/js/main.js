@@ -55,7 +55,7 @@ registerRoute('#/datenschutz',     renderDatenschutz);
 registerRoute('#/dienstberichte', renderDienstReports);
 registerRoute('#/intranet', renderIntranet);
 registerRoute('#/fahrzeugbuchung', renderVehicleBookings, 'fahrzeugbuchung');
-registerRoute('#/lehrgaenge',  renderLehrgaenge,  'lehrgangsverwaltung');
+registerRoute('#/lehrgaenge',  renderLehrgaenge,  ['lehrgangsverwaltung', 'lehrgangsverwaltung.verwalten']);
 registerRoute('#/lehrgang/:id',  renderLehrgangDetail,  ['lehrgangsverwaltung.lesen', 'lehrgangsverwaltung.verwalten']);
 registerRoute('#/lehrgang-edit/:id',  renderLehrgangEdit,  'lehrgangsverwaltung.verwalten');
 registerRoute('#/lehrgang/:id/anmeldungen',  renderLehrgangAnmeldungen,  'lehrgangsverwaltung.verwalten');
