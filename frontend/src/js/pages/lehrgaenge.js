@@ -190,17 +190,6 @@ export const showForm = async (l = null) => {
     document.getElementById('feld-beschreibung').value = la.beschreibung || '';
     document.getElementById('feld-ort').value = la.veranstaltungsort || '';
   }
-  const _currentLehrgangsartId = l?.lehrgangsart_id || null;
-
-  /** Beschreibung und Veranstaltungsort aus der ausgewählten Lehrgangsart füllen */
-  function fillFromLehrgangsart() {
-    const selected = document.getElementById('feld-lehrgangsart')?.value;
-    if (!selected) return;
-    const la = lehrgangsarten.find(x => x.id == selected);
-    if (!la) return;
-    document.getElementById('feld-beschreibung').value = la.beschreibung || '';
-    document.getElementById('feld-ort').value = la.veranstaltungsort || '';
-  }
 
   formEl.innerHTML = `
     <div class="card">

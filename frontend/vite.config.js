@@ -4,6 +4,17 @@ const { version } = JSON.parse(readFileSync('./package.json', 'utf-8'));
 const appVersion = process.env.APP_VERSION || version;
 
 export default defineConfig({
+  resolve: {
+    dedupe: [
+      'chart.js',
+      'lucide',
+      'html5-qrcode',
+      'jspdf',
+      'jspdf-autotable',
+      'pdf-lib',
+      'qrcode'
+    ]
+  },
   plugins: [],
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
