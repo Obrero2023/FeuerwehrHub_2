@@ -24,6 +24,10 @@ const MODULE_LABELS = {
   intranet:                  'Intranet',
   fahrzeugbuchung:           'Fahrzeugbuchung (Lesen)',
   'fahrzeugbuchung.verwalten': 'Fahrzeugbuchung (Verwalten)',
+  'lehrgangsverwaltung':     'Lehrgangsverwaltung',
+  'lehrgangsverwaltung.lesen': 'Lehrgangsverwaltung (Lesen)',
+  'lehrgangsverwaltung.verwalten': 'Lehrgangsverwaltung (Verwalten)',
+  'lehrgangsverwaltung.admin': 'Lehrgangsverwaltung (Admin)',
 };
 
 export async function renderAdmin() {

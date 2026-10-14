@@ -574,6 +574,7 @@ pub async fn update_anmeldung(
             )"
         )
         .bind("lehrgangsverwaltung.verwalten")
+        .bind("lehrgangsverwaltung.admin")
         .bind(claims.sub)
         .fetch_one(&state.db)
         .await?
@@ -645,6 +646,7 @@ pub async fn delete_anmeldung(
             )"
         )
         .bind("lehrgangsverwaltung.verwalten")
+        .bind("lehrgangsverwaltung.admin")
         .bind(claims.sub)
         .fetch_one(&state.db)
         .await?
@@ -761,6 +763,7 @@ pub async fn create_lehrgangsart(
             )"
         )
         .bind("lehrgangsverwaltung.verwalten")
+        .bind("lehrgangsverwaltung.admin")
         .bind(claims.sub)
         .fetch_one(&state.db)
         .await?
@@ -823,6 +826,7 @@ pub async fn update_lehrgangsart(
             )"
         )
         .bind("lehrgangsverwaltung.verwalten")
+        .bind("lehrgangsverwaltung.admin")
         .bind(claims.sub)
         .fetch_one(&state.db)
         .await?
@@ -900,6 +904,7 @@ pub async fn delete_lehrgangsart(
             )"
         )
         .bind("lehrgangsverwaltung.verwalten")
+        .bind("lehrgangsverwaltung.admin")
         .bind(claims.sub)
         .fetch_one(&state.db)
         .await?
@@ -996,7 +1001,7 @@ struct TeilnehmerRow {
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 
-/// Prüft ob der User Lehrgangsverwalter-Rechte hat (Admin, Superuser oder "lehrgangsverwaltung.verwalten")
+/// Prüft ob der User Lehrgangsverwalter-Rechte hat (Admin, Superuser oder "lehrgangsverwaltung.verwalten" oder "lehrgangsverwaltung.admin")
 async fn is_verwalter(pool: &PgPool, claims: &Claims) -> bool {
     if claims.is_admin_or_above() {
         return true;
@@ -1011,6 +1016,7 @@ async fn is_verwalter(pool: &PgPool, claims: &Claims) -> bool {
         )"
     )
     .bind("lehrgangsverwaltung.verwalten")
+        .bind("lehrgangsverwaltung.admin")
     .bind(claims.sub)
     .fetch_one(pool)
     .await

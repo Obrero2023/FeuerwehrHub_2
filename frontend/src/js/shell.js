@@ -71,6 +71,9 @@ export function canAccess(user, permission) {
   // z.B. 'lehrgangsverwaltung.verwalten' → auch 'lehrgangsverwaltung.lesen'
   const base = permission.split('.')[0];
   if (base !== permission && perms.includes(base)) return true;
+  // Lehrgangsverwaltung: Verwalten- und Admin-Rechte erlauben auch Lesen
+  if (permission === 'lehrgangsverwaltung.lesen' && (perms.includes('lehrgangsverwaltung.verwalten') || perms.includes('lehrgangsverwaltung.admin'))) return true;
+  if (permission === 'lehrgangsverwaltung' && (perms.includes('lehrgangsverwaltung.verwalten') || perms.includes('lehrgangsverwaltung.admin'))) return true;
   return false;
 }
 

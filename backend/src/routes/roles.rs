@@ -28,6 +28,7 @@ const KNOWN_MODULES: &[&str] = &[
     "lehrgangsverwaltung",
     "lehrgangsverwaltung.lesen",
     "lehrgangsverwaltung.verwalten",
+    "lehrgangsverwaltung.admin",
 ];
 
 #[derive(Serialize, sqlx::FromRow)]

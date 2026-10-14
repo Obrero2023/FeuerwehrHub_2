@@ -57,11 +57,13 @@ export async function renderLehrgaenge() {
 
   const content = document.getElementById('page-content');
   const isVerwalter = user?.role === 'admin' || user?.role === 'superuser'
-    || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten');
+    || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten')
+    || (user?.permissions || []).includes('lehrgangsverwaltung.admin');
   const isReader = user?.permissions?.includes('lehrgangsverwaltung.lesen');
-  // Lehrgangsarten verwalten: Admin oder Nutzer mit lehrgangsverwaltung (Verwalten)-Recht
+  // Lehrgangsarten verwalten: Admin oder Nutzer mit lehrgangsverwaltung (Verwalten oder Admin)-Recht
   const canManageLehrgangsarten = user?.role === 'admin' || user?.role === 'superuser'
-    || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten');
+    || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten')
+    || (user?.permissions || []).includes('lehrgangsverwaltung.admin');
 
   content.innerHTML = `
     <div class="page-header">
@@ -386,7 +388,8 @@ export async function renderLehrgangDetail() {
 
   const content = document.getElementById('page-content');
   const isVerwalter = user?.role === 'admin' || user?.role === 'superuser'
-    || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten');
+    || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten')
+    || (user?.permissions || []).includes('lehrgangsverwaltung.admin');
   const isReader = user?.permissions?.includes('lehrgangsverwaltung.lesen');
 
   const remainingSpots = (lehrgang.max_teilnehmer || 0) - (lehrgang.anmeldungen_count || 0);

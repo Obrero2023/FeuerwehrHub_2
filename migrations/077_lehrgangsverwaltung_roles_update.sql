@@ -1,6 +1,8 @@
 -- Lehrgangsverwaltung: Rollen aktualisieren (nachträglich hinzugefügt)
--- Lehrgangsverwaltung Leser und Admin als Vorlagen (können im Admin Panel angepasst werden)
+-- Lehrgangsverwaltung Admin und Verwalter als Dienstgrade (keine Zusatzfunktionen)
+-- Die Hierarchie: Admin > Verwalter > Leser
 INSERT INTO roles (name, permissions, type, level) VALUES
-    ('Lehrgangsverwaltung Leser',    ARRAY['lehrgangsverwaltung.lesen'],    'funktion', NULL),
-    ('Lehrgangsverwaltung Admin',    ARRAY['lehrgangsverwaltung.verwalten'], 'funktion', NULL)
+    ('Lehrgangsverwaltung Leser',     ARRAY['lehrgangsverwaltung.lesen'],    'dienstgrad', 1),
+    ('Lehrgangsverwaltung Verwalter', ARRAY['lehrgangsverwaltung.verwalten'], 'dienstgrad', 2),
+    ('Lehrgangsverwaltung Admin',     ARRAY['lehrgangsverwaltung.admin'],   'dienstgrad', 3)
 ON CONFLICT (name) DO NOTHING;
