@@ -1,9 +1,14 @@
 import { api, getAuthState, setAuthState } from './api.js';
+import { setRedirect, getRedirect } from './redirect-store.js';
 
 const routes = {};
 const routePermissions = {};
 let scanHandler = null;
 let currentPage = null;
+
+export function getPendingRedirect() {
+  return getRedirect();
+}
 
 export function registerRoute(hash, fn, requiredPermission) {
   routes[hash] = fn;
@@ -31,6 +36,7 @@ export function initRouter() {
         setAuthState(authState);
       }
       if (!authState) {
+        setRedirect(hash);
         window.location.hash = '#/login';
         return;
       }

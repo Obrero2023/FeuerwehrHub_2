@@ -1,3 +1,5 @@
+import { setRedirect } from './redirect-store.js';
+
 const BASE = "/api";
 
 let _authenticated = null; // null=unbekannt, true=eingeloggt, false=ausgeloggt
@@ -19,6 +21,8 @@ async function request(method, path, body) {
 
   if (res.status === 401) {
     _authenticated = false;
+    // Store the current hash for redirect after login
+    setRedirect(window.location.hash);
     window.location.hash = "#/login";
     return null;
   }
@@ -703,6 +707,8 @@ export const api = {
     }).then(async (res) => {
       if (res.status === 401) {
         _authenticated = false;
+        // Store the current hash for redirect after login
+        setRedirect(window.location.hash);
         window.location.hash = "#/login";
         return null;
       }
