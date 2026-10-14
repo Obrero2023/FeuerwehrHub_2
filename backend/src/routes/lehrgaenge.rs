@@ -118,11 +118,15 @@ pub async fn list_lehrgaenge(
         return Err(AppError::Forbidden);
     }
 
-    let status_filter: Option<String> = if is_rdr {
-        // Leser sehen nur veröffentlichte Lehrgänge (oder 'offen' als Fallback)
+    let status_filter: Option<String> = if is_verw {
+        // Verwalter sehen alle Lehrgänge (respektieren query.status falls gesetzt)
+        query.status
+    } else if is_rdr {
+        // Leser sehen nur veröffentlichte Lehrgänge
         Some("veröffentlicht".to_string())
     } else {
-        query.status
+        // This case should be caught by the permission check above, but just in case:
+        None
     };
 
     let lehrgaenge = sqlx::query_as::<_, Lehrgang>(
