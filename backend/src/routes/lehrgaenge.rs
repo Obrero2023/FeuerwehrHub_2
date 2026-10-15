@@ -722,9 +722,8 @@ pub async fn update_anmeldung(
                 FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
             )"
         )
-        .bind("lehrgangsverwaltung.verwalten")
-        .bind("lehrgangsverwaltung.admin")
-        .bind(claims.sub)
+        .bind("lehrgangsverwaltung.verwalten")  // $1 = permission to check
+        .bind(claims.sub)    // $2 = user id
         .fetch_one(&state.db)
         .await?
     };
@@ -797,9 +796,8 @@ pub async fn delete_anmeldung(
                 FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
             )"
         )
-        .bind("lehrgangsverwaltung.verwalten")
-        .bind("lehrgangsverwaltung.admin")
-        .bind(claims.sub)
+        .bind("lehrgangsverwaltung.verwalten")  // $1 = permission to check
+        .bind(claims.sub)    // $2 = user id
         .fetch_one(&state.db)
         .await?
     };
@@ -920,9 +918,8 @@ pub async fn create_lehrgangsart(
                 FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
             )"
         )
-        .bind("lehrgangsverwaltung.verwalten")
-        .bind("lehrgangsverwaltung.admin")
-        .bind(claims.sub)
+        .bind("lehrgangsverwaltung.verwalten")  // $1 = permission to check
+        .bind(claims.sub)    // $2 = user id
         .fetch_one(&state.db)
         .await?
     };
@@ -985,9 +982,8 @@ pub async fn update_lehrgangsart(
                 FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
             )"
         )
-        .bind("lehrgangsverwaltung.verwalten")
-        .bind("lehrgangsverwaltung.admin")
-        .bind(claims.sub)
+        .bind("lehrgangsverwaltung.verwalten")  // $1 = permission to check
+        .bind(claims.sub)    // $2 = user id
         .fetch_one(&state.db)
         .await?
     };
@@ -1067,9 +1063,8 @@ pub async fn delete_lehrgangsart(
                 FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
             )"
         )
-        .bind("lehrgangsverwaltung.verwalten")
-        .bind("lehrgangsverwaltung.admin")
-        .bind(claims.sub)
+        .bind("lehrgangsverwaltung.verwalten")  // $1 = permission to check
+        .bind(claims.sub)    // $2 = user id
         .fetch_one(&state.db)
         .await?
     };
@@ -1179,9 +1174,8 @@ async fn is_verwalter(pool: &PgPool, claims: &Claims) -> bool {
             FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
         )"
     )
-    .bind("lehrgangsverwaltung.verwalten")
-        .bind("lehrgangsverwaltung.admin")
-    .bind(claims.sub)
+    .bind("lehrgangsverwaltung.verwalten")  // $1 = permission to check
+    .bind(claims.sub)    // $2 = user id
     .fetch_one(pool)
     .await
     .unwrap_or(false)
