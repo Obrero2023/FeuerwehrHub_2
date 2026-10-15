@@ -163,8 +163,7 @@ export async function renderLehrgaenge() {
     anmeldenBtns.forEach(b => {
       const lehrgangId = b.dataset.id;
       const myAnm = meldungenByLehrgangId.get(lehrgangId);
-      const isCancelledOrArchived = l.status === 'abgesagt' || l.status === 'archiviert';
-      const canCancel = myAnm && myAnm.status !== 'bestaetigt' && !isCancelledOrArchived;
+      const canCancel = myAnm && myAnm.status !== 'bestaetigt';
 
       if (canCancel) {
         // User ist bereits angemeldet (nicht bestätigt) – zeige "Abbrechen"
@@ -182,9 +181,6 @@ export async function renderLehrgaenge() {
         b.textContent = 'Platz zugewiesen';
         b.className = 'btn btn--small btn--success';
         b.disabled = true;
-      } else if (isCancelledOrArchived) {
-        // Kurs ist cancelled/archiviert – keinen Button zeigen
-        b.style.display = 'none';
       } else {
         // Normaler Anmelde-Button
         b.textContent = 'Anmelden';
