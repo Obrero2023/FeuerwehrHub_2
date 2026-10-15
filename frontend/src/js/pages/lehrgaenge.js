@@ -429,10 +429,8 @@ export const showForm = async (l = null) => {
       anmeldeschluss: anmeldeschluss || null,
       max_teilnehmer: max_teilnehmer,
       lehrgangsart_id: lehrgangsart_id,
-      // Voraussetzungen sind optionale Felder (werden über Checkboxes im Formular erfasst)
-      voraussetzung: null,
+      voraussetzung: null, // No input field for voraussetzung in form, set to null
       dauer: dauer,
-      voraussetzungen: voraussetzungen.length > 0 ? voraussetzungen : null,
     };
 
     try {
