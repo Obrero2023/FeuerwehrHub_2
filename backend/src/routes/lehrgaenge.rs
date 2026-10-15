@@ -653,22 +653,28 @@ pub async fn create_anmeldung(
         .await?;
 
     let aktuelle_anzahl: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM lehrgang_anmeldungen WHERE lehrgang_id = $1 AND status IN ('angemeldet', 'bestaetigt', 'teilgenommen')"
+        "SELECT COUNT(*) FROM lehrgang_anmeldungen WHERE lehrgang_id = $1 AND status IN ('angemeldet', 'bestaetigt', 'teilgenommen', 'warteliste')"
     )
     .bind(lehrgang_id)
     .fetch_one(&state.db)
     .await?;
 
-    if let Some(max_tn) = max_teilnehmer {
+    // Wenn voll: Auf Warteliste setzen statt Fehler zu werfen
+    let status = if let Some(max_tn) = max_teilnehmer {
         if aktuelle_anzahl >= max_tn as i64 {
-            return Err(AppError::BadRequest("Der Lehrgang ist ausgebucht.".into()));
+            tracing::info!("create_anmeldung - placing user on waitlist (max={}, current={})", max_tn, aktuelle_anzahl);
+            "warteliste".to_string()
+        } else {
+            "angemeldet".to_string()
         }
-    }
+    } else {
+        "angemeldet".to_string()
+    };
 
     let anmeldung = sqlx::query_as::<_, Anmeldung>(
         r#"
-        INSERT INTO lehrgang_anmeldungen (lehrgang_id, user_id, bemerkung)
-        VALUES ($1, $2, $3)
+        INSERT INTO lehrgang_anmeldungen (lehrgang_id, user_id, bemerkung, status)
+        VALUES ($1, $2, $3, $4)
         RETURNING
             id, lehrgang_id, user_id,
             (SELECT COALESCE(display_name, username) FROM users WHERE id = user_id) as user_name,
@@ -680,6 +686,7 @@ pub async fn create_anmeldung(
     .bind(lehrgang_id)
     .bind(claims.sub)
     .bind(body.bemerkung)
+    .bind(&status)
     .fetch_one(&state.db)
     .await?;
 

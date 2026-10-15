@@ -10,6 +10,7 @@ const STATUS_COLORS = {
   voll: '#dc2626',
   abgesagt: '#9ca3af',
   archiviert: '#9ca3af',
+  warteliste: '#f59e0b',
 };
 
 const STATUS_LABELS = {
@@ -18,6 +19,7 @@ const STATUS_LABELS = {
   voll: 'Voll',
   abgesagt: 'Abgesagt',
   archiviert: 'Archiviert',
+  warteliste: 'Warteliste',
 };
 
 // ── Hilfsfunktionen ──────────────────────────────────────────────────────────
