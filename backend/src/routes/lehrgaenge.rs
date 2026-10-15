@@ -161,7 +161,7 @@ pub async fn list_lehrgaenge(
                    l.lehrgangsart_id,
                la.name as lehrgangsart_name, l.voraussetzung,
                l.voraussetzungen_erfuellt,
-               COALESCE((SELECT COUNT(*) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = l.id), 0)::int4 as anmeldungen_count,
+               COALESCE((SELECT COUNT(*) FILTER (WHERE la.status IN ('angemeldet', 'bestaetigt', 'teilgenommen', 'warteliste')) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = l.id), 0)::int4 as anmeldungen_count,
                l.erstellt_von, l.erstellt_von_name, l.erstellt_am, l.aktualisiert_am
             FROM lehrgaenge l
             LEFT JOIN lehrgangsarten la ON la.id = l.lehrgangsart_id
@@ -204,7 +204,7 @@ pub async fn list_lehrgaenge(
                    l.lehrgangsart_id,
                    la.name as lehrgangsart_name, l.voraussetzung,
                    l.voraussetzungen_erfuellt,
-                   COALESCE((SELECT COUNT(*) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = l.id), 0)::int4 as anmeldungen_count,
+                   COALESCE((SELECT COUNT(*) FILTER (WHERE la.status IN ('angemeldet', 'bestaetigt', 'teilgenommen', 'warteliste')) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = l.id), 0)::int4 as anmeldungen_count,
                    l.erstellt_von, l.erstellt_von_name, l.erstellt_am, l.aktualisiert_am
             FROM lehrgaenge l
             LEFT JOIN lehrgangsarten la ON la.id = l.lehrgangsart_id
@@ -230,7 +230,7 @@ pub async fn list_lehrgaenge(
                    l.lehrgangsart_id,
                    la.name as lehrgangsart_name, l.voraussetzung,
                    l.voraussetzungen_erfuellt,
-                   COALESCE((SELECT COUNT(*) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = l.id), 0)::int4 as anmeldungen_count,
+                   COALESCE((SELECT COUNT(*) FILTER (WHERE la.status IN ('angemeldet', 'bestaetigt', 'teilgenommen', 'warteliste')) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = l.id), 0)::int4 as anmeldungen_count,
                    l.erstellt_von, l.erstellt_von_name, l.erstellt_am, l.aktualisiert_am
             FROM lehrgaenge l
             LEFT JOIN lehrgangsarten la ON la.id = l.lehrgangsart_id
@@ -255,7 +255,7 @@ pub async fn list_lehrgaenge(
                    l.lehrgangsart_id,
                    la.name as lehrgangsart_name, l.voraussetzung,
                    l.voraussetzungen_erfuellt,
-                   COALESCE((SELECT COUNT(*) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = l.id), 0)::int4 as anmeldungen_count,
+                   COALESCE((SELECT COUNT(*) FILTER (WHERE la.status IN ('angemeldet', 'bestaetigt', 'teilgenommen', 'warteliste')) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = l.id), 0)::int4 as anmeldungen_count,
                    l.erstellt_von, l.erstellt_von_name, l.erstellt_am, l.aktualisiert_am
             FROM lehrgaenge l
             LEFT JOIN lehrgangsarten la ON la.id = l.lehrgangsart_id
@@ -290,7 +290,7 @@ pub async fn get_lehrgang(
                l.lehrgangsart_id,
                la.name as lehrgangsart_name, l.voraussetzung,
                l.voraussetzungen_erfuellt,
-               COALESCE((SELECT COUNT(*) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = l.id), 0)::int4 as anmeldungen_count,
+               COALESCE((SELECT COUNT(*) FILTER (WHERE la.status IN ('angemeldet', 'bestaetigt', 'teilgenommen', 'warteliste')) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = l.id), 0)::int4 as anmeldungen_count,
                l.erstellt_von, l.erstellt_von_name, l.erstellt_am, l.aktualisiert_am
         FROM lehrgaenge l
         LEFT JOIN lehrgangsarten la ON la.id = l.lehrgangsart_id
@@ -361,7 +361,7 @@ pub async fn create_lehrgang(
             lehrgangsart_id,
             (SELECT name FROM lehrgangsarten WHERE id = lehrgangsart_id) as lehrgangsart_name,
             voraussetzung, voraussetzungen_erfuellt,
-            COALESCE((SELECT COUNT(*) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = id), 0)::int4 as anmeldungen_count,
+            COALESCE((SELECT COUNT(*) FILTER (WHERE la.status IN ('angemeldet', 'bestaetigt', 'teilgenommen', 'warteliste')) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = id), 0)::int4 as anmeldungen_count,
             erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
         "#,
     )
@@ -460,7 +460,7 @@ pub async fn update_lehrgang(
             lehrgangsart_id,
             (SELECT name FROM lehrgangsarten WHERE id = lehrgangsart_id) as lehrgangsart_name,
             voraussetzung, voraussetzungen_erfuellt,
-            COALESCE((SELECT COUNT(*) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = lehrgaenge.id), 0)::int4 as anmeldungen_count,
+            COALESCE((SELECT COUNT(*) FILTER (WHERE la.status IN ('angemeldet', 'bestaetigt', 'teilgenommen', 'warteliste')) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = lehrgaenge.id), 0)::int4 as anmeldungen_count,
             erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
         "#,
     )
