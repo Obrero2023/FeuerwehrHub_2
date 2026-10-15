@@ -783,12 +783,22 @@ export async function renderLehrgangAnmeldungen() {
       <button class="btn btn--secondary" onclick="history.back()">Zurück</button>
       <button class="btn btn--primary" id="btn-email-template">E-Mail-Vorlage</button>
     </div>
-  </div>
-  <div class="card">
-    <h3>Alle Registrierungen (${anmeldungen.length})</h3>
-    <p>Plätze: ${lehrgang.max_teilnehmer || '?'}</p>
-    <div id="anmeldungen-list"></div>
-  </div>
+    <div class="card">
+      <h3>Alle Registrierungen (${anmeldungen.length})</h3>
+      <p>Plätze: ${lehrgang.max_teilnehmer || '?'}</p>
+      <table class="lehrgang-table">
+        <thead>
+          <tr>
+            <th>Benutzer</th>
+            <th>Angemeldet am</th>
+            <th>Status</th>
+            <th>Status gesetzt von</th>
+            <th>Aktionen</th>
+          </tr>
+        </thead>
+        <tbody id="anmeldungen-list"></tbody>
+      </table>
+    </div>
   `;
   renderIcons(content);
 
@@ -797,13 +807,13 @@ export async function renderLehrgangAnmeldungen() {
 
   const listEl = document.getElementById('anmeldungen-list');
   if (listEl) {
-    listEl.innerHTML = anmeldungen.map(a => `
-      <div class="anmeldung-item">
-        <span class="anmeldung-user"><strong>${esc(a.user_name)}</strong></span>
-        <span class="anmeldung-date">${a.anmeldedatum}</span>
-        <span class="anmeldung-status" style="color:${STATUS_COLORS[a.status] || '#666'}">${STATUS_LABELS[a.status] || a.status}</span>
-        ${a.bemerkung ? `<span class="anmeldung-remark">${esc(a.bemerkung)}</span>` : ''}
-        <div class="anmeldung-actions">
+    listEl.innerHTML = anmeldungen.map((a, idx) => `
+      <tr class="anmeldung-row" style="animation-delay: ${idx * 0.06}s;">
+        <td class="anmeldung-user"><strong>${esc(a.user_name)}</strong></td>
+        <td class="anmeldung-date">${formatDateTime(a.anmeldedatum)}</td>
+        <td class="anmeldung-status"><span class="status-badge" style="background-color: ${STATUS_COLORS[a.status] || '#666'}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 12px;">${STATUS_LABELS[a.status] || a.status}</span></td>
+        <td class="anmeldung-by">${a.bestaetigt_von_name ? esc(a.bestaetigt_von_name) : (a.bestaetigt_am ? 'System' : '-')}</td>
+        <td class="anmeldung-actions">
           ${a.status !== 'abgemeldet' ? `
             ${a.status !== 'bestaetigt' ? `
               <button class="btn btn--success btn--small" data-anm="${a.id}" data-act="confirm">Platz zuweisen</button>
@@ -815,8 +825,8 @@ export async function renderLehrgangAnmeldungen() {
               <button class="btn btn--warning btn--small" data-anm="${a.id}" data-act="waitlist">Warteliste</button>
             ` : ''}
           ` : ''}
-        </div>
-      </div>
+        </td>
+      </tr>
     `).join('');
 
     listEl.querySelectorAll('.anmeldung-actions button[data-act="confirm"]').forEach(btn => {
