@@ -476,6 +476,29 @@ pub async fn create_anmeldung(
     Path(lehrgang_id): Path<Uuid>,
     Json(body): Json<CreateAnmeldung>,
 ) -> AppResult<Json<Anmeldung>> {
+    // Prüfen ob der User Zugriff auf das Lehrgangsverwaltung-Modul hat
+    // (Grundberechtigung oder Verwaltungsrecht)
+    if !claims.is_admin_or_above() {
+        let has_access: bool = sqlx::query_scalar::<_, bool>(
+            "SELECT $1 = ANY(
+                SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
+                FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
+                UNION
+                SELECT unnest(fr.permissions)
+                FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
+            )"
+        )
+        .bind("lehrgangsverwaltung")
+        .bind(claims.sub)
+        .fetch_one(&state.db)
+        .await
+        .unwrap_or(false);
+
+        if !has_access {
+            return Err(AppError::Forbidden);
+        }
+    }
+
     // Prüfen ob Lehrgang existiert
     let lehrgang_status: Option<String> = sqlx::query_scalar("SELECT status FROM lehrgaenge WHERE id = $1")
         .bind(lehrgang_id)

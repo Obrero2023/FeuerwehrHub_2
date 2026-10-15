@@ -6,23 +6,17 @@ import { icon, renderIcons } from '../icons.js';
 
 const STATUS_COLORS = {
   geplant: '#6b7280',
-  offen: '#2563eb',
+  veröffentlicht: '#16a34a',
   voll: '#dc2626',
   abgesagt: '#9ca3af',
-  abgeschlossen: '#16a34a',
-  entwurf: '#6b7280',
-  veröffentlicht: '#16a34a',
   archiviert: '#9ca3af',
 };
 
 const STATUS_LABELS = {
   geplant: 'Geplant',
-  offen: 'Offen',
+  veröffentlicht: 'Veröffentlicht',
   voll: 'Voll',
   abgesagt: 'Abgesagt',
-  abgeschlossen: 'Abgeschlossen',
-  entwurf: 'Entwurf',
-  veröffentlicht: 'Veröffentlicht',
   archiviert: 'Archiviert',
 };
 
@@ -57,9 +51,12 @@ export async function renderLehrgaenge() {
 
   const content = document.getElementById('page-content');
   const isVerwalter = user?.role === 'admin' || user?.role === 'superuser'
-    || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten')
-    || (user?.permissions || []).includes('lehrgangsverwaltung.admin');
-  const isReader = user?.permissions?.includes('lehrgangsverwaltung.lesen');
+    || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten');
+  // User mit Grundberechtigung oder Verwaltungsrecht können sich anmelden
+  const canRegister = (user?.permissions || []).includes('lehrgangsverwaltung')
+    || isVerwalter
+    // Legacy: lesen-Berechtigung ebenfalls erlauben (wird nicht mehr neu vergeben)
+    || (user?.permissions || []).includes('lehrgangsverwaltung.lesen');
   // Lehrgangsarten verwalten: Admin oder Nutzer mit lehrgangsverwaltung (Verwalten oder Admin)-Recht
   const canManageLehrgangsarten = user?.role === 'admin' || user?.role === 'superuser'
     || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten')
@@ -119,9 +116,11 @@ export async function renderLehrgaenge() {
         ${l.beschreibung ? `<p class="lehrgang-desc">${esc(l.beschreibung)}</p>` : ''}
         <div class="lehrgang-actions">
           <button class="btn btn--small btn--secondary view-lehrgang" data-id="${l.id}">Details</button>
+          ${canRegister ? `
+            <button class="btn btn--small btn--warning anmelden" data-id="${l.id}">Anmelden</button>
+          ` : ''}
           ${canManage ? `
             <button class="btn btn--small btn--info edit-lehrgang" data-id="${l.id}">Bearbeiten</button>
-            <button class="btn btn--small btn--warning anmelden" data-id="${l.id}">Anmelden</button>
             <button class="btn btn--small btn--danger delete-lehrgang" data-id="${l.id}">Löschen</button>
           ` : ''}
         </div>
@@ -131,14 +130,13 @@ export async function renderLehrgaenge() {
     document.querySelectorAll('.view-lehrgang').forEach(b => {
       b.addEventListener('click', () => { window.location.hash = `#/lehrgang/${b.dataset.id}`; });
     });
-    if (canManage) {
-      document.querySelectorAll('.edit-lehrgang').forEach(b => {
-        b.addEventListener('click', () => { window.location.hash = `#/lehrgang-edit/${b.dataset.id}`; });
-      });
+    if (canRegister) {
       document.querySelectorAll('.anmelden').forEach(b => {
         b.addEventListener('click', () => { window.location.hash = `#/lehrgang/${b.dataset.id}`; });
       });
-      document.querySelectorAll('.delete-lehrgang').forEach(b => {
+    }
+    if (canManage) {
+      document.querySelectorAll('.edit-lehrgang').forEach(b => {
         b.addEventListener('click', async () => {
           if (confirm('Lehrgang wirklich löschen?')) {
             try { await api.deleteLehrgang(b.dataset.id); toast('Lehrgang gelöscht', 'success'); renderLehrgaenge(); }
@@ -241,14 +239,11 @@ export const showForm = async (l = null) => {
           <div class="form-group form-group--full">
             <label>Status</label><select id="feld-status">
               <option value="geplant" selected>Geplant</option>
-              <option value="offen">Offen</option>
+              <option value="veröffentlicht">Veröffentlicht</option>
               <option value="voll">Voll</option>
               <option value="abgesagt">Abgesagt</option>
-              <option value="abgeschlossen">Abgeschlossen</option>
-              <option value="entwurf">Entwurf</option>
-              <option value="veröffentlicht">Veröffentlicht</option>
               <option value="archiviert">Archiviert</option>
-            </select></div>
+            </select>
           <div class="form-group form-group--full" style="margin-top: 12px;">
             <button type="submit" class="btn btn--primary">${l ? 'Speichern' : 'Anlegen'}</button>
           </div>
@@ -388,9 +383,12 @@ export async function renderLehrgangDetail() {
 
   const content = document.getElementById('page-content');
   const isVerwalter = user?.role === 'admin' || user?.role === 'superuser'
-    || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten')
-    || (user?.permissions || []).includes('lehrgangsverwaltung.admin');
-  const isReader = user?.permissions?.includes('lehrgangsverwaltung.lesen');
+    || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten');
+  // User mit Grundberechtigung oder Verwaltungsrecht können sich anmelden
+  const canRegister = (user?.permissions || []).includes('lehrgangsverwaltung')
+    || isVerwalter
+    // Legacy: lesen-Berechtigung ebenfalls erlauben (wird nicht mehr neu vergeben)
+    || (user?.permissions || []).includes('lehrgangsverwaltung.lesen');
 
   const remainingSpots = (lehrgang.max_teilnehmer || 0) - (lehrgang.anmeldungen_count || 0);
 
@@ -400,7 +398,7 @@ export async function renderLehrgangDetail() {
         <h2>${esc(lehrgang.titel)}</h2>
         <p><span class="lehrgang-status" style="color:${STATUS_COLORS[lehrgang.status] || '#666'}">${STATUS_LABELS[lehrgang.status] || lehrgang.status}</span>
           | ${isVerwalter ? 'Veranstaltungsort: ' + esc(lehrgang.ort || '–') : ''}</p>
-        ${!isVerwalter && !isReader ? '<p style="color:var(--rot)">Sie haben nicht die Berechtigung, diese Seite zu sehen.</p>' : ''}
+        ${!isVerwalter && !canRegister ? '<p style="color:var(--rot)">Sie haben nicht die Berechtigung, diese Seite zu sehen.</p>' : ''}
       </div>
       <div class="page-header-actions">
         <button class="btn btn--secondary" onclick="history.back()">Zurück</button>
@@ -437,12 +435,12 @@ export async function renderLehrgangDetail() {
       <h3>Voraussetzungen bearbeiten</h3>
       <p><small>Voraussetzungen werden im Hauptformular hinterlegt.</small></p>
     </div>` : ''}
-    ${!isVerwalter && remainingSpots <= 0 && isReader ? `
+    ${!isVerwalter && remainingSpots <= 0 && canRegister ? `
     <div class="card" style="border-color:var(--rot)">
       <h3 style="color:var(--rot)">Ausgebucht</h3>
-      <p>Der Lehrgang ist vollständig belegt. Eine Anmeldung ist nicht mehr möglich.</p>
+      <p>Der Lehrgang ist vollständig belegt. Anmeldungen sind nur über die Warteliste möglich. Klicken Sie im Menü oben auf "Anmelden".</p>
     </div>` : ''}
-    ${!isVerwalter && (remainingSpots > 0 || !lehrgang.max_teilnehmer) && isReader ? `
+    ${!isVerwalter && (remainingSpots > 0 || !lehrgang.max_teilnehmer) && canRegister ? `
     <div class="card" style="border-color:var(--grün,var(--personal-c))">
       <h3 style="color:var(--grün,var(--personal-c))">Anmeldung möglich</h3>
       <p>Es sind noch Plätze frei. Klicken Sie im Menü oben auf "Anmelden".</p>
@@ -529,8 +527,13 @@ export async function renderLehrgangEdit() {
   renderShell('lehrgaenge');
 
   const content = document.getElementById('page-content');
-  content.innerHTML = `
-    <div class="page-header">
+  const isVerwalter = user?.role === 'admin' || user?.role === 'superuser'
+    || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten');
+  // User mit Grundberechtigung oder Verwaltungsrecht können sich anmelden
+  const canRegister = (user?.permissions || []).includes('lehrgangsverwaltung')
+    || isVerwalter
+    // Legacy: lesen-Berechtigung ebenfalls erlauben (wird nicht mehr neu vergeben)
+    || (user?.permissions || []).includes('lehrgangsverwaltung.lesen');
       <div><h2>Lehrgang bearbeiten</h2></div>
       <button class="btn btn--secondary" onclick="history.back()">Zurück</button>
     </div>
@@ -564,8 +567,13 @@ export async function renderLehrgangAnmeldungen() {
   renderShell('lehrgaenge');
 
   const content = document.getElementById('page-content');
-  content.innerHTML = `
-    <div class="page-header">
+  const isVerwalter = user?.role === 'admin' || user?.role === 'superuser'
+    || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten');
+  // User mit Grundberechtigung oder Verwaltungsrecht können sich anmelden
+  const canRegister = (user?.permissions || []).includes('lehrgangsverwaltung')
+    || isVerwalter
+    // Legacy: lesen-Berechtigung ebenfalls erlauben (wird nicht mehr neu vergeben)
+    || (user?.permissions || []).includes('lehrgangsverwaltung.lesen');
       <div>
         <h2>Anmeldungen: ${esc(lehrgang.titel)}</h2>
         <p>${lehrgang.start_datum} – ${lehrgang.end_datum}</p>
