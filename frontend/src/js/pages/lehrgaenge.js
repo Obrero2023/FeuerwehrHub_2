@@ -64,6 +64,26 @@ export async function renderLehrgaenge() {
     || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten')
     || (user?.permissions || []).includes('lehrgangsverwaltung.admin');
 
+  // Lade eigene Anmeldungen, um festzustellen, ob User bereits für einen Lehrgang angemeldet ist
+  const myAnmeldungenRaw = await api.getMyAnmeldungen();
+  const myAnmeldungen = myAnmeldungenRaw.filter(a => a.status !== 'abgemeldet');
+  const meldungenByLehrgangId = new Map(
+    myAnmeldungen.map(a => [a.lehrgang_id.toString(), a])
+  );
+
+  const content = document.getElementById('page-content');
+  const isVerwalter = user?.role === 'admin' || user?.role === 'superuser'
+    || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten');
+  // User mit Grundberechtigung oder Verwaltungsrecht können sich anmelden
+  const canRegister = (user?.permissions || []).includes('lehrgangsverwaltung')
+    || isVerwalter
+    // Legacy: lesen-Berechtigung ebenfalls erlauben (wird nicht mehr neu vergeben)
+    || (user?.permissions || []).includes('lehrgangsverwaltung.lesen');
+  // Lehrgangsarten verwalten: Admin oder Nutzer mit lehrgangsverwaltung (Verwalten oder Admin)-Recht
+  const canManageLehrgangsarten = user?.role === 'admin' || user?.role === 'superuser'
+    || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten')
+    || (user?.permissions || []).includes('lehrgangsverwaltung.admin');
+
   content.innerHTML = `
     <div class="page-header">
       <div><h2>Lehrgänge</h2><p>Übersicht der verfügbaren Lehrgänge und Anmeldungen</p></div>
@@ -142,22 +162,44 @@ export async function renderLehrgaenge() {
       </table>
     `;
 
-    document.querySelectorAll('.view-lehrgang').forEach(b => {
-      b.addEventListener('click', () => { window.location.hash = `#/lehrgang/${b.dataset.id}`; });
-    });
-    if (canRegister) {
-      document.querySelectorAll('.anmelden').forEach(b => {
+    // Buttons für "Anmelden" / "Abbrechen" pro Lehrgang anpassen
+    const meldungen = myAnmeldungen;
+    const meldungenByLehrgangId = new Map(meldungen.map(m => [m.lehrgang_id.toString(), m]));
+    const anmeldenBtns = document.querySelectorAll('.anmelden');
+    anmeldenBtns.forEach(b => {
+      const lehrgangId = b.dataset.id;
+      const myAnm = meldungenByLehrgangId.get(lehrgangId);
+      const isCourseCancelledOrArchived = l.status === 'abgesagt' || l.status === 'archiviert';
+
+      if (myAnm) {
+        // User ist bereits angemeldet – zeige "Abbrechen" statt "Anmelden"
+        b.textContent = 'Abbrechen';
+        b.className = 'btn btn--secondary';
         b.addEventListener('click', async () => {
           try {
-            await api.createAnmeldung(b.dataset.id, {});
+            await api.deleteAnmeldung(lehrgangId, myAnm.id);
+            toast('Anmeldung storniert', 'success');
+            renderLehrgaenge();
+          } catch (e) { toast(e.message, 'error'); }
+        });
+      } else if (isCourseCancelledOrArchived) {
+        // Kurs ist cancelled/archived – keinen Anmelde-Button zeigen
+        b.style.display = 'none';
+      } else {
+        // Normaler Anmelde-Button
+        b.textContent = 'Anmelden';
+        b.className = 'btn btn--small btn--warning';
+        b.addEventListener('click', async () => {
+          try {
+            await api.createAnmeldung(lehrgangId, {});
             toast('Anmeldung bestätigt', 'success');
             window.location.hash = `#/lehrgaenge`;
           } catch (e) {
             toast(e.message, 'error');
           }
         });
-      });
-    }
+      }
+    });
     if (canManage) {
       document.querySelectorAll('.edit-lehrgang').forEach(b => {
         b.addEventListener('click', () => {
@@ -720,8 +762,15 @@ export async function renderLehrgangAnmeldungen() {
         ${a.bemerkung ? `<span class="anmeldung-remark">${esc(a.bemerkung)}</span>` : ''}
         <div class="anmeldung-actions">
           ${a.status !== 'abgemeldet' ? `
-            <button class="btn btn--success btn--small" data-anm="${a.id}" data-act="confirm">Platz zuweisen</button>
-            <button class="btn btn--danger btn--small" data-anm="${a.id}" data-act="reject">Ablehnen / Warteliste</button>
+            ${a.status !== 'bestaetigt' ? `
+              <button class="btn btn--success btn--small" data-anm="${a.id}" data-act="confirm">Platz zuweisen</button>
+            ` : ''}
+            ${a.status !== 'abgelehnt' ? `
+              <button class="btn btn--danger btn--small" data-anm="${a.id}" data-act="reject">Ablehnen</button>
+            ` : ''}
+            ${a.status !== 'warteliste' ? `
+              <button class="btn btn--warning btn--small" data-anm="${a.id}" data-act="waitlist">Warteliste</button>
+            ` : ''}
           ` : ''}
         </div>
       </div>
@@ -742,7 +791,17 @@ export async function renderLehrgangAnmeldungen() {
         const anmId = btn.dataset.anm;
         try {
           await api.updateAnmeldung(_currentAnmeldungenLehrgangId, anmId, { status: 'abgelehnt' });
-          toast('Abgelehnt / Warteliste', 'success');
+          toast('Abgelehnt', 'success');
+          renderLehrgangAnmeldungen();
+        } catch (e) { toast(e.message, 'error'); }
+      });
+    });
+    listEl.querySelectorAll('.anmeldung-actions button[data-act="waitlist"]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const anmId = btn.dataset.anm;
+        try {
+          await api.updateAnmeldung(_currentAnmeldungenLehrgangId, anmId, { status: 'warteliste' });
+          toast('Auf Warteliste gesetzt', 'success');
           renderLehrgangAnmeldungen();
         } catch (e) { toast(e.message, 'error'); }
       });
