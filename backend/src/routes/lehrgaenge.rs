@@ -619,10 +619,12 @@ pub async fn create_anmeldung(
     }
 
     // Prüfen ob Lehrgang existiert und Anmeldeschluss noch nicht verstrichen ist
-    let lehrgang_info: Option<(String, Option<NaiveDate>)> = sqlx::query_as("SELECT status, anmeldeschluss FROM lehrgaenge WHERE id = $1")
-        .bind(lehrgang_id)
-        .fetch_optional(&state.db)
-        .await?;
+    let lehrgang_info = sqlx::query_as::<_, (String, Option<NaiveDate>)>(
+        "SELECT status, anmeldeschluss FROM lehrgaenge WHERE id = $1"
+    )
+    .bind(lehrgang_id)
+    .fetch_optional(&state.db)
+    .await?;
 
     let (status, anmeldeschluss) = match lehrgang_info {
         Some((s, a)) => (s, a),
@@ -785,11 +787,13 @@ pub async fn delete_anmeldung(
     Path((_lehrgang_id, anmeldung_id)): Path<(Uuid, Uuid)>,
 ) -> AppResult<Json<serde_json::Value>> {
     // Nur der Anmender (oder Verwalter) kann eine Anmeldung löschen
-    let row: Option<(Uuid, String)> = sqlx::query_as("SELECT user_id, status FROM lehrgang_anmeldungen WHERE id = $1")
-        .bind(anmeldung_id)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let row = sqlx::query_as::<_, (Uuid, String)>(
+        "SELECT user_id, status FROM lehrgang_anmeldungen WHERE id = $1"
+    )
+    .bind(anmeldung_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let (user_id, anmeldung_status) = row;
 
