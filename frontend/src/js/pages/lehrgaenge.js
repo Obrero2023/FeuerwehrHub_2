@@ -198,6 +198,12 @@ export async function renderLehrgaenge() {
         });
       }
     });
+
+    // Details-Button Handler
+    document.querySelectorAll('.view-lehrgang').forEach(b => {
+      b.addEventListener('click', () => { window.location.hash = `#/lehrgang/${b.dataset.id}`; });
+    });
+
     if (canManage) {
       document.querySelectorAll('.edit-lehrgang').forEach(b => {
         b.addEventListener('click', () => {
