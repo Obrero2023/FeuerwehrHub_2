@@ -395,53 +395,71 @@ export const showForm = async (l = null) => {
     </div>
   `;
 
-  document.getElementById('feld-lehrgangsart').addEventListener('change', () => {
-    fillFromLehrgangsart();
-    const selectedId = document.getElementById('feld-lehrgangsart').value || null;
-    document.getElementById('feld-voraussetzungen-container').innerHTML = renderVoraussetzungenDisplay(selectedId);
-  });
+  // Safety-checked event listeners for form elements
+  const feldLehrgangsartSelect = document.getElementById('feld-lehrgangsart');
+  if (feldLehrgangsartSelect) {
+    feldLehrgangsartSelect.addEventListener('change', () => {
+      fillFromLehrgangsart();
+      const selectedId = feldLehrgangsartSelect.value || null;
+      const voraussetzungenContainer = document.getElementById('feld-voraussetzungen-container');
+      if (voraussetzungenContainer) {
+        voraussetzungenContainer.innerHTML = renderVoraussetzungenDisplay(selectedId);
+      }
+    });
+  }
 
-  document.getElementById('btn-cancel').addEventListener('click', () => {
-    formEl.style.display = 'none';
-    if (listEl) listEl.style.display = '';
-  });
+  const btnCancel = document.getElementById('btn-cancel');
+  if (btnCancel) {
+    btnCancel.addEventListener('click', () => {
+      formEl.style.display = 'none';
+      if (listEl) listEl.style.display = '';
+    });
+  }
 
   // Auto-calculate end date when start date changes
-  document.getElementById('feld-start').addEventListener('change', () => {
-    const dauerInput = document.getElementById('feld-dauer');
-    const endInput = document.getElementById('feld-ende');
-    const dauer = parseInt(dauerInput?.value || '0') || 0;
-    if (dauer > 0 && endInput) {
-      const start = new Date(document.getElementById('feld-start').value);
-      const end = new Date(start);
-      end.setDate(start.getDate() + dauer - 1);
-      endInput.value = end.toISOString().split('T')[0];
-    } else if (dauer === 0) {
-      // If no Dauer set, just set end to start date (but validation requires end > start)
-      endInput.value = document.getElementById('feld-start').value;
-    }
-  });
+  const feldStartInput = document.getElementById('feld-start');
+  if (feldStartInput) {
+    feldStartInput.addEventListener('change', () => {
+      const dauerInputEl = document.getElementById('feld-dauer');
+      const endInput = document.getElementById('feld-ende');
+      const dauer = parseInt(dauerInputEl?.value || '0') || 0;
+      if (dauer > 0 && endInput) {
+        const start = new Date(feldStartInput.value);
+        const end = new Date(start);
+        end.setDate(start.getDate() + dauer - 1);
+        endInput.value = end.toISOString().split('T')[0];
+      } else if (dauer === 0) {
+        endInput.value = feldStartInput.value;
+      }
+    });
+  }
 
-  // When Dauer input changes, recalculate end date
-  document.getElementById('feld-dauer').addEventListener('change', () => {
-    const dauerInput = document.getElementById('feld-dauer');
-    const endInput = document.getElementById('feld-ende');
-    const startInput = document.getElementById('feld-start');
-    const dauer = parseInt(dauerInput?.value || '0') || 0;
-    if (dauer > 0 && startInput && endInput) {
-      const start = new Date(startInput.value);
-      const end = new Date(start);
-      end.setDate(start.getDate() + dauer - 1);
-      endInput.value = end.toISOString().split('T')[0];
-    }
-  });
+  const feldDauerInput = document.getElementById('feld-dauer');
+  if (feldDauerInput) {
+    feldDauerInput.addEventListener('change', () => {
+      const endInput = document.getElementById('feld-ende');
+      const startInput = document.getElementById('feld-start');
+      const dauer = parseInt(feldDauerInput.value || '0') || 0;
+      if (dauer > 0 && startInput && endInput) {
+        const start = new Date(startInput.value);
+        const end = new Date(start);
+        end.setDate(start.getDate() + dauer - 1);
+        endInput.value = end.toISOString().split('T')[0];
+      }
+    });
+  }
 
   // Update Voraussetzungen display when Lehrgangsart selection changes
-  document.getElementById('feld-lehrgangsart').addEventListener('change', () => {
-    fillFromLehrgangsart();
-    const selectedId = document.getElementById('feld-lehrgangsart').value || null;
-    document.getElementById('feld-voraussetzungen-container').innerHTML = renderVoraussetzungenDisplay(selectedId);
-  });
+  if (feldLehrgangsartSelect) {
+    feldLehrgangsartSelect.addEventListener('change', () => {
+      fillFromLehrgangsart();
+      const selectedId = feldLehrgangsartSelect.value || null;
+      const voraussetzungenContainer = document.getElementById('feld-voraussetzungen-container');
+      if (voraussetzungenContainer) {
+        voraussetzungenContainer.innerHTML = renderVoraussetzungenDisplay(selectedId);
+      }
+    });
+  }
 
   document.getElementById('lehrgang-form-el').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -715,10 +733,11 @@ export async function renderLehrgangEdit() {
 
   const content = document.getElementById('page-content');
   content.innerHTML = `
-  <div><h2>Lehrgang bearbeiten</h2></div>
-  <button class="btn btn--secondary" onclick="history.back()">Zurück</button>
-</div>
-<div id="lehrgang-form" style="display:block"></div>
+  <div>
+    <h2>Lehrgang bearbeiten</h2>
+    <button class="btn btn--secondary" onclick="history.back()">Zurück</button>
+  </div>
+  <div id="lehrgang-form" style="display:block"></div>
 `;
   renderIcons(content);
 
