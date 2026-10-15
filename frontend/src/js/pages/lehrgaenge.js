@@ -744,10 +744,12 @@ async function renderLehrgangsarten() {
   let lehrgangsarten;
   try {
     lehrgangsarten = await api.getLehrgangsarten();
+    _lehrgangsartenCache = Array.isArray(lehrgangsarten) ? lehrgangsarten : [];
   } catch (e) {
     sectionEl.innerHTML = `<div class="card"><p class="error-msg">${esc(e.message)}</p></div>`;
     return;
   }
+  _lehrgangsartenLoaded = true;
 
   sectionEl.innerHTML = `
     <div class="card">
@@ -769,9 +771,9 @@ async function renderLehrgangsarten() {
   if (!listEl) return;
 
   // Neue Lehrgangsart Klick-Handler immer registrieren (auch bei leerer Liste)
-  document.getElementById('btn-new-lehrgangsart').addEventListener('click', () => {
+  document.getElementById('btn-new-lehrgangsart').addEventListener('click', async () => {
     _currentLehrgangsartId = null;
-    showLehrgangsartenForm(null);
+    await showLehrgangsartenForm(null);
   });
 
   if (!lehrgangsarten.length) {
@@ -801,11 +803,11 @@ async function renderLehrgangsarten() {
 
   // Bearbeiten
   listEl.querySelectorAll('[data-action="edit"]').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const row = lehrgangsarten.find(x => x.id === btn.dataset.id);
       if (row) {
         _currentLehrgangsartId = btn.dataset.id;
-        showLehrgangsartenForm(row);
+        await showLehrgangsartenForm(row);
       }
     });
   });
@@ -825,13 +827,20 @@ async function renderLehrgangsarten() {
 }
 
 /** Formular zum Erstellen/Bearbeiten einer Lehrgangsart anzeigen */
-function showLehrgangsartenForm(la = null) {
+async function showLehrgangsartenForm(la = null) {
   const formEl = document.getElementById('lehrgangsarten-form');
   const listEl = document.getElementById('lehrgangsarten-list');
   if (!formEl || !listEl) return;
 
-  // Use the cached lehrgangsarten from loadLehrgangsarten()
-  const allLehrgangsarten = _lehrgangsartenCache || [];
+  // Ensure cache is loaded — if empty, fetch from API
+  if (!_lehrgangsartenLoaded || !_lehrgangsartenCache || _lehrgangsartenCache.length === 0) {
+    // Cache already populated by renderLehrgangsarten if called first,
+    // but load fresh if needed
+    const allLa = await api.getLehrgangsarten();
+    _lehrgangsartenCache = Array.isArray(allLa) ? allLa : [];
+    _lehrgangsartenLoaded = true;
+  }
+  const allLehrgangsarten = _lehrgangsartenCache;
   // Determine selected UUIDs from the existing lehrgangsart, or empty array for new
   const selectedVoraussetzungen = la?.voraussetzungen || [];
 
