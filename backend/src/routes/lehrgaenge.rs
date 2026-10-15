@@ -644,6 +644,16 @@ pub async fn create_anmeldung(
     }
 
     // Prüfen ob User bereits angemeldet ist (und nicht abgemeldet)
+    // Wichtig: Wir entfernen zuerst jede bestehende soft-deleted Anmeldung,
+    // damit die UNIQUE-Konstrainert (lehrgang_id, user_id) die neue Insert nicht blockiert.
+    sqlx::query(
+        "DELETE FROM lehrgang_anmeldungen WHERE lehrgang_id = $1 AND user_id = $2 AND status = 'abgemeldet'"
+    )
+    .bind(lehrgang_id)
+    .bind(claims.sub)
+    .execute(&state.db)
+    .await?;
+
     let already_anmeldet: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM lehrgang_anmeldungen WHERE lehrgang_id = $1 AND user_id = $2 AND status != 'abgemeldet'"
     )
