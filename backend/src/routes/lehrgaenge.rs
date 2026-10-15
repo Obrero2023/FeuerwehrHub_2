@@ -106,6 +106,37 @@ pub struct LehrgangQuery {
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
+/// Prüft ob der User die grundlegende Lehrgangsverwaltung-Berechtigung hat
+/// (ohne Verwalten- oder Lesen-Rechte)
+async fn is_basic_lehrgangsverwaltung(pool: &PgPool, claims: &Claims) -> bool {
+    if claims.is_admin_or_above() {
+        return false; // Admin/Superuser haben mehr als nur Basisrechte
+    }
+    // Prüfe ob User die Basis-Berechtigung hat ABER nicht Verwalten oder Lesen
+    let has_basic: bool = sqlx::query_scalar::<_, bool>(
+        "SELECT $1 = ANY(
+            SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
+            FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
+            UNION
+            SELECT unnest(fr.permissions)
+            FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
+        )"
+    )
+    .bind("lehrgangsverwaltung")
+    .bind(claims.sub)
+    .fetch_one(pool)
+    .await
+    .unwrap_or(false);
+
+    // Wenn er Basisrecht hat, aber NICHT Verwalten oder Lesen, dann ist es basic
+    if has_basic {
+        let is_verw = is_verwalter(pool, claims).await;
+        let is_rdr = is_reader(pool, claims).await;
+        return !is_verw && !is_rdr;
+    }
+    false
+}
+
 pub async fn list_lehrgaenge(
     State(state): State<AppState>,
     Query(query): Query<LehrgangQuery>,
@@ -113,8 +144,9 @@ pub async fn list_lehrgaenge(
 ) -> AppResult<Json<Vec<Lehrgang>>> {
     let is_verw = is_verwalter(&state.db, &claims).await;
     let is_rdr = is_reader(&state.db, &claims).await;
+    let is_basic = is_basic_lehrgangsverwaltung(&state.db, &claims).await;
 
-    if !is_verw && !is_rdr {
+    if !is_verw && !is_rdr && !is_basic {
         return Err(AppError::Forbidden);
     }
 
@@ -124,12 +156,17 @@ pub async fn list_lehrgaenge(
     } else if is_rdr {
         // Leser sehen nur veröffentlichte Lehrgänge
         Some("veröffentlicht".to_string())
+    } else if is_basic {
+        // Basis-Lehrgangsverwaltung: Zeige alles AUSSER veröffentlicht, voll, abgesagt
+        // Wir verwenden einen komplexeren Filter dafür
+        None // Wir werden den Filter im WHERE-Clausel selbst behandeln
     } else {
         // This case should be caught by the permission check above, but just in case:
         None
     };
 
-    let lehrgaenge = sqlx::query_as::<_, Lehrgang>(
+    // Baue die WHERE-Bedingung dynamisch zusammen
+    let mut query_builder = String::from(
         r#"
         SELECT l.id, l.titel, l.beschreibung, l.ort,
                l.start_datum, l.end_datum, l.anmeldeschluss,
@@ -142,17 +179,103 @@ pub async fn list_lehrgaenge(
         FROM lehrgaenge l
         LEFT JOIN lehrgangsarten la ON la.id = l.lehrgangsart_id
         WHERE 1=1
-          AND ($1::text IS NULL OR l.status = $1)
-          AND ($2::uuid IS NULL OR l.lehrgangsart_id = $2)
-          AND ($3::date IS NULL OR l.start_datum <= $3)
-        ORDER BY l.start_datum ASC
         "#,
-    )
-    .bind(status_filter)
-    .bind(query.art)
-    .bind(query.ab_datum)
-    .fetch_all(&state.db)
-    .await?;
+    );
+
+    if is_verw {
+        // Verwalter: respektiere query.status falls gesetzt
+        if let Some(ref status) = query.status {
+            query_builder.push_str(" AND l.status = $1 ");
+        }
+        if let Some(ref art) = query.art {
+            query_builder.push_str(" AND l.lehrgangsart_id = $2 ");
+        }
+        if let Some(ref ab_datum) = query.ab_datum {
+            query_builder.push_str(" AND l.start_datum <= $3 ");
+        }
+        query_builder.push_str(" ORDER BY l.start_datum ASC ");
+
+        let query = sqlx::query_as::<_, Lehrgang>(&query_builder);
+        let mut query = query.bind(query.status);
+        if let Some(ref art) = query.art {
+            query = query.bind(art);
+        }
+        if let Some(ref ab_datum) = query.ab_datum {
+            query = query.bind(ab_datum);
+        }
+        query.fetch_all(&state.db).await?
+    } else if is_rdr {
+        // Leser: nur veröffentlichte
+        let lehrgaenge = sqlx::query_as::<_, Lehrgang>(
+            r#"
+            SELECT l.id, l.titel, l.beschreibung, l.ort,
+                   l.start_datum, l.end_datum, l.anmeldeschluss,
+                   l.max_teilnehmer, l.status,
+                   l.lehrgangsart_id,
+                   la.name as lehrgangsart_name, l.voraussetzung,
+                   l.voraussetzungen_erfuellt,
+                   COALESCE((SELECT COUNT(*) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = l.id), 0)::int4 as anmeldungen_count,
+                   l.erstellt_von, l.erstellt_von_name, l.erstellt_am, l.aktualisiert_am
+            FROM lehrgaenge l
+            LEFT JOIN lehrgangsarten la ON la.id = l.lehrgangsart_id
+            WHERE l.status = $1
+              AND ($2::uuid IS NULL OR l.lehrgangsart_id = $2)
+              AND ($3::date IS NULL OR l.start_datum <= $3)
+            ORDER BY l.start_datum ASC
+            "#,
+        )
+        .bind("veröffentlicht")
+        .bind(query.art)
+        .bind(query.ab_datum)
+        .fetch_all(&state.db)
+        .await?;
+        lehrgaenge
+    } else if is_basic {
+        // Basis-Lehrgangsverwaltung: Alles AUSSER veröffentlicht, voll, abgesagt
+        let lehrgaenge = sqlx::query_as::<_, Lehrgang>(
+            r#"
+            SELECT l.id, l.titel, l.beschreibung, l.ort,
+                   l.start_datum, l.end_datum, l.anmeldeschluss,
+                   l.max_teilnehmer, l.status,
+                   l.lehrgangsart_id,
+                   la.name as lehrgangsart_name, l.voraussetzung,
+                   l.voraussetzungen_erfuellt,
+                   COALESCE((SELECT COUNT(*) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = l.id), 0)::int4 as anmeldungen_count,
+                   l.erstellt_von, l.erstellt_von_name, l.erstellt_am, l.aktualisiert_am
+            FROM lehrgaenge l
+            LEFT JOIN lehrgangsarten la ON la.id = l.lehrgangsart_id
+            WHERE l.status NOT IN ('veröffentlicht', 'voll', 'abgesagt')
+              AND ($1::uuid IS NULL OR l.lehrgangsart_id = $1)
+              AND ($2::date IS NULL OR l.start_datum <= $2)
+            ORDER BY l.start_datum ASC
+            "#,
+        )
+        .bind(query.art)
+        .bind(query.ab_datum)
+        .fetch_all(&state.db)
+        .await?;
+        lehrgaenge
+    } else {
+        // Fallback (sollte nicht erreicht werden wegen der Permission-Checks oben)
+        let lehrgaenge = sqlx::query_as::<_, Lehrgang>(
+            r#"
+            SELECT l.id, l.titel, l.beschreibung, l.ort,
+                   l.start_datum, l.end_datum, l.anmeldeschluss,
+                   l.max_teilnehmer, l.status,
+                   l.lehrgangsart_id,
+                   la.name as lehrgangsart_name, l.voraussetzung,
+                   l.voraussetzungen_erfuellt,
+                   COALESCE((SELECT COUNT(*) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = l.id), 0)::int4 as anmeldungen_count,
+                   l.erstellt_von, l.erstellt_von_name, l.erstellt_am, l.aktualisiert_am
+            FROM lehrgaenge l
+            LEFT JOIN lehrgangsarten la ON la.id = l.lehrgangsart_id
+            ORDER BY l.start_datum ASC
+            "#,
+        )
+        .fetch_all(&state.db)
+        .await?;
+        lehrgaenge
+    }
 
     Ok(Json(lehrgaenge))
 }
@@ -477,18 +600,24 @@ pub async fn create_anmeldung(
     Json(body): Json<CreateAnmeldung>,
 ) -> AppResult<Json<Anmeldung>> {
     // Prüfen ob der User Zugriff auf das Lehrgangsverwaltung-Modul hat
-    // (Grundberechtigung oder Verwaltungsrecht)
+    // (Grundberechtigung, Lesen, Verwalten oder Admin-Recht)
     if !claims.is_admin_or_above() {
+        // Prüfe, ob User eine der relevanten Lehrgangsverwaltung-Permissionen hat.
+        // Verwende die gleiche Logik wie is_verwalter/is_reader, aber mit OR für alle Berechtigungen.
         let has_access: bool = sqlx::query_scalar::<_, bool>(
-            "SELECT $1 = ANY(
-                SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
-                FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
-                UNION
-                SELECT unnest(fr.permissions)
-                FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
-            )"
+            "SELECT bool_or(perm = ANY(ARRAY[$1, $2, $3, $4]))
+             FROM (
+                 SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}')) AS perm
+                 FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $5
+                 UNION
+                 SELECT unnest(fr.permissions) AS perm
+                 FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $5
+             ) AS all_perms"
         )
         .bind("lehrgangsverwaltung")
+        .bind("lehrgangsverwaltung.lesen")
+        .bind("lehrgangsverwaltung.verwalten")
+        .bind("lehrgangsverwaltung.admin")
         .bind(claims.sub)
         .fetch_one(&state.db)
         .await

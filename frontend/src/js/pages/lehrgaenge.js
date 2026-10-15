@@ -101,31 +101,44 @@ export async function renderLehrgaenge() {
       return;
     }
 
-    grid.innerHTML = items.map((l, idx) => `
-      <div class="lehrgang-card" style="animation-delay: ${idx * 0.06}s">
-        <div class="lehrgang-header">
-          <h3>${esc(l.titel)}</h3>
-          <span class="lehrgang-status" style="color:${STATUS_COLORS[l.status] || '#666'}">${STATUS_LABELS[l.status] || l.status}</span>
-        </div>
-        <div class="lehrgang-meta">
-          <span>📅 ${l.start_datum} – ${l.end_datum}</span>
-          ${l.ort ? `<span>📍 ${esc(l.ort)}</span>` : ''}
-          ${l.anmeldeschluss ? `<span>📝 Bis ${l.anmeldeschluss}</span>` : ''}
-          <span>👥 ${l.anmeldungen_count || 0}/${l.max_teilnehmer || '?'}</span>
-        </div>
-        ${l.beschreibung ? `<p class="lehrgang-desc">${esc(l.beschreibung)}</p>` : ''}
-        <div class="lehrgang-actions">
-          <button class="btn btn--small btn--secondary view-lehrgang" data-id="${l.id}">Details</button>
-          ${canRegister ? `
-            <button class="btn btn--small btn--warning anmelden" data-id="${l.id}">Anmelden</button>
-          ` : ''}
-          ${canManage ? `
-            <button class="btn btn--small btn--info edit-lehrgang" data-id="${l.id}">Bearbeiten</button>
-            <button class="btn btn--small btn--danger delete-lehrgang" data-id="${l.id}">Löschen</button>
-          ` : ''}
-        </div>
-      </div>
-    `).join('');
+    // Table layout for better overview
+    grid.innerHTML = `
+      <table class="lehrgang-table">
+        <thead>
+          <tr>
+            <th>Titel</th>
+            <th>Status</th>
+            <th>Zeitraum</th>
+            <th>Ort</th>
+            <th>Teilnehmer</th>
+            <th>Max. Plätze</th>
+            <th>Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map((l, idx) => `
+            <tr class="lehrgang-row" style="animation-delay: ${idx * 0.06}s">
+              <td class="lehrgang-title"><strong>${esc(l.titel)}</strong></td>
+              <td class="lehrgang-status"><span class="status-badge" style="background-color: ${STATUS_COLORS[l.status] || '#666'}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 12px;">${STATUS_LABELS[l.status] || l.status}</span></td>
+              <td class="lehrgang-datum">${formatDate(l.start_datum)} – ${formatDate(l.end_datum)}</td>
+              <td class="lehrgang-ort">${l.ort || '-'}</td>
+              <td class="lehrgang-count">${l.anmeldungen_count || 0}</td>
+              <td class="lehrgang-max">${l.max_teilnehmer || '-'}</td>
+              <td class="lehrgang-actions">
+                <button class="btn btn--small btn--secondary view-lehrgang" data-id="${l.id}">Details</button>
+                ${canRegister ? `
+                  <button class="btn btn--small btn--warning anmelden" data-id="${l.id}">Anmelden</button>
+                ` : ''}
+                ${canManage ? `
+                  <button class="btn btn--small btn--info edit-lehrgang" data-id="${l.id}">Bearbeiten</button>
+                  <button class="btn btn--small btn--danger delete-lehrgang" data-id="${l.id}">Löschen</button>
+                ` : ''}
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
 
     document.querySelectorAll('.view-lehrgang').forEach(b => {
       b.addEventListener('click', () => { window.location.hash = `#/lehrgang/${b.dataset.id}`; });
@@ -137,6 +150,13 @@ export async function renderLehrgaenge() {
     }
     if (canManage) {
       document.querySelectorAll('.edit-lehrgang').forEach(b => {
+        b.addEventListener('click', () => {
+          window.location.hash = `#/lehrgang-edit/${b.dataset.id}`;
+        });
+      });
+    }
+    if (canManage) {
+      document.querySelectorAll('.delete-lehrgang').forEach(b => {
         b.addEventListener('click', async () => {
           if (confirm('Lehrgang wirklich löschen?')) {
             try { await api.deleteLehrgang(b.dataset.id); toast('Lehrgang gelöscht', 'success'); renderLehrgaenge(); }
