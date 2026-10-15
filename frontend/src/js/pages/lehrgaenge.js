@@ -72,17 +72,6 @@ export async function renderLehrgaenge() {
   );
 
   const content = document.getElementById('page-content');
-  const isVerwalter = user?.role === 'admin' || user?.role === 'superuser'
-    || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten');
-  // User mit Grundberechtigung oder Verwaltungsrecht können sich anmelden
-  const canRegister = (user?.permissions || []).includes('lehrgangsverwaltung')
-    || isVerwalter
-    // Legacy: lesen-Berechtigung ebenfalls erlauben (wird nicht mehr neu vergeben)
-    || (user?.permissions || []).includes('lehrgangsverwaltung.lesen');
-  // Lehrgangsarten verwalten: Admin oder Nutzer mit lehrgangsverwaltung (Verwalten oder Admin)-Recht
-  const canManageLehrgangsarten = user?.role === 'admin' || user?.role === 'superuser'
-    || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten')
-    || (user?.permissions || []).includes('lehrgangsverwaltung.admin');
 
   content.innerHTML = `
     <div class="page-header">
@@ -138,9 +127,15 @@ export async function renderLehrgaenge() {
           </tr>
         </thead>
         <tbody>
-          ${items.map((l, idx) => `
-            <tr class="lehrgang-row" style="animation-delay: ${idx * 0.06}s">
-              <td class="lehrgang-title"><strong>${esc(l.titel)}</strong></td>
+          ${items.map((l, idx) => {
+            const myAnm = meldungenByLehrgangId.get(l.id.toString());
+            const rowBg = myAnm ? `background-color: ${STATUS_COLORS[myAnm.status] || '#666'}33;` : '';
+            const isCancelledOrArchived = l.status === 'abgesagt' || l.status === 'archiviert';
+            const canCancel = myAnm && myAnm.status !== 'bestaetigt' && !isCancelledOrArchived;
+
+            return `
+            <tr class="lehrgang-row" style="animation-delay: ${idx * 0.06}s; ${rowBg}">
+              <td class="lehrgang-title"><strong>${esc(l.titel)}${myAnm ? ` <span style="color:${STATUS_COLORS[myAnm.status] || '#666'};font-weight:bold;">(${STATUS_LABELS[myAnm.status] || myAnm.status})</span>` : ''}</td>
               <td class="lehrgang-status"><span class="status-badge" style="background-color: ${STATUS_COLORS[l.status] || '#666'}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 12px;">${STATUS_LABELS[l.status] || l.status}</span></td>
               <td class="lehrgang-datum">${formatDate(l.start_datum)} – ${formatDate(l.end_datum)}</td>
               <td class="lehrgang-ort">${l.ort || '-'}</td>
@@ -149,7 +144,7 @@ export async function renderLehrgaenge() {
               <td class="lehrgang-actions">
                 <button class="btn btn--small btn--secondary view-lehrgang" data-id="${l.id}">Details</button>
                 ${canRegister ? `
-                  <button class="btn btn--small btn--warning anmelden" data-id="${l.id}">Anmelden</button>
+                  <button class="btn btn--small btn--${canCancel ? 'secondary' : 'warning'} anmelden" data-id="${l.id}">${canCancel ? 'Abbrechen' : 'Anmelden'}</button>
                 ` : ''}
                 ${canManage ? `
                   <button class="btn btn--small btn--info edit-lehrgang" data-id="${l.id}">Bearbeiten</button>
@@ -157,24 +152,24 @@ export async function renderLehrgaenge() {
                 ` : ''}
               </td>
             </tr>
-          `).join('')}
+            `;
+          }).join('')}
         </tbody>
       </table>
     `;
 
     // Buttons für "Anmelden" / "Abbrechen" pro Lehrgang anpassen
-    const meldungen = myAnmeldungen;
-    const meldungenByLehrgangId = new Map(meldungen.map(m => [m.lehrgang_id.toString(), m]));
     const anmeldenBtns = document.querySelectorAll('.anmelden');
     anmeldenBtns.forEach(b => {
       const lehrgangId = b.dataset.id;
       const myAnm = meldungenByLehrgangId.get(lehrgangId);
-      const isCourseCancelledOrArchived = l.status === 'abgesagt' || l.status === 'archiviert';
+      const isCancelledOrArchived = l.status === 'abgesagt' || l.status === 'archiviert';
+      const canCancel = myAnm && myAnm.status !== 'bestaetigt' && !isCancelledOrArchived;
 
-      if (myAnm) {
-        // User ist bereits angemeldet – zeige "Abbrechen" statt "Anmelden"
+      if (canCancel) {
+        // User ist bereits angemeldet (nicht bestätigt) – zeige "Abbrechen"
         b.textContent = 'Abbrechen';
-        b.className = 'btn btn--secondary';
+        b.className = 'btn btn--small btn--secondary';
         b.addEventListener('click', async () => {
           try {
             await api.deleteAnmeldung(lehrgangId, myAnm.id);
@@ -182,8 +177,13 @@ export async function renderLehrgaenge() {
             renderLehrgaenge();
           } catch (e) { toast(e.message, 'error'); }
         });
-      } else if (isCourseCancelledOrArchived) {
-        // Kurs ist cancelled/archived – keinen Anmelde-Button zeigen
+      } else if (myAnm && myAnm.status === 'bestaetigt') {
+        // Platz zugewiesen – kein Abbrechen möglich
+        b.textContent = 'Platz zugewiesen';
+        b.className = 'btn btn--small btn--success';
+        b.disabled = true;
+      } else if (isCancelledOrArchived) {
+        // Kurs ist cancelled/archiviert – keinen Button zeigen
         b.style.display = 'none';
       } else {
         // Normaler Anmelde-Button
