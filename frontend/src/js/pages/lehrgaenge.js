@@ -223,6 +223,30 @@ export const showForm = async (l = null) => {
     }
   }
 
+  // Render Voraussetzungen (read-only) based on selected Lehrgangsart — returns HTML string
+  function renderVoraussetzungenDisplay(selectedLehrgangsartId) {
+    if (!selectedLehrgangsartId) {
+      return '<p class="text-muted text-sm">Wählen Sie eine Lehrgangsart, um die Voraussetzungen anzuzeigen.</p>';
+    }
+
+    const la = lehrgangsarten.find(x => x.id === selectedLehrgangsartId);
+    if (!la || !la.voraussetzungen || la.voraussetzungen.length === 0) {
+      return '<p class="text-muted text-sm">Für diese Lehrgangsart sind keine Voraussetzungen definiert.</p>';
+    }
+
+    const names = la.voraussetzungen
+      .map(id => lehrgangsarten.find(x => x.id === id)?.name)
+      .filter(Boolean);
+
+    if (names.length === 0) {
+      return '<p class="text-muted text-sm">Für diese Lehrgangsart sind keine Voraussetzungen definiert.</p>';
+    }
+
+    return names
+      .map(name => `<span class="badge badge--gray" style="margin-right: 6px; margin-bottom: 4px;">${esc(name)}</span>`)
+      .join('');
+  }
+
   formEl.innerHTML = `
     <div class="card">
       <div class="card__header">
@@ -284,12 +308,7 @@ export const showForm = async (l = null) => {
           <div class="form-group form-group--full">
             <label>Voraussetzungen</label>
             <div id="feld-voraussetzungen-container">
-              ${lehrgangsarten.map(la => `
-                <label class="checkbox-label">
-                  <input type="checkbox" value="${la.id}" ${l && l.voraussetzungen && l.voraussetzungen.includes(la.id) ? 'checked' : ''}>
-                  ${esc(la.name)}
-                </label>
-              `).join('')}
+              ${renderVoraussetzungenDisplay(l?.lehrgangsart_id || null)}
             </div>
           </div>
           <div class="form-group form-group--full" style="margin-top: 12px;">
@@ -300,7 +319,11 @@ export const showForm = async (l = null) => {
     </div>
   `;
 
-  document.getElementById('feld-lehrgangsart').addEventListener('change', fillFromLehrgangsart);
+  document.getElementById('feld-lehrgangsart').addEventListener('change', () => {
+    fillFromLehrgangsart();
+    const selectedId = document.getElementById('feld-lehrgangsart').value || null;
+    document.getElementById('feld-voraussetzungen-container').innerHTML = renderVoraussetzungenDisplay(selectedId);
+  });
 
   document.getElementById('btn-cancel').addEventListener('click', () => {
     formEl.style.display = 'none';
@@ -335,6 +358,13 @@ export const showForm = async (l = null) => {
       end.setDate(start.getDate() + dauer - 1);
       endInput.value = end.toISOString().split('T')[0];
     }
+  });
+
+  // Update Voraussetzungen display when Lehrgangsart selection changes
+  document.getElementById('feld-lehrgangsart').addEventListener('change', () => {
+    fillFromLehrgangsart();
+    const selectedId = document.getElementById('feld-lehrgangsart').value || null;
+    document.getElementById('feld-voraussetzungen-container').innerHTML = renderVoraussetzungenDisplay(selectedId);
   });
 
   document.getElementById('lehrgang-form-el').addEventListener('submit', async (e) => {
@@ -379,12 +409,8 @@ export const showForm = async (l = null) => {
     // Use Dauer from Lehrgangsart if selected, otherwise from input, otherwise null
     const dauer = lehrgangsartSelected ? dauerAusArt : (parseInt(document.getElementById('feld-dauer').value || '0') || null);
 
-    // Collect voraussetzungen from checkboxes
-    const voraussetzungenCheckboxes = document.querySelectorAll('#feld-voraussetzungen-container input[type="checkbox"]:checked');
-    const voraussetzungen = Array.from(voraussetzungenCheckboxes).map(cb => cb.value);
-
     // Convert empty string to null for proper handling
-    lehrgangsart_id = lehrgangsartId === '' ? null : lehrgangsartId;
+    const lehrgangsart_id = lehrgangsartId === '' ? null : lehrgangsartId;
 
     // Client-side validation: Lehrgangsart ist optional, aber wenn gewählt, muss es eine gültige UUID sein
     if (lehrgangsartId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lehrgangsart_id)) {
