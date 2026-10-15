@@ -209,13 +209,17 @@ export const showForm = async (l = null) => {
     document.getElementById('feld-beschreibung').value = la.beschreibung || '';
     document.getElementById('feld-ort').value = la.veranstaltungsort || '';
     // Dauer automatisch übernehmen, aber überschreibbar
-    if (la.dauer && document.getElementById('feld-start').value) {
-      const start = new Date(document.getElementById('feld-start').value);
-      const end = new Date(start);
-      end.setDate(start.getDate() + la.dauer - 1);
-      document.getElementById('feld-ende').value = end.toISOString().split('T')[0];
-    } else if (!la.dauer) {
-      document.getElementById('feld-ende').value = '';
+    if (la.dauer !== null && la.dauer !== undefined) {
+      document.getElementById('feld-dauer').value = la.dauer;
+      // Auto-calculate end date if start date is set
+      if (document.getElementById('feld-start').value) {
+        const start = new Date(document.getElementById('feld-start').value);
+        const end = new Date(start);
+        end.setDate(start.getDate() + la.dauer - 1);
+        document.getElementById('feld-ende').value = end.toISOString().split('T')[0];
+      }
+    } else {
+      document.getElementById('feld-dauer').value = '';
     }
   }
 
@@ -276,6 +280,17 @@ export const showForm = async (l = null) => {
               <option value="abgesagt">Abgesagt</option>
               <option value="archiviert">Archiviert</option>
             </select>
+          </div>
+          <div class="form-group form-group--full">
+            <label>Voraussetzungen</label>
+            <div id="feld-voraussetzungen-container">
+              ${lehrgangsarten.map(la => `
+                <label class="checkbox-label">
+                  <input type="checkbox" value="${la.id}" ${l && l.voraussetzungen && l.voraussetzungen.includes(la.id) ? 'checked' : ''}>
+                  ${esc(la.name)}
+                </label>
+              `).join('')}
+            </div>
           </div>
           <div class="form-group form-group--full" style="margin-top: 12px;">
             <button type="submit" class="btn btn--primary">${l ? 'Speichern' : 'Anlegen'}</button>
@@ -348,7 +363,7 @@ export const showForm = async (l = null) => {
     }
 
     const anmeldeschluss = document.getElementById('feld-anmeldeschluss').value;
-    if (anmeldeschluss && anmeldeschluss > start_datum) {
+    if (anmeldeschluss && anmeldeschluss >= start_datum) {
       toast('Anmeldeschluss muss vor dem Startdatum liegen', 'error');
       return;
     }
@@ -363,6 +378,10 @@ export const showForm = async (l = null) => {
     const dauerAusArt = la?.dauer || null;
     // Use Dauer from Lehrgangsart if selected, otherwise from input, otherwise null
     const dauer = lehrgangsartSelected ? dauerAusArt : (parseInt(document.getElementById('feld-dauer').value || '0') || null);
+
+    // Collect voraussetzungen from checkboxes
+    const voraussetzungenCheckboxes = document.querySelectorAll('#feld-voraussetzungen-container input[type="checkbox"]:checked');
+    const voraussetzungen = Array.from(voraussetzungenCheckboxes).map(cb => cb.value);
 
     // Convert empty string to null for proper handling
     lehrgangsart_id = lehrgangsartId === '' ? null : lehrgangsartId;
@@ -384,9 +403,10 @@ export const showForm = async (l = null) => {
       anmeldeschluss: anmeldeschluss || null,
       max_teilnehmer: max_teilnehmer,
       lehrgangsart_id: lehrgangsart_id,
-      // Voraussetzungen sind optionale Felder (werden über Multi-Select im Formular erfasst)
+      // Voraussetzungen sind optionale Felder (werden über Checkboxes im Formular erfasst)
       voraussetzung: null,
       dauer: dauer,
+      voraussetzungen: voraussetzungen.length > 0 ? voraussetzungen : null,
     };
 
     try {
@@ -818,12 +838,15 @@ function showLehrgangsartenForm(la = null) {
           </div>
           <div class="form-group form-group--full">
             <label>Voraussetzungen</label>
-            <select id="feld-voraussetzungen" multiple size="4" style="min-height: 100px;">
+            <div id="feld-voraussetzungen-container">
               ${allLehrgangsarten.map(x => `
-                <option value="${x.id}" ${selectedVoraussetzungen.includes(x.id) ? 'selected' : ''}>${esc(x.name)}</option>
+                <label class="checkbox-label">
+                  <input type="checkbox" value="${x.id}" ${selectedVoraussetzungen.includes(x.id) ? 'checked' : ''}>
+                  ${esc(x.name)}
+                </label>
               `).join('')}
-            </select>
-            <p class="text-muted text-sm">Halten Sie Strg/Cmd gedrückt, um mehrere Voraussetzungen auszuwählen.</p>
+            </div>
+            <p class="text-muted text-sm">Wählen Sie die notwendigen vorherigen Lehrgangsarten aus.</p>
           </div>
           <div class="form-group form-group--full" style="margin-top: 12px;">
             <button type="submit" class="btn btn--primary">${_currentLehrgangsartId ? 'Speichern' : 'Anlegen'}</button>
@@ -853,10 +876,9 @@ function showLehrgangsartenForm(la = null) {
       return;
     }
 
-    // Get selected Voraussetzungen from multi-select
-    const voraussetzungenSelect = document.getElementById('feld-voraussetzungen');
-    const selectedVoraussetzungen = Array.from(voraussetzungenSelect.selectedOptions)
-      .map(o => o.value);
+    // Get selected Voraussetzungen from checkboxes
+    const voraussetzungenCheckboxes = document.querySelectorAll('#feld-voraussetzungen-container input[type="checkbox"]:checked');
+    const selectedVoraussetzungen = Array.from(voraussetzungenCheckboxes).map(cb => cb.value);
 
     const body = {
       name,
