@@ -526,19 +526,12 @@ export async function renderLehrgangEdit() {
   setShellInfo(settings?.ff_name, user, settings?.modules);
   renderShell('lehrgaenge');
 
-  const content = document.getElementById('page-content');
-  const isVerwalter = user?.role === 'admin' || user?.role === 'superuser'
-    || (user?.permissions || []).includes('lehrgangsverwaltung.verwalten');
-  // User mit Grundberechtigung oder Verwaltungsrecht können sich anmelden
-  const canRegister = (user?.permissions || []).includes('lehrgangsverwaltung')
-    || isVerwalter
-    // Legacy: lesen-Berechtigung ebenfalls erlauben (wird nicht mehr neu vergeben)
-    || (user?.permissions || []).includes('lehrgangsverwaltung.lesen');
-      <div><h2>Lehrgang bearbeiten</h2></div>
-      <button class="btn btn--secondary" onclick="history.back()">Zurück</button>
-    </div>
-    <div id="lehrgang-form" style="display:block"></div>
-  `;
+  content.innerHTML = `
+  <div><h2>Lehrgang bearbeiten</h2></div>
+  <button class="btn btn--secondary" onclick="history.back()">Zurück</button>
+</div>
+<div id="lehrgang-form" style="display:block"></div>
+`;
   renderIcons(content);
 
   await showForm(lehrgang);
@@ -574,20 +567,21 @@ export async function renderLehrgangAnmeldungen() {
     || isVerwalter
     // Legacy: lesen-Berechtigung ebenfalls erlauben (wird nicht mehr neu vergeben)
     || (user?.permissions || []).includes('lehrgangsverwaltung.lesen');
-      <div>
-        <h2>Anmeldungen: ${esc(lehrgang.titel)}</h2>
-        <p>${lehrgang.start_datum} – ${lehrgang.end_datum}</p>
-      </div>
-      <div class="page-header-actions">
-        <button class="btn btn--secondary" onclick="history.back()">Zurück</button>
-        <button class="btn btn--primary" id="btn-email-template">E-Mail-Vorlage</button>
-      </div>
+  content.innerHTML = `
+    <div>
+      <h2>Anmeldungen: ${esc(lehrgang.titel)}</h2>
+      <p>${lehrgang.start_datum} – ${lehrgang.end_datum}</p>
     </div>
-    <div class="card">
-      <h3>Alle Registrierungen (${anmeldungen.length})</h3>
-      <p>Plätze: ${lehrgang.max_teilnehmer || '?'}</p>
-      <div id="anmeldungen-list"></div>
+    <div class="page-header-actions">
+      <button class="btn btn--secondary" onclick="history.back()">Zurück</button>
+      <button class="btn btn--primary" id="btn-email-template">E-Mail-Vorlage</button>
     </div>
+  </div>
+  <div class="card">
+    <h3>Alle Registrierungen (${anmeldungen.length})</h3>
+    <p>Plätze: ${lehrgang.max_teilnehmer || '?'}</p>
+    <div id="anmeldungen-list"></div>
+  </div>
   `;
   renderIcons(content);
 
