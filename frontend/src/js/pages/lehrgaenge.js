@@ -431,6 +431,7 @@ export const showForm = async (l = null) => {
       lehrgangsart_id: lehrgangsart_id,
       voraussetzung: null, // No input field for voraussetzung in form, set to null
       dauer: dauer,
+      status,
     };
 
     try {
