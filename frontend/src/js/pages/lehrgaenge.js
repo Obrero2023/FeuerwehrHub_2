@@ -548,13 +548,15 @@ export async function renderLehrgangDetail() {
     ${!isVerwalter && remainingSpots <= 0 && canRegister ? `
     <div class="card" style="border-color:var(--rot)">
       <h3 style="color:var(--rot)">Ausgebucht</h3>
-      <p>Der Lehrgang ist vollständig belegt. Anmeldungen sind nur über die Warteliste möglich. Klicken Sie im Menü oben auf "Anmelden".</p>
+      <p>Der Lehrgang ist vollständig belegt. Anmeldungen sind nur über die Warteliste möglich.</p>
+      <button class="btn btn--warning" id="btn-waitlist" data-id="${lehrgang.id}">Auf Warteliste setzen</button>
     </div>` : ''}
     ${!isVerwalter && (remainingSpots > 0 || !lehrgang.max_teilnehmer) && canRegister ? `
     <div class="card" style="border-color:var(--grün,var(--personal-c))">
       <h3 style="color:var(--grün,var(--personal-c))">Anmeldung möglich</h3>
-      <p>Es sind noch Plätze frei. Klicken Sie im Menü oben auf "Anmelden".</p>
-      <button class="btn btn--primary" onclick="window.location.hash='#/lehrgaenge'">Zur Übersicht</button>
+      <p>Es sind noch Plätze frei.</p>
+      <button class="btn btn--primary" id="btn-register" data-id="${lehrgang.id}">Jetzt anmelden</button>
+      <button class="btn btn--secondary" style="margin-left: 8px;" onclick="history.back()">Abbrechen</button>
     </div>` : ''}
     ${isVerwalter && anmeldungen ? `
     <div class="card">
@@ -574,6 +576,34 @@ export async function renderLehrgangDetail() {
     if (btnEmail) btnEmail.addEventListener('click', () => showEmailTemplate(lehrgang.id));
     const btnDelete = document.getElementById('btn-delete-lehrgang');
     if (btnDelete) btnDelete.addEventListener('click', () => deleteLehrgang(lehrgang.id));
+  }
+
+  // Anmelde-Buttons für Nutzer mit Grundberechtigung (Lesen/Verwalten/Admin)
+  if (canRegister) {
+    const btnRegister = document.getElementById('btn-register');
+    if (btnRegister) {
+      btnRegister.addEventListener('click', async () => {
+        try {
+          await api.createAnmeldung(lehrgang.id, {});
+          toast('Anmeldung bestätigt', 'success');
+          window.location.hash = `#/lehrgaenge`;
+        } catch (e) {
+          toast(e.message, 'error');
+        }
+      });
+    }
+    const btnWaitlist = document.getElementById('btn-waitlist');
+    if (btnWaitlist) {
+      btnWaitlist.addEventListener('click', async () => {
+        try {
+          await api.createAnmeldung(lehrgang.id, {});
+          toast('Sie wurden auf die Warteliste gesetzt', 'success');
+          window.location.hash = `#/lehrgaenge`;
+        } catch (e) {
+          toast(e.message, 'error');
+        }
+      });
+    }
   }
 
   if (isVerwalter && anmeldungen) {
