@@ -145,7 +145,15 @@ export async function renderLehrgaenge() {
     });
     if (canRegister) {
       document.querySelectorAll('.anmelden').forEach(b => {
-        b.addEventListener('click', () => { window.location.hash = `#/lehrgang/${b.dataset.id}`; });
+        b.addEventListener('click', async () => {
+          try {
+            await api.createAnmeldung(b.dataset.id, {});
+            toast('Anmeldung bestätigt', 'success');
+            window.location.hash = `#/lehrgaenge`;
+          } catch (e) {
+            toast(e.message, 'error');
+          }
+        });
       });
     }
     if (canManage) {
