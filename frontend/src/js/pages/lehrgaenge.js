@@ -5,21 +5,35 @@ import { esc, formatDate, formatDateTime } from '../utils.js';
 import { icon, renderIcons } from '../icons.js';
 
 const STATUS_COLORS = {
+  // Lehrgang-Status
   geplant: '#6b7280',
   veröffentlicht: '#16a34a',
   voll: '#dc2626',
   abgesagt: '#9ca3af',
   archiviert: '#9ca3af',
+  // Anmeldestatus
+  angemeldet: '#3b82f6',
+  bestaetigt: '#16a34a',
   warteliste: '#f59e0b',
+  abgelehnt: '#dc2626',
+  teilgenommen: '#16a34a',
+  nicht_erschienen: '#dc2626',
 };
 
 const STATUS_LABELS = {
+  // Lehrgang-Status
   geplant: 'Geplant',
   veröffentlicht: 'Veröffentlicht',
   voll: 'Voll',
   abgesagt: 'Abgesagt',
   archiviert: 'Archiviert',
+  // Anmeldestatus
+  angemeldet: 'Angemeldet',
+  bestaetigt: 'Platz zugewiesen',
   warteliste: 'Warteliste',
+  abgelehnt: 'Abgelehnt',
+  teilgenommen: 'Teilgenommen',
+  nicht_erschienen: 'Nicht erschienen',
 };
 
 // ── Hilfsfunktionen ──────────────────────────────────────────────────────────
@@ -129,9 +143,8 @@ export async function renderLehrgaenge() {
         <tbody>
           ${items.map((l, idx) => {
             const myAnm = meldungenByLehrgangId.get(l.id.toString());
-            // Farbliche Hinterlegung nur bei Verwalter-Zuweisung (nicht bei bloßer "angemeldet")
-            const showColorBg = myAnm && myAnm.status !== 'angemeldet';
-            const rowBg = showColorBg ? `background-color: ${STATUS_COLORS[myAnm.status] || '#666'}33;` : '';
+            // Farbliche Hinterlegung je nach Anmeldestatus
+            const rowBg = myAnm ? `background-color: ${STATUS_COLORS[myAnm.status] || '#666'}33;` : '';
             const isCancelledOrArchived = l.status === 'abgesagt' || l.status === 'archiviert';
             const canCancel = myAnm && myAnm.status !== 'bestaetigt' && myAnm.status !== 'abgelehnt' && !isCancelledOrArchived;
 

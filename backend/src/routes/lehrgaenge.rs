@@ -666,30 +666,9 @@ pub async fn create_anmeldung(
         return Err(AppError::BadRequest("Du bist bereits für diesen Lehrgang angemeldet".into()));
     }
 
-    // Prüfen ob max Teilnehmer erreicht
-    let max_teilnehmer: Option<i32> = sqlx::query_scalar("SELECT max_teilnehmer FROM lehrgaenge WHERE id = $1")
-        .bind(lehrgang_id)
-        .fetch_one(&state.db)
-        .await?;
-
-    let aktuelle_anzahl: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM lehrgang_anmeldungen WHERE lehrgang_id = $1 AND status IN ('angemeldet', 'bestaetigt', 'teilgenommen', 'warteliste')"
-    )
-    .bind(lehrgang_id)
-    .fetch_one(&state.db)
-    .await?;
-
-    // Wenn voll: Auf Warteliste setzen statt Fehler zu werfen
-    let status = if let Some(max_tn) = max_teilnehmer {
-        if aktuelle_anzahl >= max_tn as i64 {
-            tracing::info!("create_anmeldung - placing user on waitlist (max={}, current={})", max_tn, aktuelle_anzahl);
-            "warteliste".to_string()
-        } else {
-            "angemeldet".to_string()
-        }
-    } else {
-        "angemeldet".to_string()
-    };
+    // Niemanden automatisch auf die Warteliste setzen – jeder bekommt erst einmal "angemeldet"
+    // Die Warteliste wird nur über die admin-seitigen Status-Änderungen (bestaetigt/abgelehnt/warteliste) gesteuert.
+    let status = "angemeldet".to_string();
 
     let anmeldung = sqlx::query_as::<_, Anmeldung>(
         r#"
