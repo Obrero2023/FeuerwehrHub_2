@@ -469,7 +469,7 @@ export const showForm = async (l = null) => {
     }
 
     const anmeldeschluss = document.getElementById('feld-anmeldeschluss').value;
-    if (anmeldeschluss && anmeldeschluss >= start_datum) {
+    if (anmeldeschluss && anmeldeschluss > start_datum) {
       toast('Anmeldeschluss muss vor dem Startdatum liegen', 'error');
       return;
     }
