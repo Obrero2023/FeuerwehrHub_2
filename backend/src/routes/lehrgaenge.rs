@@ -139,71 +139,61 @@ async fn is_basic_lehrgangsverwaltung(pool: &PgPool, claims: &Claims) -> bool {
 
 pub async fn list_lehrgaenge(
     State(state): State<AppState>,
-    Query(query): Query<LehrgangQuery>,
-    Extension(claims): Extension<Claims>,
+    Query(params): Query<LehrgangQuery>,
+    Extension(_claims): Extension<Claims>,
 ) -> AppResult<Json<Vec<Lehrgang>>> {
-    let is_verw = is_verwalter(&state.db, &claims).await;
-    let is_rdr = is_reader(&state.db, &claims).await;
-    let is_basic = is_basic_lehrgangsverwaltung(&state.db, &claims).await;
+    let is_verw = is_verwalter(&state.db, &_claims).await;
+    let is_rdr = is_reader(&state.db, &_claims).await;
+    let is_basic = is_basic_lehrgangsverwaltung(&state.db, &_claims).await;
 
     if !is_verw && !is_rdr && !is_basic {
         return Err(AppError::Forbidden);
     }
 
-    let status_filter: Option<String> = if is_verw {
-        // Verwalter sehen alle Lehrgänge (respektieren query.status falls gesetzt)
-        query.status
-    } else if is_rdr {
-        // Leser sehen nur veröffentlichte Lehrgänge
-        Some("veröffentlicht".to_string())
-    } else if is_basic {
-        // Basis-Lehrgangsverwaltung: Zeige alles AUSSER veröffentlicht, voll, abgesagt
-        // Wir verwenden einen komplexeren Filter dafür
-        None // Wir werden den Filter im WHERE-Clausel selbst behandeln
-    } else {
-        // This case should be caught by the permission check above, but just in case:
-        None
-    };
-
-    // Baue die WHERE-Bedingung dynamisch zusammen
-    let mut query_builder = String::from(
-        r#"
-        SELECT l.id, l.titel, l.beschreibung, l.ort,
-               l.start_datum, l.end_datum, l.anmeldeschluss,
-               l.max_teilnehmer, l.status,
-               l.lehrgangsart_id,
+    // Bau das Ergebnis in eine einzelne Variable, damit wir es zurückgeben können
+    let lehrgaenge: Vec<Lehrgang> = if is_verw {
+        // Verwalter: respektiere falls status/art/ab_datum gesetzt sind
+        let mut query_builder = String::from(
+            r#"
+            SELECT l.id, l.titel, l.beschreibung, l.ort,
+                   l.start_datum, l.end_datum, l.anmeldeschluss,
+                   l.max_teilnehmer, l.status,
+                   l.lehrgangsart_id,
                la.name as lehrgangsart_name, l.voraussetzung,
                l.voraussetzungen_erfuellt,
                COALESCE((SELECT COUNT(*) FROM lehrgang_anmeldungen la WHERE la.lehrgang_id = l.id), 0)::int4 as anmeldungen_count,
                l.erstellt_von, l.erstellt_von_name, l.erstellt_am, l.aktualisiert_am
-        FROM lehrgaenge l
-        LEFT JOIN lehrgangsarten la ON la.id = l.lehrgangsart_id
-        WHERE 1=1
-        "#,
-    );
+            FROM lehrgaenge l
+            LEFT JOIN lehrgangsarten la ON la.id = l.lehrgangsart_id
+            WHERE 1=1
+            "#,
+        );
 
-    if is_verw {
-        // Verwalter: respektiere query.status falls gesetzt
-        if let Some(ref status) = query.status {
+        if let Some(ref status) = params.status {
             query_builder.push_str(" AND l.status = $1 ");
         }
-        if let Some(ref art) = query.art {
+        if let Some(ref art) = params.art {
             query_builder.push_str(" AND l.lehrgangsart_id = $2 ");
         }
-        if let Some(ref ab_datum) = query.ab_datum {
+        if let Some(ref ab_datum) = params.ab_datum {
             query_builder.push_str(" AND l.start_datum <= $3 ");
         }
         query_builder.push_str(" ORDER BY l.start_datum ASC ");
 
-        let query = sqlx::query_as::<_, Lehrgang>(&query_builder);
-        let mut query = query.bind(query.status);
-        if let Some(ref art) = query.art {
-            query = query.bind(art);
+        let stmt = sqlx::query_as::<_, Lehrgang>(&query_builder);
+
+        let mut stmt = stmt;
+        if let Some(ref status) = params.status {
+            stmt = stmt.bind(status.clone());
         }
-        if let Some(ref ab_datum) = query.ab_datum {
-            query = query.bind(ab_datum);
+        if let Some(ref art) = params.art {
+            stmt = stmt.bind(art.clone());
         }
-        query.fetch_all(&state.db).await?
+        if let Some(ref ab_datum) = params.ab_datum {
+            stmt = stmt.bind(ab_datum.clone());
+        }
+
+        stmt.fetch_all(&state.db).await?
     } else if is_rdr {
         // Leser: nur veröffentlichte
         let lehrgaenge = sqlx::query_as::<_, Lehrgang>(
@@ -225,8 +215,8 @@ pub async fn list_lehrgaenge(
             "#,
         )
         .bind("veröffentlicht")
-        .bind(query.art)
-        .bind(query.ab_datum)
+        .bind(params.art)
+        .bind(params.ab_datum)
         .fetch_all(&state.db)
         .await?;
         lehrgaenge
@@ -250,8 +240,8 @@ pub async fn list_lehrgaenge(
             ORDER BY l.start_datum ASC
             "#,
         )
-        .bind(query.art)
-        .bind(query.ab_datum)
+        .bind(params.art)
+        .bind(params.ab_datum)
         .fetch_all(&state.db)
         .await?;
         lehrgaenge
@@ -275,7 +265,7 @@ pub async fn list_lehrgaenge(
         .fetch_all(&state.db)
         .await?;
         lehrgaenge
-    }
+    };
 
     Ok(Json(lehrgaenge))
 }
