@@ -195,7 +195,7 @@ pub async fn list_lehrgaenge(
 
         stmt.fetch_all(&state.db).await?
     } else if is_rdr {
-        // Leser: nur veröffentlichte
+        // Leser: nur veröffentlichte, voll oder abgesagt
         let lehrgaenge = sqlx::query_as::<_, Lehrgang>(
             r#"
             SELECT l.id, l.titel, l.beschreibung, l.ort,
@@ -208,7 +208,7 @@ pub async fn list_lehrgaenge(
                    l.erstellt_von, l.erstellt_von_name, l.erstellt_am, l.aktualisiert_am
             FROM lehrgaenge l
             LEFT JOIN lehrgangsarten la ON la.id = l.lehrgangsart_id
-            WHERE l.status = $1
+            WHERE l.status IN ('veröffentlicht', 'voll', 'abgesagt')
               AND ($2::uuid IS NULL OR l.lehrgangsart_id = $2)
               AND ($3::date IS NULL OR l.start_datum <= $3)
             ORDER BY l.start_datum ASC
@@ -221,7 +221,7 @@ pub async fn list_lehrgaenge(
         .await?;
         lehrgaenge
     } else if is_basic {
-        // Basis-Lehrgangsverwaltung: Alles AUSSER veröffentlicht, voll, abgesagt
+        // Basis-Lehrgangsverwaltung: Nur veröffentlicht, voll, abgesagt anzeigen
         let lehrgaenge = sqlx::query_as::<_, Lehrgang>(
             r#"
             SELECT l.id, l.titel, l.beschreibung, l.ort,
@@ -234,7 +234,7 @@ pub async fn list_lehrgaenge(
                    l.erstellt_von, l.erstellt_von_name, l.erstellt_am, l.aktualisiert_am
             FROM lehrgaenge l
             LEFT JOIN lehrgangsarten la ON la.id = l.lehrgangsart_id
-            WHERE l.status NOT IN ('veröffentlicht', 'voll', 'abgesagt')
+            WHERE l.status IN ('veröffentlicht', 'voll', 'abgesagt')
               AND ($1::uuid IS NULL OR l.lehrgangsart_id = $1)
               AND ($2::date IS NULL OR l.start_datum <= $2)
             ORDER BY l.start_datum ASC
@@ -295,7 +295,7 @@ pub async fn get_lehrgang(
         FROM lehrgaenge l
         LEFT JOIN lehrgangsarten la ON la.id = l.lehrgangsart_id
         WHERE l.id = $1
-          AND ($2::boolean OR l.status = 'veröffentlicht')
+          AND ($2::boolean OR l.status IN ('veröffentlicht', 'voll', 'abgesagt'))
         "#,
     )
     .bind(id)
@@ -329,10 +329,10 @@ pub async fn create_lehrgang(
         }
     }
 
-    // Validierung: end_datum muss nach start_datum liegen
+    // Validierung: end_datum muss nach start_datum liegen (oder gleich sein für 1-Tage-Lehrgänge)
     if body.end_datum < body.start_datum {
         tracing::warn!("POST /api/lehrgaenge - invalid date range: start={} end={}", body.start_datum, body.end_datum);
-        return Err(AppError::BadRequest("Enddatum muss nach Startdatum liegen".into()));
+        return Err(AppError::BadRequest("Enddatum muss nach dem Startdatum liegen".into()));
     }
 
     // Validierung: anmeldeschluss muss vor start_datum liegen
@@ -822,6 +822,8 @@ pub struct Lehrgangsart {
     pub beschreibung: Option<String>,
     pub veranstaltungsort: Option<String>,
     pub voraussetzung: Option<String>,
+    pub voraussetzungen: Option<Vec<String>>,
+    pub dauer: i32,
     pub erstellt_am: chrono::DateTime<chrono::Utc>,
     pub aktualisiert_am: chrono::DateTime<chrono::Utc>,
 }
@@ -833,6 +835,8 @@ pub struct CreateLehrgangsart {
     pub beschreibung: Option<String>,
     pub veranstaltungsort: Option<String>,
     pub voraussetzung: Option<String>,
+    pub voraussetzungen: Option<Vec<Uuid>>,
+    pub dauer: Option<i32>,
 }
 
 #[derive(Deserialize)]
@@ -841,6 +845,8 @@ pub struct UpdateLehrgangsart {
     pub beschreibung: Option<String>,
     pub veranstaltungsort: Option<String>,
     pub voraussetzung: Option<String>,
+    pub voraussetzungen: Option<Vec<Uuid>>,
+    pub dauer: Option<i32>,
 }
 
 /// Alle Lehrgangsarten auflisten
@@ -873,7 +879,7 @@ pub async fn list_lehrgangsarten(
     }
 
     let lehrgangsarten = sqlx::query_as::<_, Lehrgangsart>(
-        "SELECT id, name, beschreibung, veranstaltungsort, voraussetzung, erstellt_am, aktualisiert_am
+        "SELECT id, name, beschreibung, veranstaltungsort, voraussetzung, voraussetzungen, dauer, erstellt_am, aktualisiert_am
          FROM lehrgangsarten
          ORDER BY name ASC"
     )
@@ -918,14 +924,16 @@ pub async fn create_lehrgangsart(
     body.validate()?;
 
     let lehrgangsart = sqlx::query_as::<_, Lehrgangsart>(
-        "INSERT INTO lehrgangsarten (name, beschreibung, veranstaltungsort, voraussetzung)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, name, beschreibung, veranstaltungsort, voraussetzung, erstellt_am, aktualisiert_am"
+        "INSERT INTO lehrgangsarten (name, beschreibung, veranstaltungsort, voraussetzung, dauer, voraussetzungen)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, name, beschreibung, veranstaltungsort, voraussetzung, voraussetzungen, dauer, erstellt_am, aktualisiert_am"
     )
     .bind(&body.name)
     .bind(&body.beschreibung)
     .bind(&body.veranstaltungsort)
     .bind(&body.voraussetzung)
+    .bind(body.dauer)
+    .bind(body.voraussetzungen)
     .fetch_one(&state.db)
     .await?;
 
@@ -984,14 +992,18 @@ pub async fn update_lehrgangsart(
              beschreibung = COALESCE($2, beschreibung),
              veranstaltungsort = COALESCE($3, veranstaltungsort),
              voraussetzung = COALESCE($4, voraussetzung),
+             voraussetzungen = COALESCE($5, voraussetzungen),
+             dauer = COALESCE($6, dauer),
              aktualisiert_am = NOW()
-         WHERE id = $5
-         RETURNING id, name, beschreibung, veranstaltungsort, voraussetzung, erstellt_am, aktualisiert_am"
+         WHERE id = $7
+         RETURNING id, name, beschreibung, veranstaltungsort, voraussetzung, voraussetzungen, dauer, erstellt_am, aktualisiert_am"
     )
     .bind(body.name)
     .bind(body.beschreibung)
     .bind(body.veranstaltungsort)
     .bind(body.voraussetzung)
+    .bind(body.voraussetzungen)
+    .bind(body.dauer)
     .bind(id)
     .fetch_one(&state.db)
     .await?;

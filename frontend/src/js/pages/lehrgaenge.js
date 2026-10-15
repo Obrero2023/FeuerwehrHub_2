@@ -1,7 +1,7 @@
 import { api } from '../api.js';
 import { toast } from '../toast.js';
 import { renderShell, setShellInfo } from '../shell.js';
-import { esc, formatDate } from '../utils.js';
+import { esc, formatDate, formatDateTime } from '../utils.js';
 import { icon, renderIcons } from '../icons.js';
 
 const STATUS_COLORS = {
@@ -42,7 +42,7 @@ function renderPermissionNotice(canManage) {
   return '';
 }
 
-// ── Hauptliste ────────────────────────────────────────────────────────────────
+// ── Hauptliste ───────────────────────────────────────────────────────────────
 
 export async function renderLehrgaenge() {
   const [settings, user] = await Promise.all([api.getSettings(), api.me()]);
@@ -172,8 +172,7 @@ export async function renderLehrgaenge() {
   document.getElementById('btn-new-lehrgang').addEventListener('click', () => showForm());
 }
 
-// ── Formular (Neu/Bearbeiten) ─────────────────────────────────────────────────
-
+// ── Formular (Neu/Bearbeiten) ──────────────────────────────────────────────
 let _lehrgangsartenCache = null;
 let _lehrgangsartenLoaded = false;
 
@@ -197,7 +196,7 @@ export const showForm = async (l = null) => {
   formEl.style.display = 'block';
   if (listEl) listEl.style.display = 'none';
 
-  // Load Lehrgangsarten for the dropdown
+  // Load Lehrgangsarten for the dropdown and prerequisite selection
   const lehrgangsarten = await loadLehrgangsarten();
   const _currentLehrgangsartId = l?.lehrgangsart_id || null;
 
@@ -209,6 +208,15 @@ export const showForm = async (l = null) => {
     if (!la) return;
     document.getElementById('feld-beschreibung').value = la.beschreibung || '';
     document.getElementById('feld-ort').value = la.veranstaltungsort || '';
+    // Dauer automatisch übernehmen, aber überschreibbar
+    if (la.dauer && document.getElementById('feld-start').value) {
+      const start = new Date(document.getElementById('feld-start').value);
+      const end = new Date(start);
+      end.setDate(start.getDate() + la.dauer - 1);
+      document.getElementById('feld-ende').value = end.toISOString().split('T')[0];
+    } else if (!la.dauer) {
+      document.getElementById('feld-ende').value = '';
+    }
   }
 
   formEl.innerHTML = `
@@ -249,6 +257,10 @@ export const showForm = async (l = null) => {
             <input type="date" id="feld-ende" value="${l && l.end_datum ? l.end_datum : ''}" required />
           </div>
           <div class="form-group form-group--full">
+            <label>Dauer (Tage)</label>
+            <input type="number" id="feld-dauer" min="1" value="${l && l.dauer ? l.dauer : ''}" />
+          </div>
+          <div class="form-group form-group--full">
             <label>Anmeldefrist</label>
             <input type="date" id="feld-anmeldeschluss" placeholder="Anmeldefrist" value="${l && l.anmeldeschluss ? l.anmeldeschluss : ''}" />
           </div>
@@ -264,6 +276,7 @@ export const showForm = async (l = null) => {
               <option value="abgesagt">Abgesagt</option>
               <option value="archiviert">Archiviert</option>
             </select>
+          </div>
           <div class="form-group form-group--full" style="margin-top: 12px;">
             <button type="submit" class="btn btn--primary">${l ? 'Speichern' : 'Anlegen'}</button>
           </div>
@@ -277,6 +290,36 @@ export const showForm = async (l = null) => {
   document.getElementById('btn-cancel').addEventListener('click', () => {
     formEl.style.display = 'none';
     if (listEl) listEl.style.display = '';
+  });
+
+  // Auto-calculate end date when start date changes
+  document.getElementById('feld-start').addEventListener('change', () => {
+    const dauerInput = document.getElementById('feld-dauer');
+    const endInput = document.getElementById('feld-ende');
+    const dauer = parseInt(dauerInput?.value || '0') || 0;
+    if (dauer > 0 && endInput) {
+      const start = new Date(document.getElementById('feld-start').value);
+      const end = new Date(start);
+      end.setDate(start.getDate() + dauer - 1);
+      endInput.value = end.toISOString().split('T')[0];
+    } else if (dauer === 0) {
+      // If no Dauer set, just set end to start date (but validation requires end > start)
+      endInput.value = document.getElementById('feld-start').value;
+    }
+  });
+
+  // When Dauer input changes, recalculate end date
+  document.getElementById('feld-dauer').addEventListener('change', () => {
+    const dauerInput = document.getElementById('feld-dauer');
+    const endInput = document.getElementById('feld-ende');
+    const startInput = document.getElementById('feld-start');
+    const dauer = parseInt(dauerInput?.value || '0') || 0;
+    if (dauer > 0 && startInput && endInput) {
+      const start = new Date(startInput.value);
+      const end = new Date(start);
+      end.setDate(start.getDate() + dauer - 1);
+      endInput.value = end.toISOString().split('T')[0];
+    }
   });
 
   document.getElementById('lehrgang-form-el').addEventListener('submit', async (e) => {
@@ -312,12 +355,20 @@ export const showForm = async (l = null) => {
 
     const max_tn = document.getElementById('feld-max').value;
     const max_teilnehmer = max_tn ? Math.max(1, parseInt(max_tn)) : null;
-    let lehrgangsart_id = document.getElementById('feld-lehrgangsart').value;
+
+    // Determine lehrgangsart and its Dauer
+    const lehrgangsartId = document.getElementById('feld-lehrgangsart').value;
+    const lehrgangsartSelected = lehrgangsartId !== '';
+    const la = lehrgangsarten.find(x => x.id == lehrgangsartId);
+    const dauerAusArt = la?.dauer || null;
+    // Use Dauer from Lehrgangsart if selected, otherwise from input, otherwise null
+    const dauer = lehrgangsartSelected ? dauerAusArt : (parseInt(document.getElementById('feld-dauer').value || '0') || null);
+
     // Convert empty string to null for proper handling
-    lehrgangsart_id = lehrgangsart_id === '' ? null : lehrgangsart_id;
+    lehrgangsart_id = lehrgangsartId === '' ? null : lehrgangsartId;
 
     // Client-side validation: Lehrgangsart ist optional, aber wenn gewählt, muss es eine gültige UUID sein
-    if (lehrgangsart_id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lehrgangsart_id)) {
+    if (lehrgangsartId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lehrgangsart_id)) {
       toast('Ungültige Lehrgangsart ausgewählt', 'error');
       return;
     }
@@ -333,9 +384,9 @@ export const showForm = async (l = null) => {
       anmeldeschluss: anmeldeschluss || null,
       max_teilnehmer: max_teilnehmer,
       lehrgangsart_id: lehrgangsart_id,
-      status: status || 'geplant',
-      // Voraussetzungen sind optionale Felder (keine UI im Lehrgang-Formular)
+      // Voraussetzungen sind optionale Felder (werden über Multi-Select im Formular erfasst)
       voraussetzung: null,
+      dauer: dauer,
     };
 
     try {
@@ -346,30 +397,24 @@ export const showForm = async (l = null) => {
         await api.createLehrgang(body);
         toast('Lehrgang angelegt', 'success');
       }
-      // Zurück zur Übersicht navigieren, um die Liste zu aktualisieren.
-      // Der hashchange-Trigger funktioniert nicht, wenn der Hash bereits
-      // '#/lehrgaenge' ist (Formular wurde von der Listenansicht aufgerufen),
-      // daher wird renderLehrgaenge() direkt aufgerufen, um die Liste neu zu laden.
       window.location.hash = '#/lehrgaenge';
       await renderLehrgaenge();
     } catch (e) {
       console.error('Lehrgang speichern fehlgeschlagen:', e);
-      // Versuche, den Rohkörper der Antwort zu bekommen
       let rawResponse = e?.rawResponse || '';
       if (!rawResponse && e?.response) {
         rawResponse = await e.response.text().catch(() => 'Konnte Antwort nicht lesen');
       }
 
-      // Detaillierte Fehleranzeige: Body + Fehlermeldung vom Server
       const bodyStr = esc(JSON.stringify(body, null, 2));
       const errorMsg = e?.message || 'Unbekannter Fehler';
       const html = `
         <div class="error-detail-box">
           <p class="text-sm"><strong>Die Anfrage an den Server war:</strong></p>
           <pre class="error-pre text-sm">${bodyStr}</pre>
-          <p class="text-sm"><strong>Rohantwort vom Server:</strong></p>
+          <p class="text-sm"><strong>Rohantwort vom Server:</strong></pre>
           <pre class="error-pre text-sm">${esc(rawResponse)}</pre>
-          <p class="text-sm"><strong>Verarbeitete Fehlermeldung:</strong></p>
+          <p class="text-sm"><strong>Verarbeitete Fehlermeldung:</strong></pre>
           <pre class="error-pre text-sm">${esc(errorMsg)}</pre>
           <button class="btn btn--sm btn--outline" onclick="this.closest('.error-overlay').style.display='none'">Schließen</button>
         </div>
@@ -433,10 +478,10 @@ export async function renderLehrgangDetail() {
     <div class="card">
       <h3>Veranstaltung</h3>
       <table class="details-table">
-        <tr><td>📅 Start</td><td>${lehrgang.start_datum}</td></tr>
-        <tr><td>📅 Ende</td><td>${lehrgang.end_datum}</td></tr>
+        <tr><td>📅 Start</td><td>${formatDate(lehrgang.start_datum)}</td></tr>
+        <tr><td>📅 Ende</td><td>${formatDate(lehrgang.end_datum)}</td></tr>
         ${lehrgang.ort ? `<tr><td>📍 Ort</td><td>${esc(lehrgang.ort)}</td></tr>` : ''}
-        ${lehrgang.anmeldeschluss ? `<tr><td>📝 Anmeldeschluss</td><td>${lehrgang.anmeldeschluss}</td></tr>` : ''}
+        ${lehrgang.anmeldeschluss ? `<tr><td>📝 Anmeldeschluss</td><td>${formatDate(lehrgang.anmeldeschluss)}</td></tr>` : ''}
         ${lehrgang.max_teilnehmer ? `<tr><td>👥 Plätze</td><td>${lehrgang.anmeldungen_count || 0} / ${lehrgang.max_teilnehmer} (offen: ${remainingSpots})</td></tr>` : ''}
       </table>
     </div>
@@ -501,36 +546,7 @@ export async function renderLehrgangDetail() {
   }
 }
 
-async function deleteLehrgang(id) {
-  if (!confirm('Lehrgang wirklich löschen?')) return;
-  try {
-    await api.deleteLehrgang(id);
-    toast('Lehrgang gelöscht', 'success');
-    window.location.hash = '#/lehrgaenge';
-  } catch (e) { toast(e.message, 'error'); }
-}
-
-async function showEmailTemplate(id) {
-  try {
-    const data = await api.generateEmailTemplate(id);
-    const template = `Betreff: Anmeldung für ${data.lehrgang_titel || 'Lehrgang'}
-
-Sehr geehrte Damen und Herren,
-
-Ihre Platzzuweisung für den Lehrgang "${data.lehrgang_titel}" wurde bestätigt.
-
-Teilnehmer (${data.anzahl}):
-${data.csv || '(keine bestätigten Teilnehmer)'}
-
-Mit freundlichen Grüßen,
-Lehrgangsverwaltung
-`;
-    await navigator.clipboard.writeText(template);
-    toast(`E-Mail-Vorlage für ${data.anzahl} Teilnehmer in die Zwischenablage kopiert`, 'success');
-  } catch (e) { toast(e.message, 'error'); }
-}
-
-// ── Bearbeitungsansicht ──────────────────────────────────────────────────────
+// ── Bearbeitungsansicht ─────────────────────────────────────────────────────
 
 export async function renderLehrgangEdit() {
   const hash = window.location.hash;
@@ -546,6 +562,7 @@ export async function renderLehrgangEdit() {
   setShellInfo(settings?.ff_name, user, settings?.modules);
   renderShell('lehrgaenge');
 
+  const content = document.getElementById('page-content');
   content.innerHTML = `
   <div><h2>Lehrgang bearbeiten</h2></div>
   <button class="btn btn--secondary" onclick="history.back()">Zurück</button>
@@ -557,7 +574,7 @@ export async function renderLehrgangEdit() {
   await showForm(lehrgang);
 }
 
-// ── Anmeldungen (Verwaltung) ─────────────────────────────────────────────────
+// ── Anmeldungen (Verwaltung) ───────────────────────────────────────────────
 
 let _currentAnmeldungenLehrgangId = null;
 
@@ -590,7 +607,7 @@ export async function renderLehrgangAnmeldungen() {
   content.innerHTML = `
     <div>
       <h2>Anmeldungen: ${esc(lehrgang.titel)}</h2>
-      <p>${lehrgang.start_datum} – ${lehrgang.end_datum}</p>
+      <p>${formatDate(lehrgang.start_datum)} – ${formatDate(lehrgang.end_datum)}</p>
     </div>
     <div class="page-header-actions">
       <button class="btn btn--secondary" onclick="history.back()">Zurück</button>
@@ -648,7 +665,7 @@ export async function renderLehrgangAnmeldungen() {
   }
 }
 
-// ── Lehrgangsarten verwalten ────────────────────────────────────────────
+// ── Lehrgangsarten verwalten ──────────────────────────────────────────────
 
 /** Sektion umschalten: Liste anzeigen / zum Lehrgänge-Overlay zurück */
 async function showLehrgangsartenSection() {
@@ -708,7 +725,7 @@ async function renderLehrgangsarten() {
   // Neue Lehrgangsart Klick-Handler immer registrieren (auch bei leerer Liste)
   document.getElementById('btn-new-lehrgangsart').addEventListener('click', () => {
     _currentLehrgangsartId = null;
-    showLehrgangsartenForm('', '', '', '');
+    showLehrgangsartenForm(null);
   });
 
   if (!lehrgangsarten.length) {
@@ -722,13 +739,11 @@ async function renderLehrgangsarten() {
         <div class="fw-bold">${esc(la.name)}</div>
         ${la.beschreibung ? `<div class="text-muted text-sm">${esc(la.beschreibung)}</div>` : ''}
         ${la.veranstaltungsort ? `<div class="text-muted text-sm">📍 ${esc(la.veranstaltungsort)}</div>` : ''}
-        ${la.voraussetzung ? `<div class="text-muted text-sm">Voraussetzung: ${esc(la.voraussetzung)}</div>` : ''}
+        ${la.dauer ? `<div class="text-muted text-sm">⏱ Dauer: ${la.dauer} Tag${la.dauer > 1 ? 'e' : ''}</div>` : ''}
+        ${la.voraussetzung ? `<div class="text-muted text-sm">Voraussetzung: ${esc(la.voraussetzung)}</div>` : '' }
       </div>
       <div class="btn-group">
-        <button class="btn btn--outline btn--sm" data-action="edit" data-id="${la.id}"
-          data-name="${esc(la.name)}" data-beschreibung="${esc(la.beschreibung || '')}"
-          data-veranstaltungsort="${esc(la.veranstaltungsort || '')}"
-          data-voraussetzung="${esc(la.voraussetzung || '')}">Bearbeiten</button>
+        <button class="btn btn--outline btn--sm" data-action="edit" data-id="${la.id}">Bearbeiten</button>
         <button class="btn btn--danger btn--sm" data-action="delete" data-id="${la.id}" data-name="${esc(la.name)}">
           Löschen
         </button>
@@ -741,8 +756,11 @@ async function renderLehrgangsarten() {
   // Bearbeiten
   listEl.querySelectorAll('[data-action="edit"]').forEach(btn => {
     btn.addEventListener('click', () => {
-      _currentLehrgangsartId = btn.dataset.id;
-      showLehrgangsartenForm(btn.dataset.name, btn.dataset.beschreibung, btn.dataset.veranstaltungsort, btn.dataset.voraussetzung);
+      const row = lehrgangsarten.find(x => x.id === btn.dataset.id);
+      if (row) {
+        _currentLehrgangsartId = btn.dataset.id;
+        showLehrgangsartenForm(row);
+      }
     });
   });
 
@@ -761,10 +779,15 @@ async function renderLehrgangsarten() {
 }
 
 /** Formular zum Erstellen/Bearbeiten einer Lehrgangsart anzeigen */
-function showLehrgangsartenForm(name = '', beschreibung = '', veranstaltungsort = '', voraussetzung = '') {
+function showLehrgangsartenForm(la = null) {
   const formEl = document.getElementById('lehrgangsarten-form');
   const listEl = document.getElementById('lehrgangsarten-list');
   if (!formEl || !listEl) return;
+
+  // Use the cached lehrgangsarten from loadLehrgangsarten()
+  const allLehrgangsarten = _lehrgangsartenCache || [];
+  // Determine selected UUIDs from the existing lehrgangsart, or empty array for new
+  const selectedVoraussetzungen = la?.voraussetzungen || [];
 
   formEl.style.display = 'block';
   listEl.style.display = 'none';
@@ -779,19 +802,28 @@ function showLehrgangsartenForm(name = '', beschreibung = '', veranstaltungsort 
         <form id="lehrgangsarten-form-el" class="form-grid">
           <div class="form-group form-group--full">
             <label>Name der Lehrgangsart <span class="required">*</span></label>
-            <input type="text" id="fld-name" placeholder="z.B. Grundlehrgang" value="${esc(name)}" required />
+            <input type="text" id="fld-name" placeholder="z.B. Grundlehrgang" value="${esc(la?.name || '')}" required />
           </div>
           <div class="form-group form-group--full">
             <label>Beschreibung</label>
-            <textarea id="feld-beschreibung" placeholder="Beschreibung des Lehrgangs" rows="3">${esc(beschreibung)}</textarea>
+            <textarea id="feld-beschreibung" placeholder="Beschreibung des Lehrgangs" rows="3">${esc(la?.beschreibung || '')}</textarea>
           </div>
           <div class="form-group form-group--full">
             <label>Veranstaltungsort</label>
-            <input type="text" id="feld-veranstaltungsort" placeholder="Für welchen Veranstaltungsort ist diese Lehrgangsart vorgesehen?" value="${esc(veranstaltungsort || '')}" />
+            <input type="text" id="feld-veranstaltungsort" placeholder="Für welchen Veranstaltungsort ist diese Lehrgangsart vorgesehen?" value="${esc(la?.veranstaltungsort || '')}" />
           </div>
           <div class="form-group form-group--full">
-            <label>Voraussetzung</label>
-            <textarea id="feld-voraussetzung" placeholder="Welche Voraussetzungen müssen Teilnehmer mitbringen?" rows="3">${esc(voraussetzung)}</textarea>
+            <label>Dauer (Tage)</label>
+            <input type="number" id="feld-dauer" placeholder="Dauer in Tagen" value="${la?.dauer || ''}" min="1" />
+          </div>
+          <div class="form-group form-group--full">
+            <label>Voraussetzungen</label>
+            <select id="feld-voraussetzungen" multiple size="4" style="min-height: 100px;">
+              ${allLehrgangsarten.map(x => `
+                <option value="${x.id}" ${selectedVoraussetzungen.includes(x.id) ? 'selected' : ''}>${esc(x.name)}</option>
+              `).join('')}
+            </select>
+            <p class="text-muted text-sm">Halten Sie Strg/Cmd gedrückt, um mehrere Voraussetzungen auszuwählen.</p>
           </div>
           <div class="form-group form-group--full" style="margin-top: 12px;">
             <button type="submit" class="btn btn--primary">${_currentLehrgangsartId ? 'Speichern' : 'Anlegen'}</button>
@@ -821,11 +853,17 @@ function showLehrgangsartenForm(name = '', beschreibung = '', veranstaltungsort 
       return;
     }
 
+    // Get selected Voraussetzungen from multi-select
+    const voraussetzungenSelect = document.getElementById('feld-voraussetzungen');
+    const selectedVoraussetzungen = Array.from(voraussetzungenSelect.selectedOptions)
+      .map(o => o.value);
+
     const body = {
       name,
       beschreibung: document.getElementById('feld-beschreibung').value || null,
       veranstaltungsort: document.getElementById('feld-veranstaltungsort').value || null,
-      voraussetzung: document.getElementById('feld-voraussetzung').value || null,
+      dauer: parseInt(document.getElementById('feld-dauer').value) || null,
+      voraussetzungen: selectedVoraussetzungen.length > 0 ? selectedVoraussetzungen : null,
     };
     try {
       if (_currentLehrgangsartId) {
