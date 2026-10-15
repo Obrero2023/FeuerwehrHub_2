@@ -127,7 +127,9 @@ export async function renderLehrgaenge() {
         <tbody>
           ${items.map((l, idx) => {
             const myAnm = meldungenByLehrgangId.get(l.id.toString());
-            const rowBg = myAnm ? `background-color: ${STATUS_COLORS[myAnm.status] || '#666'}33;` : '';
+            // Farbliche Hinterlegung nur bei Verwalter-Zuweisung (nicht bei bloßer "angemeldet")
+            const showColorBg = myAnm && myAnm.status !== 'angemeldet';
+            const rowBg = showColorBg ? `background-color: ${STATUS_COLORS[myAnm.status] || '#666'}33;` : '';
             const isCancelledOrArchived = l.status === 'abgesagt' || l.status === 'archiviert';
             const canCancel = myAnm && myAnm.status !== 'bestaetigt' && !isCancelledOrArchived;
 
