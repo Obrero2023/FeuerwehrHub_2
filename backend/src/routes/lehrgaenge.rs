@@ -748,7 +748,7 @@ pub async fn update_anmeldung(
                 ELSE bestaetigt_von_name
             END,
             bestaetigt_am = CASE WHEN $1 IS NOT NULL AND $1 != 'angemeldet' THEN NOW() ELSE bestaetigt_am END
-        WHERE id = $5
+        WHERE id = $4
         RETURNING
             id, lehrgang_id, user_id,
             (SELECT COALESCE(display_name, username) FROM users WHERE id = user_id) as user_name,
