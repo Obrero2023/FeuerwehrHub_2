@@ -736,7 +736,11 @@ pub async fn update_anmeldung(
             bemerkung = COALESCE($2, bemerkung),
             aktualisiert_am = NOW(),
             bestaetigt_von = CASE WHEN $1 IS NOT NULL AND $1 != 'angemeldet' THEN $3 ELSE bestaetigt_von END,
-            bestaetigt_von_name = CASE WHEN $1 IS NOT NULL AND $1 != 'angemeldet' THEN $4 ELSE bestaetigt_von_name END,
+            bestaetigt_von_name = CASE
+                WHEN $1 IS NOT NULL AND $1 != 'angemeldet'
+                THEN (SELECT COALESCE(display_name, username) FROM users WHERE id = $3)
+                ELSE bestaetigt_von_name
+            END,
             bestaetigt_am = CASE WHEN $1 IS NOT NULL AND $1 != 'angemeldet' THEN NOW() ELSE bestaetigt_am END
         WHERE id = $5
         RETURNING
@@ -750,7 +754,6 @@ pub async fn update_anmeldung(
     .bind(body.status)
     .bind(body.bemerkung)
     .bind(claims.sub)
-    .bind(&claims.username)
     .bind(anmeldung_id)
     .fetch_one(&state.db)
     .await
