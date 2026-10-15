@@ -71,8 +71,6 @@ export async function renderLehrgaenge() {
     myAnmeldungen.map(a => [a.lehrgang_id.toString(), a])
   );
 
-  const content = document.getElementById('page-content');
-
   content.innerHTML = `
     <div class="page-header">
       <div><h2>Lehrgänge</h2><p>Übersicht der verfügbaren Lehrgänge und Anmeldungen</p></div>
