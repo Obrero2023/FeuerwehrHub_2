@@ -618,19 +618,27 @@ pub async fn create_anmeldung(
         }
     }
 
-    // Prüfen ob Lehrgang existiert
-    let lehrgang_status: Option<String> = sqlx::query_scalar("SELECT status FROM lehrgaenge WHERE id = $1")
+    // Prüfen ob Lehrgang existiert und Anmeldeschluss noch nicht verstrichen ist
+    let lehrgang_info: Option<(String, Option<NaiveDate>)> = sqlx::query_as("SELECT status, anmeldeschluss FROM lehrgaenge WHERE id = $1")
         .bind(lehrgang_id)
         .fetch_optional(&state.db)
         .await?;
 
-    let status = match lehrgang_status {
-        Some(s) => s,
+    let (status, anmeldeschluss) = match lehrgang_info {
+        Some((s, a)) => (s, a),
         None => return Err(AppError::NotFound),
     };
 
     if status != "offen" && status != "geplant" && status != "veröffentlicht" {
         return Err(AppError::BadRequest("Dieser Lehrgang nimmt keine neuen Anmeldungen mehr an".into()));
+    }
+
+    // Anmeldeschluss prüfen: Anmeldung nur bis zum Stichtag möglich
+    if let Some(schluss) = anmeldeschluss {
+        let heute = chrono::Utc::now().date_naive();
+        if heute > schluss {
+            return Err(AppError::BadRequest("Der Anmeldeschluss für diesen Lehrgang ist bereits abgelaufen".into()));
+        }
     }
 
     // Prüfen ob User bereits angemeldet ist (und nicht abgemeldet)
@@ -777,11 +785,13 @@ pub async fn delete_anmeldung(
     Path((_lehrgang_id, anmeldung_id)): Path<(Uuid, Uuid)>,
 ) -> AppResult<Json<serde_json::Value>> {
     // Nur der Anmender (oder Verwalter) kann eine Anmeldung löschen
-    let user_id: Uuid = sqlx::query_scalar("SELECT user_id FROM lehrgang_anmeldungen WHERE id = $1")
+    let row: Option<(Uuid, String)> = sqlx::query_as("SELECT user_id, status FROM lehrgang_anmeldungen WHERE id = $1")
         .bind(anmeldung_id)
         .fetch_optional(&state.db)
         .await?
         .ok_or(AppError::NotFound)?;
+
+    let (user_id, anmeldung_status) = row;
 
     let is_owner = user_id == claims.sub;
     let is_verwalter = if claims.is_admin_or_above() {
@@ -804,6 +814,11 @@ pub async fn delete_anmeldung(
 
     if !is_owner && !is_verwalter {
         return Err(AppError::Forbidden);
+    }
+
+    // Bestätigte oder abgelehnte Anmeldungen können nicht mehr storniert werden
+    if anmeldung_status == "bestaetigt" || anmeldung_status == "abgelehnt" {
+        return Err(AppError::BadRequest("Diese Anmeldung kann nicht mehr storniert werden".into()));
     }
 
     let result = sqlx::query("UPDATE lehrgang_anmeldungen SET status = 'abgemeldet' WHERE id = $1")

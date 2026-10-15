@@ -121,6 +121,8 @@ export async function renderLehrgaenge() {
             <th>Ort</th>
             <th>Teilnehmer</th>
             <th>Max. Plätze</th>
+            <th>Anmeldeschluss</th>
+            <th>Erstellt von</th>
             <th>Aktionen</th>
           </tr>
         </thead>
@@ -131,7 +133,7 @@ export async function renderLehrgaenge() {
             const showColorBg = myAnm && myAnm.status !== 'angemeldet';
             const rowBg = showColorBg ? `background-color: ${STATUS_COLORS[myAnm.status] || '#666'}33;` : '';
             const isCancelledOrArchived = l.status === 'abgesagt' || l.status === 'archiviert';
-            const canCancel = myAnm && myAnm.status !== 'bestaetigt' && !isCancelledOrArchived;
+            const canCancel = myAnm && myAnm.status !== 'bestaetigt' && myAnm.status !== 'abgelehnt' && !isCancelledOrArchived;
 
             return `
             <tr class="lehrgang-row" style="animation-delay: ${idx * 0.06}s; ${rowBg}">
@@ -141,6 +143,8 @@ export async function renderLehrgaenge() {
               <td class="lehrgang-ort">${l.ort || '-'}</td>
               <td class="lehrgang-count">${l.anmeldungen_count || 0}</td>
               <td class="lehrgang-max">${l.max_teilnehmer || '-'}</td>
+              <td class="lehrgang-anmeldeschluss">${l.anmeldeschluss ? formatDate(l.anmeldeschluss) : '-'}</td>
+              <td class="lehrgang-ersteller">${l.erstellt_von_name || '-'}</td>
               <td class="lehrgang-actions">
                 <button class="btn btn--small btn--secondary view-lehrgang" data-id="${l.id}">Details</button>
                 ${canRegister ? `
@@ -163,10 +167,10 @@ export async function renderLehrgaenge() {
     anmeldenBtns.forEach(b => {
       const lehrgangId = b.dataset.id;
       const myAnm = meldungenByLehrgangId.get(lehrgangId);
-      const canCancel = myAnm && myAnm.status !== 'bestaetigt';
+      const canCancel = myAnm && myAnm.status !== 'bestaetigt' && myAnm.status !== 'abgelehnt';
 
       if (canCancel) {
-        // User ist bereits angemeldet (nicht bestätigt) – zeige "Abbrechen"
+        // User ist bereits angemeldet oder auf der Warteliste – kann stornieren
         b.textContent = 'Abbrechen';
         b.className = 'btn btn--small btn--secondary';
         b.addEventListener('click', async () => {
@@ -180,6 +184,11 @@ export async function renderLehrgaenge() {
         // Platz zugewiesen – kein Abbrechen möglich
         b.textContent = 'Platz zugewiesen';
         b.className = 'btn btn--small btn--success';
+        b.disabled = true;
+      } else if (myAnm && myAnm.status === 'abgelehnt') {
+        // Abgelehnt – kein Abbrechen möglich
+        b.textContent = 'Abgelehnt';
+        b.className = 'btn btn--small btn--danger';
         b.disabled = true;
       } else {
         // Normaler Anmelde-Button
