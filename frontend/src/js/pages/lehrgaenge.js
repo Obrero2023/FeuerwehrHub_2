@@ -131,6 +131,7 @@ export async function renderLehrgaenge() {
           <tr>
             <th>Titel</th>
             <th>Status</th>
+            <th>Lehrgangsart</th>
             <th>Zeitraum</th>
             <th>Ort</th>
             <th>Teilnehmer</th>
@@ -152,6 +153,7 @@ export async function renderLehrgaenge() {
             <tr class="lehrgang-row" style="animation-delay: ${idx * 0.06}s; ${rowBg}">
               <td class="lehrgang-title"><strong>${esc(l.titel)}${myAnm ? ` <span style="color:${STATUS_COLORS[myAnm.status] || '#666'};font-weight:bold;">(${STATUS_LABELS[myAnm.status] || myAnm.status})</span>` : ''}</td>
               <td class="lehrgang-status"><span class="status-badge" style="background-color: ${STATUS_COLORS[l.status] || '#666'}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 12px;">${STATUS_LABELS[l.status] || l.status}</span></td>
+              <td class="lehrgang-kursart">${l.lehrgangsart_name || '-'}</td>
               <td class="lehrgang-datum">${formatDate(l.start_datum)} – ${formatDate(l.end_datum)}</td>
               <td class="lehrgang-ort">${l.ort || '-'}</td>
               <td class="lehrgang-count">${l.anmeldungen_count || 0}</td>
