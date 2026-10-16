@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS jugendfeuerwehr_mitglieder (
     juleica BOOLEAN DEFAULT FALSE,
     juleica_ablauf DATE,
     bemerkung TEXT,
+    archiviert BOOLEAN NOT NULL DEFAULT FALSE,
     erstellt_von UUID REFERENCES users(id) ON DELETE SET NULL,
     erstellt_von_name TEXT,
     erstellt_am TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -24,6 +25,7 @@ CREATE TABLE IF NOT EXISTS jugendfeuerwehr_mitglieder (
 
 -- Indizes für häufige Abfragen
 CREATE INDEX IF NOT EXISTS idx_jugendfeuerwehr_mitglieder_name ON jugendfeuerwehr_mitglieder(name);
+CREATE INDEX IF NOT EXISTS idx_jugendfeuerwehr_mitglieder_archiviert ON jugendfeuerwehr_mitglieder(archiviert);
 CREATE INDEX IF NOT EXISTS idx_jugendfeuerwehr_mitglieder_gsh ON jugendfeuerwehr_mitglieder(geburtsdatum);
 CREATE INDEX IF NOT EXISTS idx_jugendfeuerwehr_mitglieder_eintritt ON jugendfeuerwehr_mitglieder(eintrittsdatum);
 CREATE INDEX IF NOT EXISTS idx_jugendfeuerwehr_mitglieder_austritt ON jugendfeuerwehr_mitglieder(austrittsdatum);
