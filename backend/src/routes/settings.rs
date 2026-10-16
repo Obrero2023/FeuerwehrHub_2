@@ -29,6 +29,8 @@ pub const KNOWN_MODULES: &[&str] = &[
     "intranet",
     "fahrzeugbuchung",
     "lehrgangsverwaltung",
+    "jugendfeuerwehr",
+    "jugendfeuerwehr.lesen",
 ];
 
 #[derive(Serialize)]

@@ -127,6 +127,7 @@ async fn main() -> anyhow::Result<()> {
         .nest("/api/lehrgaenge",         routes::lehrgaenge::router(state.clone()))
         .nest("/api/integrations",       routes::integrations::settings_router(state.clone()))
         .nest("/api",                    routes::integrations::webhooks_router())
+        .nest("/api/jugendfeuerwehr",    routes::jugendfeuerwehr::router(state.clone()))
         .nest("/api/dienstberichte",     routes::dienst_reports::router(state.clone()))
         .nest("/api/verein",             routes::verein::router(state.clone()))
         .nest("/api/clock",              routes::timeclock::clock_router())

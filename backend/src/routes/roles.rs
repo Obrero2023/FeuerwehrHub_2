@@ -27,6 +27,8 @@ const KNOWN_MODULES: &[&str] = &[
     "fahrzeugbuchung.verwalten",
     "lehrgangsverwaltung",
     "lehrgangsverwaltung.verwalten",
+    "jugendfeuerwehr",
+    "jugendfeuerwehr.lesen",
 ];
 
 #[derive(Serialize, sqlx::FromRow)]

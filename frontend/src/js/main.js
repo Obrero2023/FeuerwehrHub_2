@@ -27,6 +27,7 @@ import { renderDienstReports } from './pages/dienst-reports.js';
 import { renderIntranet } from './pages/intranet.js';
 import { renderVehicleBookings } from './pages/vehicle-bookings.js';
 import { renderLehrgaenge, renderLehrgangDetail, renderLehrgangEdit, renderLehrgangAnmeldungen } from './pages/lehrgaenge.js';
+import { renderJugendfeuerwehr } from './pages/jugendfeuerwehr.js';
 
 // Routen registrieren
 registerRoute('#/login',     renderLogin);
@@ -59,6 +60,7 @@ registerRoute('#/lehrgaenge',  renderLehrgaenge,  ['lehrgangsverwaltung', 'lehrg
 registerRoute('#/lehrgang/:id',  renderLehrgangDetail,  ['lehrgangsverwaltung', 'lehrgangsverwaltung.lesen', 'lehrgangsverwaltung.verwalten', 'lehrgangsverwaltung.admin']);
 registerRoute('#/lehrgang-edit/:id',  renderLehrgangEdit,  ['lehrgangsverwaltung.verwalten', 'lehrgangsverwaltung.admin']);
 registerRoute('#/lehrgang/:id/anmeldungen',  renderLehrgangAnmeldungen,  ['lehrgangsverwaltung', 'lehrgangsverwaltung.verwalten', 'lehrgangsverwaltung.admin']);
+registerRoute('#/jugendfeuerwehr', renderJugendfeuerwehr, ['jugendfeuerwehr', 'jugendfeuerwehr.lesen']);
 
 // Scan-Route (dynamisch, tokenbasiert)
 registerScanRoute(renderScanView);

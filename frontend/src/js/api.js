@@ -396,6 +396,13 @@ export const api = {
   deleteAnmeldung: (lehrgangId, anmeldungId) => request("DELETE", `/lehrgaenge/${lehrgangId}/anmeldungen/${anmeldungId}`),
   generateEmailTemplate: (lehrgangId) => request("GET", `/lehrgaenge/${lehrgangId}/email-template`),
 
+  // ── Jugendfeuerwehr ─────────────────────────────────────────────────
+  getJugendmitglieder: () => request("GET", "/jugendfeuerwehr"),
+  getJugendmitglied: (id) => request("GET", `/jugendfeuerwehr/${id}`),
+  createJugendmitglied: (body) => request("POST", "/jugendfeuerwehr", body),
+  updateJugendmitglied: (id, body) => request("PUT", `/jugendfeuerwehr/${id}`, body),
+  deleteJugendmitglied: (id) => request("DELETE", `/jugendfeuerwehr/${id}`),
+
   // Fahrtenbuch
   getTrips: (vid) => request("GET", `/vehicles/${vid}/trips`),
   createTrip: (vid, body) => request("POST", `/vehicles/${vid}/trips`, body),
