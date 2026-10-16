@@ -163,7 +163,7 @@ export async function renderLehrgaenge() {
               <td class="lehrgang-actions">
                 <button class="btn btn--small btn--secondary view-lehrgang" data-id="${l.id}">Details</button>
                 ${canRegister ? `
-                  <button class="btn btn--small btn--${canCancel ? 'secondary' : 'warning'} anmelden" data-id="${l.id}">${canCancel ? 'Abbrechen' : 'Anmelden'}</button>
+                  <button class="btn btn--small btn--${canCancel ? 'secondary' : 'warning'} anmelden" data-id="${l.id}">${canCancel ? 'Abmelden' : 'Anmelden'}</button>
                 ` : ''}
                 ${canManage ? `
                   <button class="btn btn--small btn--info edit-lehrgang" data-id="${l.id}">Bearbeiten</button>
