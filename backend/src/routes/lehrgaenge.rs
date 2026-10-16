@@ -277,8 +277,9 @@ pub async fn get_lehrgang(
 ) -> AppResult<Json<Lehrgang>> {
     let is_verw = is_verwalter(&state.db, &claims).await;
     let is_rdr = is_reader(&state.db, &claims).await;
+    let is_basic = is_basic_lehrgangsverwaltung(&state.db, &claims).await;
 
-    if !is_verw && !is_rdr {
+    if !is_verw && !is_rdr && !is_basic {
         return Err(AppError::Forbidden);
     }
 
