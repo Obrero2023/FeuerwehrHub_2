@@ -247,7 +247,9 @@ export async function renderLehrgaenge() {
 
   renderList(lehrgaenge, isVerwalter);
 
-  document.getElementById('btn-new-lehrgang').addEventListener('click', () => showForm());
+  if (isVerwalter) {
+    document.getElementById('btn-new-lehrgang').addEventListener('click', () => showForm());
+  }
 }
 
 // ── Formular (Neu/Bearbeiten) ──────────────────────────────────────────────
