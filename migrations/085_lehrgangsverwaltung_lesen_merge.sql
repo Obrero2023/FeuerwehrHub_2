@@ -3,22 +3,21 @@
 -- Die neue Rolle hat die Permission 'lehrgangsverwaltung.lesen'
 -- Bestehende Users mit der alten Rolle werden auf die neue Permission aktualisiert
 
--- Neue 'Lehrgangsverwaltung (Lesen)' Rolle hinzufügen (falls noch nicht vorhanden)
+-- Bestehende 'Lehrgangsverwaltung (Lesen)' Rolle auf die korrekte Permission updaten
 INSERT INTO roles (name, permissions, type, level) VALUES
     ('Lehrgangsverwaltung (Lesen)', ARRAY['lehrgangsverwaltung.lesen'], 'dienstgrad', 1)
-ON CONFLICT (name) DO NOTHING;
+ON CONFLICT (name) DO UPDATE SET
+    permissions = EXCLUDED.permissions,
+    type = EXCLUDED.type,
+    level = EXCLUDED.level;
 
--- Bestehende Users, die die alte 'Lehrgangsverwaltung (Lesen)' Rolle hatten,
--- auf die neue Permission 'lehrgangsverwaltung.lesen' aktualisieren
+-- Optional: Falls die alte Rolle mit Permission 'lehrgangsverwaltung' existierte,
+-- diese durch die neue Rolle mit Permission 'lehrgangsverwaltung.lesen' ersetzen
 UPDATE users
 SET role_id = (
     SELECT id FROM roles WHERE name = 'Lehrgangsverwaltung (Lesen)'
 )
 WHERE role_id = (
     SELECT id FROM roles WHERE name = 'Lehrgangsverwaltung (Lesen)'
+    AND permissions @> ARRAY['lehrgangsverwaltung']
 );
-
--- Optional: Wenn es noch eine zweite 'Lehrgangsverwaltung (Lesen)' Rolle gab,
--- diese nun deaktivieren/entfernen
--- (Dies setzt voraus, dass die alte Rolle exakt diesen Namen hatte)
-DELETE FROM roles WHERE name = 'Lehrgangsverwaltung (Lesen) Old';
