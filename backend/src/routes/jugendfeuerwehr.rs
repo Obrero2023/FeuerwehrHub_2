@@ -260,7 +260,7 @@ pub async fn update_jugendmitglied(
     )
     .await;
 
-    Ok(mitglied)
+    Ok(Json(mitglied))
 }
 
 pub async fn delete_jugendmitglied(
