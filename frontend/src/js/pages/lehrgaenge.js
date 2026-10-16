@@ -541,7 +541,6 @@ export const showForm = async (l = null) => {
       window.location.hash = '#/lehrgaenge';
       await renderLehrgaenge();
     } catch (e) {
-      console.error('Lehrgang speichern fehlgeschlagen:', e);
       let rawResponse = e?.rawResponse || '';
       if (!rawResponse && e?.response) {
         rawResponse = await e.response.text().catch(() => 'Konnte Antwort nicht lesen');
