@@ -1286,8 +1286,7 @@ async function loadModules() {
             </div>
             <label class="toggle-switch">
               <input type="checkbox" data-module="${m.key}"
-                ${modules[m.key] ? 'checked' : ''}
-                ${m.soon ? 'disabled' : ''} />
+                ${modules[m.key] ? 'checked' : ''} />
               <span class="toggle-switch__track"></span>
             </label>
           </div>
