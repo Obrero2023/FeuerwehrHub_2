@@ -1,3 +1,5 @@
+import { setRedirect } from './redirect-store.js';
+
 const BASE = "/api";
 
 let _authenticated = null; // null=unbekannt, true=eingeloggt, false=ausgeloggt
@@ -19,14 +21,29 @@ async function request(method, path, body) {
 
   if (res.status === 401) {
     _authenticated = false;
+    // Store the current hash for redirect after login
+    setRedirect(window.location.hash);
     window.location.hash = "#/login";
     return null;
   }
 
-  const data = await res.json().catch(() => null);
+  // Try to get the raw text first, then parse as JSON if possible
+  const rawText = await res.text();
+  let data = null;
+  try {
+    if (rawText) {
+      data = JSON.parse(rawText);
+    }
+  } catch (_) {
+    // Not JSON, keep data as null
+  }
 
   if (!res.ok) {
-    throw new Error(data?.error || `HTTP ${res.status}`);
+    const err = new Error(data?.error || rawText || `HTTP ${res.status}`);
+    // Attach the raw response for debugging
+    err.rawResponse = rawText;
+    err.status = res.status;
+    throw err;
   }
 
   return data;
@@ -354,6 +371,31 @@ export const api = {
 
   checkOverlap: (params) => request("POST", "/vehicle-bookings/check-overlap", params),
 
+  // ── Lehrgangsarten ─────────────────────────────────────────────
+  getLehrgangsarten: () => request("GET", "/lehrgaenge/lehrgangsarten"),
+  createLehrgangsart: (body) => request("POST", "/lehrgaenge/lehrgangsarten", body),
+  updateLehrgangsart: (id, body) => request("PUT", `/lehrgaenge/lehrgangsarten/${id}`, body),
+  deleteLehrgangsart: (id) => request("DELETE", `/lehrgaenge/lehrgangsarten/${id}`),
+
+  // ── Lehrgangsverwaltung ──────────────────────────────────────────
+  getLehrgaenge: (params) => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(params || {})) {
+      if (v != null && v !== "") p.append(k, v);
+    }
+    return request("GET", `/lehrgaenge?${p}`);
+  },
+  getLehrgang: (id) => request("GET", `/lehrgaenge/${id}`),
+  createLehrgang: (body) => request("POST", "/lehrgaenge", body),
+  updateLehrgang: (id, body) => request("PUT", `/lehrgaenge/${id}`, body),
+  deleteLehrgang: (id) => request("DELETE", `/lehrgaenge/${id}`),
+  getAnmeldungen: (lehrgangId) => request("GET", `/lehrgaenge/${lehrgangId}/anmeldungen`),
+  getMyAnmeldungen: () => request("GET", "/lehrgaenge/user/anmeldungen"),
+  createAnmeldung: (lehrgangId, body) => request("POST", `/lehrgaenge/${lehrgangId}/anmeldungen`, body),
+  updateAnmeldung: (lehrgangId, anmeldungId, body) => request("PUT", `/lehrgaenge/${lehrgangId}/anmeldungen/${anmeldungId}`, body),
+  deleteAnmeldung: (lehrgangId, anmeldungId) => request("DELETE", `/lehrgaenge/${lehrgangId}/anmeldungen/${anmeldungId}`),
+  generateEmailTemplate: (lehrgangId) => request("GET", `/lehrgaenge/${lehrgangId}/email-template`),
+
   // Fahrtenbuch
   getTrips: (vid) => request("GET", `/vehicles/${vid}/trips`),
   createTrip: (vid, body) => request("POST", `/vehicles/${vid}/trips`, body),
@@ -665,6 +707,8 @@ export const api = {
     }).then(async (res) => {
       if (res.status === 401) {
         _authenticated = false;
+        // Store the current hash for redirect after login
+        setRedirect(window.location.hash);
         window.location.hash = "#/login";
         return null;
       }

@@ -41,6 +41,7 @@ pub enum AppError {
 
 impl From<validator::ValidationErrors> for AppError {
     fn from(e: validator::ValidationErrors) -> Self {
+        tracing::warn!("Validierungsfehler: {}", e);
         AppError::BadRequest(e.to_string())
     }
 }

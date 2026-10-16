@@ -1,6 +1,6 @@
 import { api, setAuthState } from '../api.js';
 import { toast } from '../toast.js';
-import { navigate } from '../router.js';
+import { navigate, getPendingRedirect } from '../router.js';
 import { getLoginLogo } from '../logo.js';
 
 export async function renderLogin() {
@@ -86,7 +86,8 @@ async function doLogin() {
       renderTotpVerify();
     } else {
       setAuthState(true);
-      navigate('#/');
+      const redirect = getPendingRedirect();
+      navigate(redirect || '#/');
     }
   } catch (e) {
     toast(e.message || 'Anmeldung fehlgeschlagen', 'error');
@@ -130,7 +131,8 @@ async function doVerifyTotp() {
     const res = await api.verifyTotp({ code });
     if (!res) return;
     setAuthState(true);
-    navigate('#/');
+    const redirect = getPendingRedirect();
+    navigate(redirect || '#/');
   } catch (e) {
     toast(e.message || 'Ungültiger Code', 'error');
   }
