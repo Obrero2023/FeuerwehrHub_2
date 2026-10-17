@@ -1410,27 +1410,47 @@ pub async fn create_vorgang(
 // ── Router ────────────────────────────────────────────────────────────────────
 
 pub fn router(state: AppState) -> Router<AppState> {
-    Router::new()
-        // Jugendmitglieder
+    // Jugendmitglieder: Lesen → jugendfeuerwehr.lesen, Schreiben → jugendfeuerwehr.mitglieder
+    let mitglieder = Router::new()
         .route("/", get(list_jugendmitglieder).post(create_jugendmitglied))
         .route("/archiviert", get(list_jugendmitglieder_archiviert))
         .route("/:id", get(get_jugendmitglied).put(update_jugendmitglied).delete(delete_jugendmitglied))
-        // Kleiderkammer
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_module("jugendfeuerwehr.lesen")))
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
+
+    // Kleiderkammer: Lesen → jugendfeuerwehr.kleiderkammer.lesen, Schreiben → jugendfeuerwehr.kleiderkammer
+    let kleiderkammer = Router::new()
         .route("/lagerartikel", get(list_lagerartikel).post(create_lagerartikel))
         .route("/lagerartikel/:id", get(get_lagerartikel).put(update_lagerartikel).delete(delete_lagerartikel))
         .route("/ausgaben", get(list_ausgaben).post(create_ausgabe))
         .route("/ausgaben/:ausgabe_id/rueckgabe", post(return_ausgabe))
-        // Anwerter
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_module("jugendfeuerwehr.kleiderkammer.lesen")))
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
+
+    // Anwerter: Lesen → jugendfeuerwehr.lesen, Anlegen → jugendfeuerwehr.anwerter,
+    //          Bearbeiten/Archivieren/Promote → jugendfeuerwehr (Verwalter)
+    //          Dienstteilnahmen ergänzen → jugendfeuerwehr.dienstteilnahmen
+    let anwerter = Router::new()
         .route("/anwaester", get(list_anwärter).post(create_anwerter))
         .route("/anwaester/archiviert", get(list_anwärter_archiviert))
         .route("/anwaester/:id", get(get_anwerter).put(update_anwerter).delete(delete_anwerter))
         .route("/anwaester/:id/promote", post(promote_anwerter))
         .route("/anwaester/:anwerter_id/dienstteilnahmen", get(list_dienstteilnahmen).post(create_dienstteilnahme))
         .route("/dienstteilnahmen/:id", put(update_dienstteilnahme))
-        // Mitgliedschaftsvorgänge
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_module("jugendfeuerwehr.lesen")))
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
+
+    // Mitgliedschaftsvorgänge: Lesen → jugendfeuerwehr.lesen, Erfassen → jugendfeuerwehr.mitgliedschaftsvorgaenge
+    let vorgaenge = Router::new()
         .route("/vorgaenge", post(create_vorgang))
         .route("/:mitglied_id/vorgaenge", get(list_vorgaenge))
-        .route_layer(middleware::from_fn_with_state(state.clone(), require_module("jugendfeuerwehr")))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_module("jugendfeuerwehr.lesen")))
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
+
+    Router::new()
+        .merge(mitglieder)
+        .merge(kleiderkammer)
+        .merge(anwerter)
+        .merge(vorgaenge)
         .route_layer(middleware::from_fn_with_state(state, require_auth))
 }

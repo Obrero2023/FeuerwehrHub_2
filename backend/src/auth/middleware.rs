@@ -134,9 +134,17 @@ fn accepted_permissions(module: &str) -> Option<Vec<&'static str>> {
         "einsatzberichte"         => Some(vec!["einsatzberichte", "einsatzberichte.approve"]),
         "fahrzeugbuchung"         => Some(vec!["fahrzeugbuchung", "fahrzeugbuchung.verwalten"]),
         "lehrgangsverwaltung"     => Some(vec!["lehrgangsverwaltung", "lehrgangsverwaltung.verwalten", "lehrgangsverwaltung.lesen"]),
-        "jugendfeuerwehr.lesen"   => Some(vec!["jugendfeuerwehr.lesen", "jugendfeuerwehr"]),
-        "jugendfeuerwehr"         => Some(vec!["jugendfeuerwehr"]),
-        _                         => None,
+        // Jugendfeuerwehr: granulare Berechtigungen
+        "jugendfeuerwehr.lesen"              => Some(vec!["jugendfeuerwehr.lesen", "jugendfeuerwehr"]),
+        "jugendfeuerwehr"                    => Some(vec!["jugendfeuerwehr"]),
+        "jugendfeuerwehr.mitglieder"         => Some(vec!["jugendfeuerwehr.mitglieder", "jugendfeuerwehr"]),
+        "jugendfeuerwehr.mitglieder.lesen"   => Some(vec!["jugendfeuerwehr.mitglieder.lesen", "jugendfeuerwehr.lesen", "jugendfeuerwehr"]),
+        "jugendfeuerwehr.anwerter"           => Some(vec!["jugendfeuerwehr.anwerter", "jugendfeuerwehr"]),
+        "jugendfeuerwehr.dienstteilnahmen"   => Some(vec!["jugendfeuerwehr.dienstteilnahmen", "jugendfeuerwehr.dienstteilnahme", "jugendfeuerwehr"]),
+        "jugendfeuerwehr.kleiderkammer"      => Some(vec!["jugendfeuerwehr.kleiderkammer", "jugendfeuerwehr"]),
+        "jugendfeuerwehr.kleiderkammer.lesen" => Some(vec!["jugendfeuerwehr.kleiderkammer.lesen", "jugendfeuerwehr.lesen", "jugendfeuerwehr"]),
+        "jugendfeuerwehr.mitgliedschaftsvorgaenge" => Some(vec!["jugendfeuerwehr.mitgliedschaftsvorgaenge", "jugendfeuerwehr"]),
+        _                                     => None,
     }
 }
 

@@ -33,20 +33,46 @@ export async function renderJugendfeuerwehr() {
   const content = document.getElementById('page-content');
   const isAdmin = user?.role === 'admin' || user?.role === 'superuser';
   const perms = user?.permissions || [];
-  const canWrite = isAdmin || perms.includes('jugendfeuerwehr');
-  const canRead = canWrite || perms.includes('jugendfeuerwehr.lesen');
+
+  // Granular permissions per requirement specification
+  const canReadMitglieder = isAdmin || perms.includes('jugendfeuerwehr.mitglieder.lesen') || perms.includes('jugendfeuerwehr.lesen');
+  const canWriteMitglieder = isAdmin || perms.includes('jugendfeuerwehr.mitglieder') || perms.includes('jugendfeuerwehr');
+  const canCreateAnwerter = isAdmin || perms.includes('jugendfeuerwehr.anwerter');
+  const canWriteAnwerter = isAdmin || perms.includes('jugendfeuerwehr') || perms.includes('jugendfeuerwehr.anwerter');
+  const canWriteDienstteilnahmen = isAdmin || perms.includes('jugendfeuerwehr.dienstteilnahmen');
+  const canReadKleiderkammer = isAdmin || perms.includes('jugendfeuerwehr.kleiderkammer.lesen') || perms.includes('jugendfeuerwehr.lesen');
+  const canWriteKleiderkammer = isAdmin || perms.includes('jugendfeuerwehr.kleiderkammer');
+  const canWriteMitgliedschaftsvorgaenge = isAdmin || perms.includes('jugendfeuerwehr.mitgliedschaftsvorgaenge');
+
+  const appState = {
+    canReadMitglieder,
+    canWriteMitglieder,
+    canCreateAnwerter,
+    canWriteAnwerter,
+    canWriteDienstteilnahmen,
+    canReadKleiderkammer,
+    canWriteKleiderkammer,
+    canWriteMitgliedschaftsvorgaenge
+  };
 
   content.innerHTML = `
     <div class="page-header">
       <div>
         <h2>Jugendfeuerwehr</h2>
-        <p>Übersicht der Jugendmitglieder</p>
+        <p>Verwaltung von Jugendmitgliedern, Anwertern und Kleiderkammer</p>
       </div>
-      ${canWrite ? '<button class="btn btn--primary" id="btn-new-mitglied">Neues Mitglied</button>' : ''}
     </div>
-    <div id="jugend-member-form" style="display:none"></div>
-    <div id="jugend-list" class="jugend-grid"></div>
+    <div class="jugend-tabs">
+      <button class="tab-btn active" data-tab="mitglieder">Mitglieder</button>
+      <button class="tab-btn" data-tab="anwerter">Anwerter</button>
+      <button class="tab-btn" data-tab="kleiderkammer">Kleiderkammer</button>
+      <button class="tab-btn" data-tab="dienstteilnahmen">Dienstteilnahmen</button>
+    </div>
+    <div id="tab-content"></div>
   `;
+
+  // Render the active tab
+  renderTab('mitglieder');
   renderIcons(content);
 
   // Lade Mitglieder
