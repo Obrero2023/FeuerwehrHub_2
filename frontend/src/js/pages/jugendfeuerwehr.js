@@ -74,6 +74,7 @@ export async function renderJugendfeuerwehr() {
   // Render the active tab
   renderTab('mitglieder');
   renderIcons(content);
+}
 
   // ── Tab-Rendering ────────────────────────────────────────────────────────────
 
