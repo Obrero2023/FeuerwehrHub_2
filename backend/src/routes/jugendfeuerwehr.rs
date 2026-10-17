@@ -809,7 +809,7 @@ pub async fn return_ausgabe(
     let neue_rueckgabe_gesamt = bereits_zurueck + body.rueckgabe_menge;
     let ist_vollzurueck = neue_rueckgabe_gesamt >= ausgabe_menge;
 
-    let rueckgabedatum = body.rueckgabedatum.unwrap_or_else(|| chrono::Utc::today().naive_utc().date());
+    let rueckgabedatum = body.rueckgabedatum.unwrap_or_else(|| chrono::Utc::now().date_naive());
 
     let ausgabe = sqlx::query_as::<_, Kleiderausgabe>(
         r#"
@@ -1108,7 +1108,7 @@ pub async fn promote_anwerter(
     )
     .bind(&name)
     .bind(geburtsdatum)
-    .bind(chrono::Utc::today().naive_utc().date())
+    .bind(chrono::Utc::now().date_naive())
     .bind(&geschlecht)
     .bind(&adresse)
     .bind(&telefon)
@@ -1143,12 +1143,12 @@ pub async fn promote_anwerter(
     .await;
 
     let new_id: Option<Uuid> = if result.rows_affected() > 0 {
-        Some(sqlx::query_scalar("SELECT id FROM jugendfeuerwehr_mitglieder WHERE name = $1 AND geburtsdatum = $2 ORDER BY erstellt_am DESC LIMIT 1")
+        sqlx::query_scalar("SELECT id FROM jugendfeuerwehr_mitglieder WHERE name = $1 AND geburtsdatum = $2 ORDER BY erstellt_am DESC LIMIT 1")
             .bind(&name)
             .bind(geburtsdatum)
             .fetch_one(&state.db)
             .await
-            .ok())
+            .ok()
     } else {
         None
     };
@@ -1392,11 +1392,12 @@ pub async fn create_vorgang(
     .fetch_one(&state.db)
     .await?;
 
+    let event_name = format!("MITGLIEDSCHAFTVORGANG_{}", body.typ.to_uppercase());
     audit::log(
         &state.db,
         Some(claims.sub),
         &claims.username,
-        format!("MITGLIEDSCHAFTVORGANG_{}", body.typ.to_uppercase()),
+        &event_name,
         Some("jugendfeuerwehr_mitgliedschaftsvorgaenge"),
         Some(vorgang.id),
         None,
