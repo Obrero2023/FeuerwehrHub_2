@@ -1437,7 +1437,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/anwaester/:id/promote", post(promote_anwerter))
         .route("/anwaester/:anwerter_id/dienstteilnahmen", get(list_dienstteilnahmen).post(create_dienstteilnahme))
         .route("/dienstteilnahmen/:id", put(update_dienstteilnahme))
-        .route_layer(middleware::from_fn_with_state(state.clone(), require_module("jugendfeuerwehr.lesen")))
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_module("jugendfeuerwehr.anwerter")))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
     // Mitgliedschaftsvorgänge: Lesen → jugendfeuerwehr.lesen, Erfassen → jugendfeuerwehr.mitgliedschaftsvorgaenge
