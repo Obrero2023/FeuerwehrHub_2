@@ -365,9 +365,13 @@ pub async fn get_jugendmitglied(
         "#,
     )
     .bind(id)
-    .fetch_one(&state.db)
+    .fetch_optional(&state.db)
     .await
-    .map_err(|_| AppError::NotFound)?;
+    .map_err(|e| {
+        tracing::error!("GET /api/jugendfeuerwehr/{id} - database error: {e}");
+        AppError::Database(e)
+    })?
+    .ok_or(AppError::NotFound)?;
 
     Ok(Json(mitglied))
 }
