@@ -14,13 +14,20 @@ SET vorname = split_part(name, ' ', 1),
         ELSE ''
     END;
 
--- name als generierte Spalte aus vorname + nachname (bleibt konsistent)
-ALTER TABLE jugendfeuerwehr_mitglieder
-    ALTER COLUMN name DROP DEFAULT;
+-- name-Spalte bleibt erhalten, Trigger hält sie konsistent zu vorname/nachname
+CREATE OR REPLACE FUNCTION jugendfeuerwehr_update_name()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.name := trim(coalesce(NEW.vorname, '') || ' ' || coalesce(NEW.nachname, ''));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
-ALTER TABLE jugendfeuerwehr_mitglieder
-    ALTER COLUMN name GENERATED ALWAYS AS (trim(coalesce(vorname, '') || ' ' || coalesce(nachname, ''))) STORED;
+DROP TRIGGER IF EXISTS trigger_jugendfeuerwehr_update_name ON jugendfeuerwehr_mitglieder;
+CREATE TRIGGER trigger_jugendfeuerwehr_update_name
+BEFORE INSERT OR UPDATE ON jugendfeuerwehr_mitglieder
+FOR EACH ROW EXECUTE FUNCTION jugendfeuerwehr_update_name();
 
 COMMENT ON COLUMN jugendfeuerwehr_mitglieder.vorname IS 'Vorname des Jugendmitglieds';
 COMMENT ON COLUMN jugendfeuerwehr_mitglieder.nachname IS 'Nachname des Jugendmitglieds';
-COMMENT ON COLUMN jugendfeuerwehr_mitglieder.name IS 'Generierter Vollname (Vorname + Nachname)';
+COMMENT ON COLUMN jugendfeuerwehr_mitglieder.name IS 'Vollname (Trigger: vorname + nachname)';
