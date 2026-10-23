@@ -332,7 +332,7 @@ pub async fn list_jugendmitglieder_archiviert(
 ) -> AppResult<Json<Vec<Jugendmitglied>>> {
     let mitglieder = sqlx::query_as::<_, Jugendmitglied>(
         r#"
-        SELECT id, user_id, name, geburtsdatum, eintrittsdatum, austrittsdatum,
+        SELECT id, user_id, name, vorname, nachname, geburtsdatum, eintrittsdatum, austrittsdatum,
                geschlecht, adresse, telefon, email, eltern_name, eltern_name_2,
                eltern_telefon, eltern_email, eltern_telefon_2, eltern_email_2, juleica, juleica_ablauf, bemerkung, archiviert,
                EXTRACT(YEAR FROM AGE(CURRENT_DATE, geburtsdatum))::INTEGER as alter_jahre,
@@ -355,7 +355,7 @@ pub async fn get_jugendmitglied(
 ) -> AppResult<Json<Jugendmitglied>> {
     let mitglied = sqlx::query_as::<_, Jugendmitglied>(
         r#"
-        SELECT id, user_id, name, geburtsdatum, eintrittsdatum, austrittsdatum,
+        SELECT id, user_id, name, vorname, nachname, geburtsdatum, eintrittsdatum, austrittsdatum,
                geschlecht, adresse, telefon, email, eltern_name, eltern_name_2,
                eltern_telefon, eltern_email, eltern_telefon_2, eltern_email_2, juleica, juleica_ablauf, bemerkung, archiviert,
                EXTRACT(YEAR FROM AGE(CURRENT_DATE, geburtsdatum))::INTEGER as alter_jahre,
