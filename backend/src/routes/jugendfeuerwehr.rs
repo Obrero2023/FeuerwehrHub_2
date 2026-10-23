@@ -24,6 +24,8 @@ pub struct Jugendmitglied {
     pub id: Uuid,
     pub user_id: Option<Uuid>,
     pub name: String,
+    pub vorname: Option<String>,
+    pub nachname: Option<String>,
     pub geburtsdatum: NaiveDate,
     pub eintrittsdatum: NaiveDate,
     pub austrittsdatum: Option<NaiveDate>,
@@ -35,6 +37,8 @@ pub struct Jugendmitglied {
     pub eltern_name_2: Option<String>,
     pub eltern_telefon: Option<String>,
     pub eltern_email: Option<String>,
+    pub eltern_telefon_2: Option<String>,
+    pub eltern_email_2: Option<String>,
     pub juleica: bool,
     pub juleica_ablauf: Option<NaiveDate>,
     pub bemerkung: Option<String>,
@@ -233,7 +237,9 @@ pub struct CreateVorgang {
 #[derive(Deserialize, Validate)]
 pub struct CreateJugendmitglied {
     #[validate(length(min = 1, max = 200))]
-    pub name: String,
+    pub vorname: String,
+    #[validate(length(min = 1, max = 200))]
+    pub nachname: String,
     pub user_id: Option<Uuid>,
     pub geburtsdatum: NaiveDate,
     pub eintrittsdatum: NaiveDate,
@@ -253,6 +259,10 @@ pub struct CreateJugendmitglied {
     pub eltern_telefon: Option<String>,
     #[validate(length(max = 200))]
     pub eltern_email: Option<String>,
+    #[validate(length(max = 50))]
+    pub eltern_telefon_2: Option<String>,
+    #[validate(length(max = 200))]
+    pub eltern_email_2: Option<String>,
     pub juleica: Option<bool>,
     pub juleica_ablauf: Option<NaiveDate>,
     pub bemerkung: Option<String>,
@@ -262,7 +272,9 @@ pub struct CreateJugendmitglied {
 #[derive(Deserialize, Validate)]
 pub struct UpdateJugendmitglied {
     #[validate(length(min = 1, max = 200))]
-    pub name: Option<String>,
+    pub vorname: Option<String>,
+    #[validate(length(min = 1, max = 200))]
+    pub nachname: Option<String>,
     pub user_id: Option<Uuid>,
     pub geburtsdatum: Option<NaiveDate>,
     pub eintrittsdatum: Option<NaiveDate>,
@@ -280,6 +292,10 @@ pub struct UpdateJugendmitglied {
     pub eltern_telefon: Option<String>,
     #[validate(length(max = 200))]
     pub eltern_email: Option<String>,
+    #[validate(length(max = 50))]
+    pub eltern_telefon_2: Option<String>,
+    #[validate(length(max = 200))]
+    pub eltern_email_2: Option<String>,
     pub juleica: Option<bool>,
     pub juleica_ablauf: Option<NaiveDate>,
     pub bemerkung: Option<String>,
@@ -294,9 +310,9 @@ pub async fn list_jugendmitglieder(
 ) -> AppResult<Json<Vec<Jugendmitglied>>> {
     let mitglieder = sqlx::query_as::<_, Jugendmitglied>(
         r#"
-        SELECT id, user_id, name, geburtsdatum, eintrittsdatum, austrittsdatum,
+        SELECT id, user_id, name, vorname, nachname, geburtsdatum, eintrittsdatum, austrittsdatum,
                geschlecht, adresse, telefon, email, eltern_name, eltern_name_2,
-               eltern_telefon, eltern_email, juleica, juleica_ablauf, bemerkung, archiviert,
+               eltern_telefon, eltern_email, eltern_telefon_2, eltern_email_2, juleica, juleica_ablauf, bemerkung, archiviert,
                EXTRACT(YEAR FROM AGE(CURRENT_DATE, geburtsdatum))::INTEGER as alter_jahre,
                erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
         FROM jugendfeuerwehr_mitglieder
@@ -318,7 +334,7 @@ pub async fn list_jugendmitglieder_archiviert(
         r#"
         SELECT id, user_id, name, geburtsdatum, eintrittsdatum, austrittsdatum,
                geschlecht, adresse, telefon, email, eltern_name, eltern_name_2,
-               eltern_telefon, eltern_email, juleica, juleica_ablauf, bemerkung, archiviert,
+               eltern_telefon, eltern_email, eltern_telefon_2, eltern_email_2, juleica, juleica_ablauf, bemerkung, archiviert,
                EXTRACT(YEAR FROM AGE(CURRENT_DATE, geburtsdatum))::INTEGER as alter_jahre,
                erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
         FROM jugendfeuerwehr_mitglieder
@@ -341,7 +357,7 @@ pub async fn get_jugendmitglied(
         r#"
         SELECT id, user_id, name, geburtsdatum, eintrittsdatum, austrittsdatum,
                geschlecht, adresse, telefon, email, eltern_name, eltern_name_2,
-               eltern_telefon, eltern_email, juleica, juleica_ablauf, bemerkung, archiviert,
+               eltern_telefon, eltern_email, eltern_telefon_2, eltern_email_2, juleica, juleica_ablauf, bemerkung, archiviert,
                EXTRACT(YEAR FROM AGE(CURRENT_DATE, geburtsdatum))::INTEGER as alter_jahre,
                erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
         FROM jugendfeuerwehr_mitglieder
@@ -366,20 +382,21 @@ pub async fn create_jugendmitglied(
     let mitglied = sqlx::query_as::<_, Jugendmitglied>(
         r#"
         INSERT INTO jugendfeuerwehr_mitglieder
-            (user_id, name, geburtsdatum, eintrittsdatum, austrittsdatum,
+            (user_id, vorname, nachname, geburtsdatum, eintrittsdatum, austrittsdatum,
              geschlecht, adresse, telefon, email, eltern_name, eltern_name_2,
-             eltern_telefon, eltern_email, juleica, juleica_ablauf, bemerkung, archiviert,
+             eltern_telefon, eltern_email, eltern_telefon_2, eltern_email_2, juleica, juleica_ablauf, bemerkung, archiviert,
              erstellt_von, erstellt_von_name)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-        RETURNING id, user_id, name, geburtsdatum, eintrittsdatum, austrittsdatum,
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+        RETURNING id, user_id, name, vorname, nachname, geburtsdatum, eintrittsdatum, austrittsdatum,
                     geschlecht, adresse, telefon, email, eltern_name, eltern_name_2,
-                    eltern_telefon, eltern_email, juleica, juleica_ablauf, bemerkung, archiviert,
+                    eltern_telefon, eltern_email, eltern_telefon_2, eltern_email_2, juleica, juleica_ablauf, bemerkung, archiviert,
                     EXTRACT(YEAR FROM AGE(CURRENT_DATE, geburtsdatum))::INTEGER as alter_jahre,
                     erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
         "#,
     )
     .bind(body.user_id)
-    .bind(&body.name)
+    .bind(&body.vorname)
+    .bind(&body.nachname)
     .bind(body.geburtsdatum)
     .bind(body.eintrittsdatum)
     .bind(body.austrittsdatum)
@@ -391,6 +408,8 @@ pub async fn create_jugendmitglied(
     .bind(&body.eltern_name_2)
     .bind(&body.eltern_telefon)
     .bind(&body.eltern_email)
+    .bind(&body.eltern_telefon_2)
+    .bind(&body.eltern_email_2)
     .bind(body.juleica.unwrap_or(false))
     .bind(body.juleica_ablauf)
     .bind(&body.bemerkung)
@@ -429,33 +448,37 @@ pub async fn update_jugendmitglied(
     let mitglied = sqlx::query_as::<_, Jugendmitglied>(
         r#"
         UPDATE jugendfeuerwehr_mitglieder
-        SET name = COALESCE($1, name),
-            user_id = COALESCE($2, user_id),
-            geburtsdatum = COALESCE($3, geburtsdatum),
-            eintrittsdatum = COALESCE($4, eintrittsdatum),
-            austrittsdatum = COALESCE($5, austrittsdatum),
-            geschlecht = COALESCE($6, geschlecht),
-            adresse = COALESCE($7, adresse),
-            telefon = COALESCE($8, telefon),
-            email = COALESCE($9, email),
-            eltern_name = COALESCE($10, eltern_name),
-            eltern_name_2 = COALESCE($11, eltern_name_2),
-            eltern_telefon = COALESCE($12, eltern_telefon),
-            eltern_email = COALESCE($13, eltern_email),
-            juleica = COALESCE($14, juleica),
-            juleica_ablauf = COALESCE($15, juleica_ablauf),
-            bemerkung = COALESCE($16, bemerkung),
-            archiviert = COALESCE($17, archiviert),
+        SET vorname = COALESCE($1, vorname),
+            nachname = COALESCE($2, nachname),
+            user_id = COALESCE($3, user_id),
+            geburtsdatum = COALESCE($4, geburtsdatum),
+            eintrittsdatum = COALESCE($5, eintrittsdatum),
+            austrittsdatum = COALESCE($6, austrittsdatum),
+            geschlecht = COALESCE($7, geschlecht),
+            adresse = COALESCE($8, adresse),
+            telefon = COALESCE($9, telefon),
+            email = COALESCE($10, email),
+            eltern_name = COALESCE($11, eltern_name),
+            eltern_name_2 = COALESCE($12, eltern_name_2),
+            eltern_telefon = COALESCE($13, eltern_telefon),
+            eltern_email = COALESCE($14, eltern_email),
+            eltern_telefon_2 = COALESCE($15, eltern_telefon_2),
+            eltern_email_2 = COALESCE($16, eltern_email_2),
+            juleica = COALESCE($17, juleica),
+            juleica_ablauf = COALESCE($18, juleica_ablauf),
+            bemerkung = COALESCE($19, bemerkung),
+            archiviert = COALESCE($20, archiviert),
             aktualisiert_am = NOW()
-        WHERE id = $18
-        RETURNING id, user_id, name, geburtsdatum, eintrittsdatum, austrittsdatum,
+        WHERE id = $21
+        RETURNING id, user_id, name, vorname, nachname, geburtsdatum, eintrittsdatum, austrittsdatum,
                     geschlecht, adresse, telefon, email, eltern_name, eltern_name_2,
-                    eltern_telefon, eltern_email, juleica, juleica_ablauf, bemerkung, archiviert,
+                    eltern_telefon, eltern_email, eltern_telefon_2, eltern_email_2, juleica, juleica_ablauf, bemerkung, archiviert,
                     EXTRACT(YEAR FROM AGE(CURRENT_DATE, geburtsdatum))::INTEGER as alter_jahre,
                     erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
         "#,
     )
-    .bind(body.name)
+    .bind(body.vorname)
+    .bind(body.nachname)
     .bind(body.user_id)
     .bind(body.geburtsdatum)
     .bind(body.eintrittsdatum)
@@ -468,6 +491,8 @@ pub async fn update_jugendmitglied(
     .bind(&body.eltern_name_2)
     .bind(&body.eltern_telefon)
     .bind(&body.eltern_email)
+    .bind(&body.eltern_telefon_2)
+    .bind(&body.eltern_email_2)
     .bind(body.juleica)
     .bind(body.juleica_ablauf)
     .bind(&body.bemerkung)
@@ -1097,7 +1122,7 @@ pub async fn promote_anwerter(
     let anwerter: (String, NaiveDate, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>) = sqlx::query_as(
         r#"
         SELECT name, geburtsdatum, geschlecht, adresse, telefon, email,
-               eltern_name, eltern_telefon, eltern_email, bemerkung
+               eltern_name, eltern_telefon, eltern_email
         FROM jugendfeuerwehr_anwerter
         WHERE id = $1
         "#
@@ -1107,22 +1132,24 @@ pub async fn promote_anwerter(
     .await
     .map_err(|_| AppError::NotFound)?;
 
-    let (name, geburtsdatum, geschlecht, adresse, telefon, email, eltern_name, eltern_telefon, eltern_email) = anwerter;
+    let (anwerter_name, geburtsdatum, geschlecht, adresse, telefon, email, eltern_name, eltern_telefon, eltern_email) = anwerter;
 
-    // HINWEIS: Ohne Unique-Konstraint auf (name, geburtsdatum) ist ON CONFLICT wirkungslos.
-    // Jede Promotion legt einen neuen Datensatz an; ein Duplikat-Check sollte bei Bedarf über
-    // einen DB-Konstraint erfolgen (Migration nötig).
+    // Name in Vorname und Nachname aufteilen (erstes Wort = Vorname, Rest = Nachname)
+    let parts: Vec<&str> = anwerter_name.splitn(2, ' ').collect();
+    let vorname = parts.first().copied().unwrap_or("");
+    let nachname = parts.get(1).copied().unwrap_or("");
+
     let result = sqlx::query(
         r#"
         INSERT INTO jugendfeuerwehr_mitglieder
-            (name, geburtsdatum, eintrittsdatum, geschlecht, adresse, telefon, email,
-             eltern_name, eltern_name_2, eltern_telefon, eltern_email, juleica, juleica_ablauf, bemerkung,
+            (vorname, nachname, geburtsdatum, eintrittsdatum, geschlecht, adresse, telefon, email,
+             eltern_name, eltern_name_2, eltern_telefon, eltern_email, eltern_telefon_2, eltern_email_2, juleica, juleica_ablauf, bemerkung,
              archiviert, erstellt_von, erstellt_von_name)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
         "#
     )
-    .bind(&name)
-    .bind(geburtsdatum)
+    .bind(&vorname)
+    .bind(&nachname)
     .bind(chrono::Utc::now().date_naive())
     .bind(&geschlecht)
     .bind(&adresse)
@@ -1132,6 +1159,8 @@ pub async fn promote_anwerter(
     .bind(None::<String>)
     .bind(&eltern_telefon)
     .bind(&eltern_email)
+    .bind(None::<String>)
+    .bind(None::<String>)
     .bind(false)
     .bind(None::<NaiveDate>)
     .bind(None::<String>)
@@ -1159,8 +1188,9 @@ pub async fn promote_anwerter(
     .await;
 
     let new_id: Option<Uuid> = if result.rows_affected() > 0 {
-        sqlx::query_scalar("SELECT id FROM jugendfeuerwehr_mitglieder WHERE name = $1 AND geburtsdatum = $2 ORDER BY erstellt_am DESC LIMIT 1")
-            .bind(&name)
+        sqlx::query_scalar("SELECT id FROM jugendfeuerwehr_mitglieder WHERE vorname = $1 AND nachname = $2 AND geburtsdatum = $3 ORDER BY erstellt_am DESC LIMIT 1")
+            .bind(&vorname)
+            .bind(&nachname)
             .bind(geburtsdatum)
             .fetch_one(&state.db)
             .await
@@ -1169,7 +1199,7 @@ pub async fn promote_anwerter(
         None
     };
 
-    let _ = new_id; // suppress unused warning; the record exists with matching name+geb.
+    let _ = new_id; // suppress unused warning; the record exists with matching vorname+nachname+geburtsdatum.
 
     // The Dienstteilnahmen remain untouched — only Anwerter status changes
     Ok(Json(serde_json::json!({

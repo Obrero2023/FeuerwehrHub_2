@@ -98,7 +98,7 @@ async function renderMitgliederTab(tab, state) {
     <div id="mitglied-form" style="display:none"></div>
   `;
 
-  if (canWrite) document.getElementById('btn-new-mitglied').addEventListener('click', () => showMemberForm());
+  if (canWrite) document.getElementById('btn-new-mitglied').addEventListener('click', () => showMemberForm(null, state));
 
   if (!canRead) {
     c.innerHTML += '<p style="color:#c00;margin-top:12px">Keine Berechtigung zum Einsehen von Mitgliederdaten.</p>';
@@ -119,7 +119,7 @@ async function renderMitgliederTab(tab, state) {
         <p>${tab === 'archiviert' ? 'Keine archivierten Mitglieder vorhanden' : 'Keine Jugendmitglieder vorhanden'}</p>
         ${canWrite ? '<button class="btn btn--primary" id="btn-new-mid-empty">Neues Mitglied</button>' : ''}
       </div>`;
-    if (canWrite) document.getElementById('btn-new-mid-empty')?.addEventListener('click', () => showMemberForm());
+    if (canWrite) document.getElementById('btn-new-mid-empty')?.addEventListener('click', () => showMemberForm(null, state));
     return;
   }
 
@@ -127,7 +127,7 @@ async function renderMitgliederTab(tab, state) {
     <table class="jugend-table">
       <thead>
         <tr>
-          <th>Name</th><th>Geburt</th><th>Alter</th><th>Eintritt</th><th>Austritt</th>
+          <th>Vorname</th><th>Nachname</th><th>Geburt</th><th>Alter</th><th>Eintritt</th><th>Austritt</th>
           <th>Geschlecht</th><th>Telefon</th><th>E-Mail</th><th>Juleica</th><th>Status</th><th>Aktionen</th>
         </tr>
       </thead>
@@ -136,7 +136,8 @@ async function renderMitgliederTab(tab, state) {
           const arch = m.archiviert;
           return `
           <tr class="jugend-row ${!canWrite ? 'jugend-row--readonly' : ''}" style="animation-delay:${idx * 0.06}s">
-            <td class="jugend-name"><strong>${esc(m.name)}</strong></td>
+            <td class="jugend-vorname"><strong>${esc(m.vorname || '')}</strong></td>
+            <td class="jugend-nachname">${esc(m.nachname || '')}</td>
             <td class="jugend-geburtsdatum">${formatDatumDeutsch(m.geburtsdatum)}</td>
             <td class="jugend-alter">${m.alter_jahre ?? '-'}</td>
             <td class="jugend-eintritt">${formatDatumDeutsch(m.eintrittsdatum)}</td>
@@ -168,7 +169,7 @@ async function renderMitgliederTab(tab, state) {
   });
   if (canWrite) {
     tbody?.querySelectorAll('.edit-mitglied').forEach(b => {
-      b.addEventListener('click', () => showMemberForm(mitglieder.find(x => x.id === b.dataset.id)));
+      b.addEventListener('click', () => showMemberForm(mitglieder.find(x => x.id === b.dataset.id), state));
     });
     tbody?.querySelectorAll('.delete-mitglied').forEach(b => {
       b.addEventListener('click', async () => {
@@ -195,7 +196,7 @@ async function renderMitgliederTab(tab, state) {
 
 // ── Mitglieder-Formular (Neu/Bearbeiten) ──────────────────────────────────────
 
-async function showMemberForm(m = null) {
+async function showMemberForm(m = null, state = null) {
   const c = document.getElementById('tab-content');
   const list = document.getElementById('mitglieder-list');
   if (!c) return;
@@ -214,9 +215,13 @@ async function showMemberForm(m = null) {
       </div>
       <div class="card__body card__body--flush">
         <form id="member-form-el" class="form-grid">
-          <div class="form-group form-group--full">
-            <label>Name <span class="required">*</span></label>
-            <input type="text" id="fld-name" placeholder="Vor- und Nachname" value="${m ? esc(m.name) : ''}" required maxlength="200" />
+          <div class="form-group form-group--half">
+            <label>Vorname <span class="required">*</span></label>
+            <input type="text" id="fld-vorname" placeholder="Vorname" value="${m ? esc(m.vorname || m.name?.split(' ')[0] || '') : ''}" required maxlength="200" />
+          </div>
+          <div class="form-group form-group--half">
+            <label>Nachname <span class="required">*</span></label>
+            <input type="text" id="fld-nachname" placeholder="Nachname" value="${m ? esc(m.nachname || m.name?.split(' ').slice(1).join(' ') || '') : ''}" required maxlength="200" />
           </div>
           <div class="form-group form-group--half">
             <label>Geburtsdatum <span class="required">*</span></label>
@@ -266,6 +271,14 @@ async function showMemberForm(m = null) {
             <input type="text" id="fld-eltern-name-2" placeholder="Name" value="${m ? esc(m.eltern_name_2 || '') : ''}" maxlength="200" />
           </div>
           <div class="form-group form-group--half">
+            <label>Eltern 2 – Telefon</label>
+            <input type="tel" id="fld-eltern-telefon-2" placeholder="Telefonnummer" value="${m ? esc(m.eltern_telefon_2 || '') : ''}" maxlength="50" />
+          </div>
+          <div class="form-group form-group--half">
+            <label>Eltern 2 – E-Mail</label>
+            <input type="email" id="fld-eltern-email-2" placeholder="E-Mail-Adresse" value="${m ? esc(m.eltern_email_2 || '') : ''}" maxlength="200" />
+          </div>
+          <div class="form-group form-group--half">
             <label>Eltern – Telefon</label>
             <input type="tel" id="fld-eltern-telefon" placeholder="Telefonnummer" value="${m ? esc(m.eltern_telefon || '') : ''}" maxlength="50" />
           </div>
@@ -300,8 +313,9 @@ async function showMemberForm(m = null) {
 
   document.getElementById('member-form-el').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const name = document.getElementById('fld-name').value.trim();
-    if (!name) { toast('Name ist ein Pflichtfeld', 'error'); return; }
+    const vorname = document.getElementById('fld-vorname').value.trim();
+    const nachname = document.getElementById('fld-nachname').value.trim();
+    if (!vorname || !nachname) { toast('Vorname und Nachname sind Pflichtfelder', 'error'); return; }
     const geburtsdatum = document.getElementById('fld-geburtsdatum').value;
     const eintrittsdatum = document.getElementById('fld-eintrittsdatum').value;
     if (!geburtsdatum || !eintrittsdatum) { toast('Geburts- und Eintrittsdatum sind Pflichtfelder', 'error'); return; }
@@ -316,7 +330,8 @@ async function showMemberForm(m = null) {
     if (geburtsdatum > today) { toast('Geburtsdatum darf nicht in der Zukunft liegen', 'error'); return; }
 
     const body = {
-      name,
+      vorname,
+      nachname,
       geburtsdatum,
       eintrittsdatum,
       austrittsdatum: document.getElementById('fld-austrittsdatum').value || null,
@@ -328,6 +343,8 @@ async function showMemberForm(m = null) {
       eltern_name_2: document.getElementById('fld-eltern-name-2').value.trim() || null,
       eltern_telefon: document.getElementById('fld-eltern-telefon').value || null,
       eltern_email: document.getElementById('fld-eltern-email').value || null,
+      eltern_telefon_2: document.getElementById('fld-eltern-telefon-2').value || null,
+      eltern_email_2: document.getElementById('fld-eltern-email-2').value || null,
       juleica: document.getElementById('fld-juleica').checked,
       juleica_ablauf: document.getElementById('fld-juleica-ablauf').value || null,
       bemerkung: document.getElementById('fld-bemerkung').value || null,
@@ -342,11 +359,11 @@ async function showMemberForm(m = null) {
         await api.createJugendmitglied(body);
         toast('Mitglied angelegt', 'success');
       }
-      const tab = c.closest('.jugend-tabs') ? c.querySelector('.jugend-tabs .tab-btn.active')?.dataset.tab : 'aktiv';
+      const tab = document.querySelector('.jugend-tabs .tab-btn.active')?.dataset.tab || 'aktiv';
       window.__jfMitgliederState = state;
       c.innerHTML = '';
       if (list) list.style.display = '';
-      await renderMitgliederTab(tab || 'aktiv', state);
+      await renderMitgliederTab(tab, state);
     } catch (e) {
       toast(e.message || 'Fehler beim Speichern', 'error');
     }
@@ -360,30 +377,36 @@ async function showMemberDetail(m) {
   overlay.className = 'error-overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;';
   overlay.innerHTML = `
-    <div class="card" style="max-width:500px;width:90%;background:var(--surface);padding:24px;border-radius:8px;">
-      <div class="card__header" style="margin-bottom:16px">
-        <span style="font-size:1.1rem;font-weight:600">${esc(m.name)}</span>
-        <button class="btn btn--sm btn--outline" onclick="this.closest('.error-overlay').remove()" style="float:right">Schließen</button>
+    <div class="card" style="max-width:620px;width:90%;background:var(--surface);padding:24px;border-radius:8px;">
+      <div class="card__header" style="margin-bottom:20px;display:flex;align-items:flex-start;gap:12px">
+        <span style="font-size:1.25rem;font-weight:600">${esc(m.vorname || '')} ${esc(m.nachname || '')}</span>
+        <button class="btn btn--sm btn--outline" onclick="this.closest('.error-overlay').remove()" style="margin-left:auto">Schließen</button>
       </div>
-      <div style="font-size:0.9rem;line-height:1.6">
-        <p><strong>Geburtsdatum:</strong> ${formatDatumDeutsch(m.geburtsdatum)}</p>
-        <p><strong>Alter:</strong> ${m.alter_jahre ?? '-'} Jahre</p>
-        <p><strong>Eintritt:</strong> ${formatDatumDeutsch(m.eintrittsdatum)}</p>
-        <p><strong>Austritt:</strong> ${m.austrittsdatum ? formatDatumDeutsch(m.austrittsdatum) : '–'}</p>
-        <p><strong>Geschlecht:</strong> ${GESCHLECHT_LABELS[m.geschlecht] || m.geschlecht}</p>
-        ${m.adresse ? `<p><strong>Adresse:</strong> ${esc(m.adresse)}</p>` : ''}
-        ${m.telefon ? `<p><strong>Telefon:</strong> ${esc(m.telefon)}</p>` : ''}
-        ${m.email ? `<p><strong>E-Mail:</strong> ${esc(m.email)}</p>` : ''}
-        ${m.eltern_name ? `<p><strong>Eltern 1 (Name):</strong> ${esc(m.eltern_name)}</p>` : ''}
-        ${m.eltern_name_2 ? `<p><strong>Eltern 2 (Name):</strong> ${esc(m.eltern_name_2)}</p>` : ''}
-        ${m.eltern_telefon ? `<p><strong>Eltern (Telefon):</strong> ${esc(m.eltern_telefon)}</p>` : ''}
-        ${m.eltern_email ? `<p><strong>Eltern (E-Mail):</strong> ${esc(m.eltern_email)}</p>` : ''}
-        <p><strong>Juleica:</strong> ${m.juleica ? 'Ja' : 'Nein'}${m.juleica_ablauf ? ` (gültig bis ${formatDatumDeutsch(m.juleica_ablauf)})` : ''}</p>
-        ${m.bemerkung ? `<p><strong>Bemerkung:</strong> ${esc(m.bemerkung)}</p>` : ''}
-        <p><strong>Status:</strong> ${m.archiviert ? 'Archiviert' : 'Aktiv'}</p>
-        <hr style="margin:16px 0;border:none;height:1px;background:var(--border);">
-        <button class="btn btn--sm btn--outline" id="btn-vorgaenge">${icon('history', 14)} Mitgliedschaftsvorgänge</button>
+      <div class="mitglied-detail">
+        <dl class="feld">
+          <dt>Vorname</dt><dd>${esc(m.vorname || '-')}</dd>
+          <dt>Nachname</dt><dd>${esc(m.nachname || '-')}</dd>
+          <dt>Geburtsdatum</dt><dd>${formatDatumDeutsch(m.geburtsdatum)}</dd>
+          <dt>Alter</dt><dd>${m.alter_jahre ?? '-'} Jahre</dd>
+          <dt>Eintritt</dt><dd>${formatDatumDeutsch(m.eintrittsdatum)}</dd>
+          <dt>Austritt</dt><dd>${m.austrittsdatum ? formatDatumDeutsch(m.austrittsdatum) : '–'}</dd>
+          <dt>Geschlecht</dt><dd>${GESCHLECHT_LABELS[m.geschlecht] || m.geschlecht}</dd>
+          ${m.adresse ? `<dt>Adresse</dt><dd>${esc(m.adresse)}</dd>` : ''}
+          ${m.telefon ? `<dt>Telefon</dt><dd>${esc(m.telefon)}</dd>` : ''}
+          ${m.email ? `<dt>E-Mail</dt><dd>${esc(m.email)}</dd>` : ''}
+          ${m.eltern_name ? `<dt>Erziehungsberechtigte 1 (Name)</dt><dd>${esc(m.eltern_name)}</dd>` : ''}
+          ${m.eltern_name_2 ? `<dt>Erziehungsberechtigte 2 (Name)</dt><dd>${esc(m.eltern_name_2)}</dd>` : ''}
+          ${m.eltern_telefon ? `<dt>Erziehungsberechtigte 1 (Telefon)</dt><dd>${esc(m.eltern_telefon)}</dd>` : ''}
+          ${m.eltern_email ? `<dt>Erziehungsberechtigte 1 (E-Mail)</dt><dd>${esc(m.eltern_email)}</dd>` : ''}
+          ${m.eltern_telefon_2 ? `<dt>Erziehungsberechtigte 2 (Telefon)</dt><dd>${esc(m.eltern_telefon_2)}</dd>` : ''}
+          ${m.eltern_email_2 ? `<dt>Erziehungsberechtigte 2 (E-Mail)</dt><dd>${esc(m.eltern_email_2)}</dd>` : ''}
+          <dt>Juleica</dt><dd>${m.juleica ? 'Ja' : 'Nein'}${m.juleica_ablauf ? ` (gültig bis ${formatDatumDeutsch(m.juleica_ablauf)})` : ''}</dd>
+          ${m.bemerkung ? `<dt>Bemerkung</dt><dd>${esc(m.bemerkung)}</dd>` : ''}
+          <dt>Status</dt><dd>${m.archiviert ? 'Archiviert' : 'Aktiv'}</dd>
+        </dl>
       </div>
+      <hr style="margin:16px 0;border:none;height:1px;background:var(--border);">
+      <button class="btn btn--sm btn--outline" id="btn-vorgaenge">${icon('history', 14)} Mitgliedschaftsvorgänge</button>
     </div>
   `;
   document.body.appendChild(overlay);
