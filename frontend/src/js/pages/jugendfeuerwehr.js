@@ -647,11 +647,6 @@ async function renderAnwerterDienstteilnahmen(anwerterId, state) {
   }
 }
 
-function formatTimeDeutsch(t) {
-  if (!t) return '';
-  return t.slice(0, 5);
-}
-
 async function showDienstteilnahmeForm(anwerterId, state) {
   const c = document.getElementById('tab-content');
   c.innerHTML = `
