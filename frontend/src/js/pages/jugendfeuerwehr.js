@@ -810,7 +810,7 @@ async function renderKleiderkammerSubtab(subtab, state) {
               ${state.canWriteKleiderkammer ? `
                 <button class="btn btn--small btn--info edit-artikel" data-id="${a.id}">Bearbeiten</button>
                 <button class="btn btn--small btn--danger delete-artikel" data-id="${a.id}">L&ouml;schen</button>
-              ` : `<button class="btn btn--small btn--secondary" data-id="${a.id}">Ausgeben</button>`}
+              ` : ''}
             </td>
           </tr>
         `).join('');

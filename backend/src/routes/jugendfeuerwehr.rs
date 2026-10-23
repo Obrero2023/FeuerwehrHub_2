@@ -775,16 +775,19 @@ pub async fn return_ausgabe(
         return Err(AppError::BadRequest("Rückgabemenge muss größer als 0 sein".into()));
     }
 
-    // Hole die Ausgabe und prüfe die restliche offene Menge
+    let mut tx = state.db.begin().await.map_err(|e| AppError::Internal(e.into()))?;
+
+    // SELECT ... FOR UPDATE sperrt die Zeile gegen gleichzeitige Bearbeitung
     let row: (Uuid, i32, Option<i32>) = sqlx::query_as(
         r#"
         SELECT lagerartikel_id, menge, rueckgabe_menge
         FROM jugendfeuerwehr_kleiderausgaben
         WHERE id = $1
+        FOR UPDATE
         "#
     )
     .bind(ausgabe_id)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::NotFound)?;
 
@@ -793,22 +796,22 @@ pub async fn return_ausgabe(
     let offene_menge = ausgabe_menge - bereits_zurueck;
 
     if body.rueckgabe_menge > offene_menge {
+        tx.rollback().await.ok();
         return Err(AppError::BadRequest(format!(
             "Rückgabemenge ({}) darf {} nicht überschreiten",
             body.rueckgabe_menge, offene_menge
         )));
     }
 
-    // Atomare Bestandserhöhung: zurückgegebene Menge zum Lagerbestand hinzufügen
+    // Atomare Bestandserhöhung innerhalb der Transaktion
     sqlx::query("UPDATE jugendfeuerwehr_lagerartikel SET menge = menge + $1 WHERE id = $2")
         .bind(body.rueckgabe_menge)
         .bind(lagerartikel_id)
-        .execute(&state.db)
+        .execute(&mut *tx)
         .await?;
 
     let neue_rueckgabe_gesamt = bereits_zurueck + body.rueckgabe_menge;
     let ist_vollzurueck = neue_rueckgabe_gesamt >= ausgabe_menge;
-
     let rueckgabedatum = body.rueckgabedatum.unwrap_or_else(|| chrono::Utc::now().date_naive());
 
     let ausgabe = sqlx::query_as::<_, Kleiderausgabe>(
@@ -836,24 +839,24 @@ pub async fn return_ausgabe(
     .bind(&body.rueckgabe_bemerkung)
     .bind(&body.bemerkung)
     .bind(ausgabe_id)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::NotFound)?;
 
-    if ist_vollzurueck {
-        audit::log(
-            &state.db,
-            Some(claims.sub),
-            &claims.username,
-            "KLEIDERAUSGABE_RETURNED",
-            Some("jugendfeuerwehr_kleiderausgaben"),
-            Some(ausgabe_id),
-            None,
-        )
-        .await;
-    }
+    tx.commit().await.map_err(|e| AppError::Internal(e.into()))?;
 
-    let _ = ist_vollzurueck; // suppress unused warning
+    // Audit-Log: sowohl bei voller als auch bei teilweiser Rückgabe
+    audit::log(
+        &state.db,
+        Some(claims.sub),
+        &claims.username,
+        if ist_vollzurueck { "KLEIDERAUSGABE_RETURNED" } else { "KLEIDERAUSGABE_PARTIAL_RETURN" },
+        Some("jugendfeuerwehr_kleiderausgaben"),
+        Some(ausgabe_id),
+        None,
+    )
+    .await;
+
     Ok(Json(ausgabe))
 }
 
@@ -1096,6 +1099,9 @@ pub async fn promote_anwerter(
 
     let (name, geburtsdatum, geschlecht, adresse, telefon, email, eltern_name, eltern_telefon, eltern_email) = anwerter;
 
+    // HINWEIS: Ohne Unique-Konstraint auf (name, geburtsdatum) ist ON CONFLICT wirkungslos.
+    // Jede Promotion legt einen neuen Datensatz an; ein Duplikat-Check sollte bei Bedarf über
+    // einen DB-Konstraint erfolgen (Migration nötig).
     let result = sqlx::query(
         r#"
         INSERT INTO jugendfeuerwehr_mitglieder
@@ -1103,7 +1109,6 @@ pub async fn promote_anwerter(
              eltern_name, eltern_telefon, eltern_email, juleica, juleica_ablauf, bemerkung,
              archiviert, erstellt_von, erstellt_von_name)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-        ON CONFLICT DO NOTHING
         "#
     )
     .bind(&name)
