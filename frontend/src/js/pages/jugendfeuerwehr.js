@@ -203,6 +203,9 @@ async function showMemberForm(m = null) {
 
   const isEdit = !!m;
 
+  // Determine current archiviert status for the Status dropdown
+  const currentArchiviert = m?.archiviert ? true : false;
+
   c.innerHTML = `
     <div class="card">
       <div class="card__header">
@@ -228,6 +231,13 @@ async function showMemberForm(m = null) {
             <input type="date" id="fld-austrittsdatum" value="${m ? (m.austrittsdatum || '') : ''}" />
           </div>
           <div class="form-group form-group--half">
+            <label>Status <span class="required">*</span></label>
+            <select id="fld-status" required>
+              <option value="false" ${currentArchiviert === false ? 'selected' : ''}>Aktiv</option>
+              <option value="true" ${currentArchiviert === true ? 'selected' : ''}>Archiviert</option>
+            </select>
+          </div>
+          <div class="form-group form-group--half">
             <label>Geschlecht <span class="required">*</span></label>
             <select id="fld-geschlecht" required>
               <option value="männlich" ${m && m.geschlecht === 'männlich' ? 'selected' : ''}>männlich</option>
@@ -236,8 +246,8 @@ async function showMemberForm(m = null) {
             </select>
           </div>
           <div class="form-group form-group--full">
-            <label>Adresse</label>
-            <input type="text" id="fld-adresse" placeholder="Straße, Hausnummer, PLZ, Ort" value="${m ? esc(m.adresse || '') : ''}" maxlength="200" />
+            <label>Adresse <span class="required">*</span></label>
+            <input type="text" id="fld-adresse" placeholder="Straße, Hausnummer, PLZ, Ort" value="${m ? esc(m.adresse || '') : ''}" maxlength="200" required />
           </div>
           <div class="form-group form-group--half">
             <label>Telefon</label>
@@ -248,8 +258,12 @@ async function showMemberForm(m = null) {
             <input type="email" id="fld-email" placeholder="E-Mail-Adresse" value="${m ? esc(m.email || '') : ''}" maxlength="200" />
           </div>
           <div class="form-group form-group--full">
-            <label>Eltern / Erziehungsberechtigte – Name</label>
-            <input type="text" id="fld-eltern-name" placeholder="Name" value="${m ? esc(m.eltern_name || '') : ''}" />
+            <label>Eltern / Erziehungsberechtigte – Name 1 <span class="required">*</span></label>
+            <input type="text" id="fld-eltern-name" placeholder="Name" value="${m ? esc(m.eltern_name || '') : ''}" required maxlength="200" />
+          </div>
+          <div class="form-group form-group--full">
+            <label>Eltern / Erziehungsberechtigte – Name 2</label>
+            <input type="text" id="fld-eltern-name-2" placeholder="Name" value="${m ? esc(m.eltern_name_2 || '') : ''}" maxlength="200" />
           </div>
           <div class="form-group form-group--half">
             <label>Eltern – Telefon</label>
@@ -293,6 +307,11 @@ async function showMemberForm(m = null) {
     if (!geburtsdatum || !eintrittsdatum) { toast('Geburts- und Eintrittsdatum sind Pflichtfelder', 'error'); return; }
     const geschlecht = document.getElementById('fld-geschlecht').value;
     if (!geschlecht) { toast('Geschlecht ist ein Pflichtfeld', 'error'); return; }
+    const status = document.getElementById('fld-status').value;
+    const adresse = document.getElementById('fld-adresse').value.trim();
+    if (!adresse) { toast('Adresse ist ein Pflichtfeld', 'error'); return; }
+    const elternName = document.getElementById('fld-eltern-name').value.trim();
+    if (!elternName) { toast('Eltern / Erziehungsberechtigte – Name (1) ist ein Pflichtfeld', 'error'); return; }
     const today = new Date().toISOString().slice(0, 10);
     if (geburtsdatum > today) { toast('Geburtsdatum darf nicht in der Zukunft liegen', 'error'); return; }
 
@@ -302,16 +321,17 @@ async function showMemberForm(m = null) {
       eintrittsdatum,
       austrittsdatum: document.getElementById('fld-austrittsdatum').value || null,
       geschlecht,
-      adresse: document.getElementById('fld-adresse').value || null,
+      adresse,
       telefon: document.getElementById('fld-telefon').value || null,
       email: document.getElementById('fld-email').value || null,
-      eltern_name: document.getElementById('fld-eltern-name').value || null,
+      eltern_name: elternName,
+      eltern_name_2: document.getElementById('fld-eltern-name-2').value.trim() || null,
       eltern_telefon: document.getElementById('fld-eltern-telefon').value || null,
       eltern_email: document.getElementById('fld-eltern-email').value || null,
       juleica: document.getElementById('fld-juleica').checked,
       juleica_ablauf: document.getElementById('fld-juleica-ablauf').value || null,
       bemerkung: document.getElementById('fld-bemerkung').value || null,
-      archiviert: m?.archiviert ? true : null,
+      archiviert: status === 'true',
     };
 
     try {
@@ -354,7 +374,8 @@ async function showMemberDetail(m) {
         ${m.adresse ? `<p><strong>Adresse:</strong> ${esc(m.adresse)}</p>` : ''}
         ${m.telefon ? `<p><strong>Telefon:</strong> ${esc(m.telefon)}</p>` : ''}
         ${m.email ? `<p><strong>E-Mail:</strong> ${esc(m.email)}</p>` : ''}
-        ${m.eltern_name ? `<p><strong>Eltern (Name):</strong> ${esc(m.eltern_name)}</p>` : ''}
+        ${m.eltern_name ? `<p><strong>Eltern 1 (Name):</strong> ${esc(m.eltern_name)}</p>` : ''}
+        ${m.eltern_name_2 ? `<p><strong>Eltern 2 (Name):</strong> ${esc(m.eltern_name_2)}</p>` : ''}
         ${m.eltern_telefon ? `<p><strong>Eltern (Telefon):</strong> ${esc(m.eltern_telefon)}</p>` : ''}
         ${m.eltern_email ? `<p><strong>Eltern (E-Mail):</strong> ${esc(m.eltern_email)}</p>` : ''}
         <p><strong>Juleica:</strong> ${m.juleica ? 'Ja' : 'Nein'}${m.juleica_ablauf ? ` (gültig bis ${formatDatumDeutsch(m.juleica_ablauf)})` : ''}</p>

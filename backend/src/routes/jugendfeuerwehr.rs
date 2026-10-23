@@ -32,6 +32,7 @@ pub struct Jugendmitglied {
     pub telefon: Option<String>,
     pub email: Option<String>,
     pub eltern_name: Option<String>,
+    pub eltern_name_2: Option<String>,
     pub eltern_telefon: Option<String>,
     pub eltern_email: Option<String>,
     pub juleica: bool,
@@ -239,12 +240,16 @@ pub struct CreateJugendmitglied {
     pub austrittsdatum: Option<NaiveDate>,
     #[validate(length(min = 1, max = 20))]
     pub geschlecht: String,
-    pub adresse: Option<String>,
+    #[validate(length(min = 1, max = 200))]
+    pub adresse: String,
     #[validate(length(max = 50))]
     pub telefon: Option<String>,
     #[validate(length(max = 200))]
     pub email: Option<String>,
     pub eltern_name: Option<String>,
+    #[validate(length(max = 200))]
+    pub eltern_name_2: Option<String>,
+    #[validate(length(max = 50))]
     pub eltern_telefon: Option<String>,
     #[validate(length(max = 200))]
     pub eltern_email: Option<String>,
@@ -270,6 +275,8 @@ pub struct UpdateJugendmitglied {
     #[validate(length(max = 200))]
     pub email: Option<String>,
     pub eltern_name: Option<String>,
+    pub eltern_name_2: Option<String>,
+    #[validate(length(max = 50))]
     pub eltern_telefon: Option<String>,
     #[validate(length(max = 200))]
     pub eltern_email: Option<String>,
@@ -288,8 +295,8 @@ pub async fn list_jugendmitglieder(
     let mitglieder = sqlx::query_as::<_, Jugendmitglied>(
         r#"
         SELECT id, user_id, name, geburtsdatum, eintrittsdatum, austrittsdatum,
-               geschlecht, adresse, telefon, email, eltern_name, eltern_telefon,
-               eltern_email, juleica, juleica_ablauf, bemerkung, archiviert,
+               geschlecht, adresse, telefon, email, eltern_name, eltern_name_2,
+               eltern_telefon, eltern_email, juleica, juleica_ablauf, bemerkung, archiviert,
                EXTRACT(YEAR FROM AGE(CURRENT_DATE, geburtsdatum))::INTEGER as alter_jahre,
                erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
         FROM jugendfeuerwehr_mitglieder
@@ -310,8 +317,8 @@ pub async fn list_jugendmitglieder_archiviert(
     let mitglieder = sqlx::query_as::<_, Jugendmitglied>(
         r#"
         SELECT id, user_id, name, geburtsdatum, eintrittsdatum, austrittsdatum,
-               geschlecht, adresse, telefon, email, eltern_name, eltern_telefon,
-               eltern_email, juleica, juleica_ablauf, bemerkung, archiviert,
+               geschlecht, adresse, telefon, email, eltern_name, eltern_name_2,
+               eltern_telefon, eltern_email, juleica, juleica_ablauf, bemerkung, archiviert,
                EXTRACT(YEAR FROM AGE(CURRENT_DATE, geburtsdatum))::INTEGER as alter_jahre,
                erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
         FROM jugendfeuerwehr_mitglieder
@@ -333,8 +340,8 @@ pub async fn get_jugendmitglied(
     let mitglied = sqlx::query_as::<_, Jugendmitglied>(
         r#"
         SELECT id, user_id, name, geburtsdatum, eintrittsdatum, austrittsdatum,
-               geschlecht, adresse, telefon, email, eltern_name, eltern_telefon,
-               eltern_email, juleica, juleica_ablauf, bemerkung, archiviert,
+               geschlecht, adresse, telefon, email, eltern_name, eltern_name_2,
+               eltern_telefon, eltern_email, juleica, juleica_ablauf, bemerkung, archiviert,
                EXTRACT(YEAR FROM AGE(CURRENT_DATE, geburtsdatum))::INTEGER as alter_jahre,
                erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
         FROM jugendfeuerwehr_mitglieder
@@ -360,13 +367,13 @@ pub async fn create_jugendmitglied(
         r#"
         INSERT INTO jugendfeuerwehr_mitglieder
             (user_id, name, geburtsdatum, eintrittsdatum, austrittsdatum,
-             geschlecht, adresse, telefon, email, eltern_name, eltern_telefon,
-             eltern_email, juleica, juleica_ablauf, bemerkung, archiviert,
+             geschlecht, adresse, telefon, email, eltern_name, eltern_name_2,
+             eltern_telefon, eltern_email, juleica, juleica_ablauf, bemerkung, archiviert,
              erstellt_von, erstellt_von_name)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
         RETURNING id, user_id, name, geburtsdatum, eintrittsdatum, austrittsdatum,
-                    geschlecht, adresse, telefon, email, eltern_name, eltern_telefon,
-                    eltern_email, juleica, juleica_ablauf, bemerkung, archiviert,
+                    geschlecht, adresse, telefon, email, eltern_name, eltern_name_2,
+                    eltern_telefon, eltern_email, juleica, juleica_ablauf, bemerkung, archiviert,
                     EXTRACT(YEAR FROM AGE(CURRENT_DATE, geburtsdatum))::INTEGER as alter_jahre,
                     erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
         "#,
@@ -381,6 +388,7 @@ pub async fn create_jugendmitglied(
     .bind(&body.telefon)
     .bind(&body.email)
     .bind(&body.eltern_name)
+    .bind(&body.eltern_name_2)
     .bind(&body.eltern_telefon)
     .bind(&body.eltern_email)
     .bind(body.juleica.unwrap_or(false))
@@ -431,17 +439,18 @@ pub async fn update_jugendmitglied(
             telefon = COALESCE($8, telefon),
             email = COALESCE($9, email),
             eltern_name = COALESCE($10, eltern_name),
-            eltern_telefon = COALESCE($11, eltern_telefon),
-            eltern_email = COALESCE($12, eltern_email),
-            juleica = COALESCE($13, juleica),
-            juleica_ablauf = COALESCE($14, juleica_ablauf),
-            bemerkung = COALESCE($15, bemerkung),
-            archiviert = COALESCE($16, archiviert),
+            eltern_name_2 = COALESCE($11, eltern_name_2),
+            eltern_telefon = COALESCE($12, eltern_telefon),
+            eltern_email = COALESCE($13, eltern_email),
+            juleica = COALESCE($14, juleica),
+            juleica_ablauf = COALESCE($15, juleica_ablauf),
+            bemerkung = COALESCE($16, bemerkung),
+            archiviert = COALESCE($17, archiviert),
             aktualisiert_am = NOW()
-        WHERE id = $17
+        WHERE id = $18
         RETURNING id, user_id, name, geburtsdatum, eintrittsdatum, austrittsdatum,
-                    geschlecht, adresse, telefon, email, eltern_name, eltern_telefon,
-                    eltern_email, juleica, juleica_ablauf, bemerkung, archiviert,
+                    geschlecht, adresse, telefon, email, eltern_name, eltern_name_2,
+                    eltern_telefon, eltern_email, juleica, juleica_ablauf, bemerkung, archiviert,
                     EXTRACT(YEAR FROM AGE(CURRENT_DATE, geburtsdatum))::INTEGER as alter_jahre,
                     erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
         "#,
@@ -456,6 +465,7 @@ pub async fn update_jugendmitglied(
     .bind(&body.telefon)
     .bind(&body.email)
     .bind(&body.eltern_name)
+    .bind(&body.eltern_name_2)
     .bind(&body.eltern_telefon)
     .bind(&body.eltern_email)
     .bind(body.juleica)
@@ -1106,9 +1116,9 @@ pub async fn promote_anwerter(
         r#"
         INSERT INTO jugendfeuerwehr_mitglieder
             (name, geburtsdatum, eintrittsdatum, geschlecht, adresse, telefon, email,
-             eltern_name, eltern_telefon, eltern_email, juleica, juleica_ablauf, bemerkung,
+             eltern_name, eltern_name_2, eltern_telefon, eltern_email, juleica, juleica_ablauf, bemerkung,
              archiviert, erstellt_von, erstellt_von_name)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         "#
     )
     .bind(&name)
@@ -1119,6 +1129,7 @@ pub async fn promote_anwerter(
     .bind(&telefon)
     .bind(&email)
     .bind(&eltern_name)
+    .bind(None::<String>)
     .bind(&eltern_telefon)
     .bind(&eltern_email)
     .bind(false)
