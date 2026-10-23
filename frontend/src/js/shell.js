@@ -196,6 +196,13 @@ function buildShell() {
     { page: 'lehrgaenge', label: 'Lehrgänge', icon: icon('calendar-check', 16) },
   ];
 
+  const jugendfeuerwehrItems = [
+    { page: 'jugendfeuerwehr', label: 'Mitglieder', icon: icon('user-group', 16) },
+    { page: 'jugendfeuerwehr-anwerter', label: 'Anwerter', icon: icon('user-plus', 16) },
+    { page: 'jugendfeuerwehr-kleiderkammer', label: 'Kleiderkammer', icon: icon('shirt', 16) },
+    { page: 'jugendfeuerwehr-dienstteilnahmen', label: 'Dienstteilnahmen', icon: icon('calendar-check', 16) },
+  ];
+
   return `
     <div class="app-shell" style="--accent: ${accent}">
 
@@ -232,7 +239,7 @@ function buildShell() {
         ${showModulePublic('intranet')         ? buildNavItem('intranet',        'Intranet', intranetItems) : ''}
         ${showModule('fahrzeugbuchung', 'fahrzeugbuchung') ? buildNavItem('fahrzeugbuchung', 'Fahrzeugbuchung', fahrzeugbuchungItems) : ''}
         ${showModule('lehrgangsverwaltung.lesen', 'lehrgangsverwaltung') || showModule('lehrgangsverwaltung.verwalten', 'lehrgangsverwaltung') ? buildNavItem('lehrgangsverwaltung', 'Lehrgänge', lehrgaengeItems) : ''}
-        ${showModule('jugendfeuerwehr.lesen', 'jugendfeuerwehr') || showModule('jugendfeuerwehr', 'jugendfeuerwehr') ? buildNavItem('jugendfeuerwehr', 'Jugendfeuerwehr', [{ page: 'jugendfeuerwehr', label: 'Jugendfeuerwehr', icon: icon('user-group', 16) }]) : ''}
+        ${showModule('jugendfeuerwehr.lesen', 'jugendfeuerwehr') || showModule('jugendfeuerwehr', 'jugendfeuerwehr') ? buildNavItem('jugendfeuerwehr', 'Jugendfeuerwehr', jugendfeuerwehrItems) : ''}
 
         <div class="topnav__spacer"></div>
 

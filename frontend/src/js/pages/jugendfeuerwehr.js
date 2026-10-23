@@ -10,12 +10,12 @@ const GESCHLECHT_LABELS = {
   divers: 'divers',
 };
 
-// ── Hilfsfunktionen ──────────────────────────────────────────────────────────
-
-function formatDatum(iso) {
-  if (!iso) return '-';
-  return iso.slice(0, 10);
-}
+const ANWERTER_STATUS_LABELS = {
+  aktiv: 'Aktiv',
+  aufgenommen: 'Aufgenommen',
+  abgemeldet: 'Abgemeldet',
+  archiviert: 'Archiviert',
+};
 
 function formatDatumDeutsch(iso) {
   if (!iso) return '-';
@@ -23,306 +23,187 @@ function formatDatumDeutsch(iso) {
   return `${parts[2]}.${parts[1]}.${parts[0]}`;
 }
 
-// ── Hauptseite ───────────────────────────────────────────────────────────────
+function formatTimeDeutsch(t) {
+  if (!t) return '';
+  return t.slice(0, 5);
+}
 
-export async function renderJugendfeuerwehr() {
+async function setupPage(activeNavPage) {
   const [settings, user] = await Promise.all([api.getSettings(), api.me()]);
   setShellInfo(settings?.ff_name, user, settings?.modules);
-  renderShell('jugendfeuerwehr');
+  renderShell(activeNavPage || 'jugendfeuerwehr');
 
-  const content = document.getElementById('page-content');
-  const isAdmin = user?.role === 'admin' || user?.role === 'superuser';
   const perms = user?.permissions || [];
-
-  // Granular permissions per requirement specification
-  const canReadMitglieder = isAdmin || perms.includes('jugendfeuerwehr.mitglieder.lesen') || perms.includes('jugendfeuerwehr.lesen');
-  const canWriteMitglieder = isAdmin || perms.includes('jugendfeuerwehr.mitglieder') || perms.includes('jugendfeuerwehr');
-  const canCreateAnwerter = isAdmin || perms.includes('jugendfeuerwehr.anwerter');
-  const canWriteAnwerter = isAdmin || perms.includes('jugendfeuerwehr') || perms.includes('jugendfeuerwehr.anwerter');
-  const canWriteDienstteilnahmen = isAdmin || perms.includes('jugendfeuerwehr.dienstteilnahmen');
-  const canReadKleiderkammer = isAdmin || perms.includes('jugendfeuerwehr.kleiderkammer.lesen') || perms.includes('jugendfeuerwehr.lesen');
-  const canWriteKleiderkammer = isAdmin || perms.includes('jugendfeuerwehr.kleiderkammer');
-  const canWriteMitgliedschaftsvorgaenge = isAdmin || perms.includes('jugendfeuerwehr.mitgliedschaftsvorgaenge');
-
-  const appState = {
-    canReadMitglieder,
-    canWriteMitglieder,
-    canCreateAnwerter,
-    canWriteAnwerter,
-    canWriteDienstteilnahmen,
-    canReadKleiderkammer,
-    canWriteKleiderkammer,
-    canWriteMitgliedschaftsvorgaenge
+  const isAdmin = user?.role === 'admin' || user?.role === 'superuser';
+  const state = {
+    user,
+    isAdmin,
+    canReadMitglieder: isAdmin || perms.includes('jugendfeuerwehr') || perms.includes('jugendfeuerwehr.mitglieder.lesen') || perms.includes('jugendfeuerwehr.lesen'),
+    canWriteMitglieder: isAdmin || perms.includes('jugendfeuerwehr') || perms.includes('jugendfeuerwehr.mitglieder'),
+    canCreateAnwerter: isAdmin || perms.includes('jugendfeuerwehr') || perms.includes('jugendfeuerwehr.anwerter'),
+    canWriteAnwerter: isAdmin || perms.includes('jugendfeuerwehr') || perms.includes('jugendfeuerwehr.anwerter'),
+    canWriteDienstteilnahmen: isAdmin || perms.includes('jugendfeuerwehr') || perms.includes('jugendfeuerwehr.dienstteilnahmen'),
+    canReadKleiderkammer: isAdmin || perms.includes('jugendfeuerwehr') || perms.includes('jugendfeuerwehr.kleiderkammer.lesen') || perms.includes('jugendfeuerwehr.lesen'),
+    canWriteKleiderkammer: isAdmin || perms.includes('jugendfeuerwehr') || perms.includes('jugendfeuerwehr.kleiderkammer'),
+    canWriteMitgliedschaftsvorgaerge: isAdmin || perms.includes('jugendfeuerwehr') || perms.includes('jugendfeuerwehr.mitgliedschaftsvorgaerge'),
   };
+  return { settings, state, container: document.getElementById('page-content') };
+}
 
-  content.innerHTML = `
+function renderHeader(container, title, subtitle) {
+  container.innerHTML = `
     <div class="page-header">
       <div>
-        <h2>Jugendfeuerwehr</h2>
-        <p>Verwaltung von Jugendmitgliedern, Anwertern und Kleiderkammer</p>
+        <h2>${title}</h2>
+        <p>${subtitle}</p>
       </div>
     </div>
+  `;
+}
+
+export async function renderJugendfeuerwehrMitglieder() {
+  const { container, state } = await setupPage('jugendfeuerwehr');
+  renderHeader(container, 'Jugendmitglieder', 'Jugendmitglieder verwalten und archivieren');
+
+  container.innerHTML += `
     <div class="jugend-tabs">
-      <button class="tab-btn active" data-tab="mitglieder">Mitglieder</button>
-      <button class="tab-btn" data-tab="anwerter">Anwerter</button>
-      <button class="tab-btn" data-tab="kleiderkammer">Kleiderkammer</button>
-      <button class="tab-btn" data-tab="dienstteilnahmen">Dienstteilnahmen</button>
+      <button class="tab-btn active" data-tab="aktiv">Aktiv</button>
+      <button class="tab-btn" data-tab="archiviert">Archiviert</button>
     </div>
     <div id="tab-content"></div>
   `;
 
-  // Render the active tab
-  renderTab('mitglieder');
-  renderIcons(content);
-}
-
-  // ── Tab-Rendering ────────────────────────────────────────────────────────────
-
-async function renderTab(tab) {
-  const container = document.getElementById('tab-content');
-  const user = await api.me();
-  const isAdmin = user?.role === 'admin' || user?.role === 'superuser';
-  const perms = user?.permissions || [];
-
-  const canWriteMitglieder = isAdmin || perms.includes('jugendfeuerwehr.mitglieder') || perms.includes('jugendfeuerwehr');
-  const canReadMitglieder = canWriteMitglieder || perms.includes('jugendfeuerwehr.mitglieder.lesen') || perms.includes('jugendfeuerwehr.lesen');
-  const canCreateAnwerter = isAdmin || perms.includes('jugendfeuerwehr.anwerter');
-  const canWriteAnwerter = isAdmin || perms.includes('jugendfeuerwehr') || perms.includes('jugendfeuerwehr.anwerter');
-  const canWriteDienstteilnahmen = isAdmin || perms.includes('jugendfeuerwehr.dienstteilnahmen');
-  const canReadKleiderkammer = canWriteMitglieder || perms.includes('jugendfeuerwehr.kleiderkammer.lesen') || perms.includes('jugendfeuerwehr.lesen');
-  const canWriteKleiderkammer = isAdmin || perms.includes('jugendfeuerwehr.kleiderkammer');
-  const canWriteMitgliedschaftsvorgaenge = isAdmin || perms.includes('jugendfeuerwehr.mitgliedschaftsvorgaenge');
-
-  if (tab === 'mitglieder') {
-    container.innerHTML = `
-      <div style="margin-top: 12px; display:flex; gap:8px;">
-        ${canWriteMitglieder ? '<button class="btn btn--primary" id="btn-new-mitglied">Neues Mitglied</button>' : ''}
-      </div>
-      <div id="jugend-list"></div>
-      <div id="jugend-member-form" style="display:none"></div>
-    `;
-
-    if (canWriteMitglieder) {
-      document.getElementById('btn-new-mitglied')?.addEventListener('click', () => showForm());
-    }
-
-    loadAndRenderMitglieder(canReadMitglieder, canWriteMitglieder);
-  } else if (tab === 'anwerter') {
-    container.innerHTML = `
-      <div style="margin-top: 12px; display:flex; gap:8px;">
-        ${canCreateAnwerter ? '<button class="btn btn--primary" id="btn-new-anwerter">Neuen Anwerter anlegen</button>' : ''}
-      </div>
-      <div id="anwerter-list"></div>
-    `;
-
-    if (canCreateAnwerter) {
-      document.getElementById('btn-new-anwerter')?.addEventListener('click', () => showAnwerterForm());
-    }
-
-    loadAndRenderAnwarter(canCreateAnwerter, canWriteAnwerter);
-  } else if (tab === 'kleiderkammer') {
-    container.innerHTML = `
-      <div style="margin-top: 12px; display:flex; gap:8px; flex-wrap:wrap;">
-        ${canWriteKleiderkammer ? '<button class="btn btn--primary" id="btn-new-artikel">Neuen Lagerartikel anlegen</button>' : ''}
-      </div>
-      <div id="kleiderkammer-tabs" style="margin-top:8px;">
-        <button class="tab-btn active" data-ktab="artikel">Artikel & Bestand</button>
-        <button class="tab-btn" data-ktab="ausgaben">Ausgaben & Rückgaben</button>
-      </div>
-      <div id="ktab-content"></div>
-    `;
-
-    if (canWriteKleiderkammer) {
-      document.getElementById('btn-new-artikel')?.addEventListener('click', () => showLagerartikelForm());
-    }
-
-    document.querySelectorAll('[data-ktab]').forEach(b => {
-      b.addEventListener('click', () => {
-        document.querySelectorAll('[data-ktab]').forEach(x => x.classList.remove('active'));
-        b.classList.add('active');
-        renderKleiderkammerSubtab(b.dataset.ktab, canReadKleiderkammer, canWriteKleiderkammer);
-      });
+  container.querySelectorAll('.jugend-tabs .tab-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      container.querySelectorAll('.jugend-tabs .tab-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      renderMitgliederTab(b.dataset.tab, state);
     });
+  });
 
-    renderKleiderkammerSubtab('artikel', canReadKleiderkammer, canWriteKleiderkammer);
-  } else if (tab === 'dienstteilnahmen') {
-    container.innerHTML = `
-      <div id="dienstteilnahmen-content"></div>
-    `;
-    renderDienstteilnahmenTab(canWriteDienstteilnahmen);
-  }
+  renderMitgliederTab('aktiv', state);
+  renderIcons(container);
 }
 
-async function loadAndRenderMitglieder(canRead, canWrite) {
-  const container = document.getElementById('jugend-list');
+async function renderMitgliederTab(tab, state) {
+  const c = document.getElementById('tab-content');
+  const canRead = state.canReadMitglieder;
+  const canWrite = state.canWriteMitglieder;
+
+  c.innerHTML = `
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn--primary" id="btn-new-mitglied" ${canWrite ? '' : 'style="display:none;"'}>Neues Mitglied</button>
+    </div>
+    <div id="mitglieder-list"></div>
+    <div id="mitglied-form" style="display:none"></div>
+  `;
+
+  if (canWrite) document.getElementById('btn-new-mitglied').addEventListener('click', () => showMemberForm());
+
   if (!canRead) {
-    container.innerHTML = '<p style="color:#c00;">Keine Berechtigung zum Einsehen von Mitgliederdaten.</p>';
+    c.innerHTML += '<p style="color:#c00;margin-top:12px">Keine Berechtigung zum Einsehen von Mitgliederdaten.</p>';
     return;
   }
 
   let mitglieder;
-  try {
-    mitglieder = await api.getJugendmitglieder();
-  } catch (e) {
-    mitglieder = [];
+  if (tab === 'archiviert') {
+    try { mitglieder = await api.getJugendmitgliederArchiviert(); } catch { mitglieder = []; }
+  } else {
+    try { mitglieder = await api.getJugendmitglieder(); } catch { mitglieder = []; }
   }
 
   if (!mitglieder.length) {
-    container.innerHTML = `
+    c.innerHTML += `
       <div class="empty-state">
         <span class="icon icon--large">👦</span>
-        <p>Keine Jugendmitglieder vorhanden</p>
+        <p>${tab === 'archiviert' ? 'Keine archivierten Mitglieder vorhanden' : 'Keine Jugendmitglieder vorhanden'}</p>
         ${canWrite ? '<button class="btn btn--primary" id="btn-new-mid-empty">Neues Mitglied</button>' : ''}
       </div>`;
-    if (canWrite) {
-      document.getElementById('btn-new-mid-empty')?.addEventListener('click', () => showForm());
-    }
+    if (canWrite) document.getElementById('btn-new-mid-empty')?.addEventListener('click', () => showMemberForm());
     return;
   }
 
-  container.innerHTML = `
+  c.innerHTML += `
     <table class="jugend-table">
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Geburtsdatum</th>
-          <th>Alter</th>
-          <th>Eintritt</th>
-          <th>Austritt</th>
-          <th>Geschlecht</th>
-          <th>Telefon</th>
-          <th>E-Mail</th>
-          <th>Juleica</th>
-          <th>Aktionen</th>
+          <th>Name</th><th>Geburt</th><th>Alter</th><th>Eintritt</th><th>Austritt</th>
+          <th>Geschlecht</th><th>Telefon</th><th>E-Mail</th><th>Juleica</th><th>Status</th><th>Aktionen</th>
         </tr>
       </thead>
       <tbody>
         ${mitglieder.map((m, idx) => {
-          const isAktiv = !m.austrittsdatum;
+          const arch = m.archiviert;
           return `
-          <tr class="jugend-row ${isAktiv ? '' : 'jugend-row--inaktiv'}" style="animation-delay: ${idx * 0.06}s;">
+          <tr class="jugend-row ${!canWrite ? 'jugend-row--readonly' : ''}" style="animation-delay:${idx * 0.06}s">
             <td class="jugend-name"><strong>${esc(m.name)}</strong></td>
             <td class="jugend-geburtsdatum">${formatDatumDeutsch(m.geburtsdatum)}</td>
             <td class="jugend-alter">${m.alter_jahre ?? '-'}</td>
             <td class="jugend-eintritt">${formatDatumDeutsch(m.eintrittsdatum)}</td>
             <td class="jugend-austritt">${m.austrittsdatum ? formatDatumDeutsch(m.austrittsdatum) : '–'}</td>
-            <td class="jugend-geschlecht">${GESCHLECHT_LABELS[m.geschlecht] || m.geschlecht}</td>
+            <td class="jugend-geschlecht">${GESCHLECHT_LABELS[m.geschlecht] || esc(m.geschlecht)}</td>
             <td class="jugend-telefon">${m.telefon || '–'}</td>
             <td class="jugend-email">${m.email || '–'}</td>
             <td class="jugend-juleica">${m.juleica ? '✓' : '–'}</td>
+            <td class="jugend-status">${arch ? 'Archiviert' : 'Aktiv'}</td>
             <td class="jugend-actions">
               <button class="btn btn--small btn--secondary view-mitglied" data-id="${m.id}">Details</button>
               ${canWrite ? `
                 <button class="btn btn--small btn--info edit-mitglied" data-id="${m.id}">Bearbeiten</button>
-                <button class="btn btn--small btn--danger delete-mitglied" data-id="${m.id}">Löschen</button>
+                <button class="btn btn--small btn--danger delete-mitglied" data-id="${m.id}">${arch ? 'Wiederherstellen' : 'Archivieren'}</button>
               ` : ''}
             </td>
-          </tr>
-          `;
+          </tr>`;
         }).join('')}
       </tbody>
     </table>
   `;
 
-  document.querySelectorAll('.view-mitglied').forEach(b => {
+  const tbody = c.querySelector('.jugend-table tbody');
+  tbody?.querySelectorAll('.view-mitglied').forEach(b => {
     b.addEventListener('click', async () => {
-      try {
-        const m = await api.getJugendmitglied(b.dataset.id);
-        showMemberDetail(m);
-      } catch (e) { toast(e.message, 'error'); }
+      try { showMemberDetail(await api.getJugendmitglied(b.dataset.id)); }
+      catch (e) { toast(e.message, 'error'); }
     });
   });
-
   if (canWrite) {
-    document.querySelectorAll('.edit-mitglied').forEach(b => {
-      b.addEventListener('click', () => {
-        showForm(mitglieder.find(x => x.id === b.dataset.id));
-      });
+    tbody?.querySelectorAll('.edit-mitglied').forEach(b => {
+      b.addEventListener('click', () => showMemberForm(mitglieder.find(x => x.id === b.dataset.id)));
     });
-
-    document.querySelectorAll('.delete-mitglied').forEach(b => {
+    tbody?.querySelectorAll('.delete-mitglied').forEach(b => {
       b.addEventListener('click', async () => {
-        if (!confirm('Mitglied wirklich löschen?')) return;
-        try {
-          await api.deleteJugendmitglied(b.dataset.id);
-          toast('Mitglied gelöscht', 'success');
-          loadAndRenderMitglieder(canRead, canWrite);
-        } catch (e) { toast(e.message, 'error'); }
+        const m = mitglieder.find(x => x.id === b.dataset.id);
+        if (m.archiviert) {
+          if (!confirm(`Mitglied "${m.name}" wiederherstellen?`)) return;
+          try {
+            await api.updateJugendmitglied(m.id, { archiviert: false });
+            toast('Mitglied wiederhergestellt', 'success');
+            renderMitgliederTab(tab, state);
+          } catch (e) { toast(e.message, 'error'); }
+        } else {
+          if (!confirm(`Mitglied "${m.name}" wirklich archivieren?`)) return;
+          try {
+            await api.deleteJugendmitglied(m.id);
+            toast('Mitglied archiviert', 'success');
+            renderMitgliederTab(tab, state);
+          } catch (e) { toast(e.message, 'error'); }
+        }
       });
     });
   }
 }
 
-async function loadAndRenderAnwarter(canCreate, canWrite) {
-  const container = document.getElementById('anwerter-list');
+// ── Mitglieder-Formular (Neu/Bearbeiten) ──────────────────────────────────────
 
-  let anwaeter;
-  try {
-    anwaeter = await api.getAnwaeter();
-  } catch { anwaeter = []; }
-
-  if (!anwaeter.length) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <span class="icon icon--large">👦</span>
-        <p>Keine Anwärter vorhanden</p>
-        ${canCreate ? '<button class="btn btn--primary" id="btn-new-anw-empty">Neuen Anwerter anlegen</button>' : ''}
-      </div>`;
-    if (canCreate) {
-      document.getElementById('btn-new-anw-empty')?.addEventListener('click', () => showAnwerterForm());
-    }
-    return;
-  }
-
-  container.innerHTML = `
-    <div style="margin-top: 12px;">
-      <table class="jugend-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Geburtsdatum</th>
-            <th>Alter</th>
-            <th>Eintritt</th>
-            <th>Status</th>
-            <th>Aktionen</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${anwaeter.map((a, idx) => {
-            return `
-            <tr style="animation-delay: ${idx * 0.06}s;">
-              <td class="jugend-name"><strong>${esc(a.name)}</strong></td>
-              <td class="jugend-geburtsdatum">${formatDatumDeutsch(a.geburtsdatum)}</td>
-              <td class="jugend-alter">${a.alter_jahre ?? '-'}</td>
-              <td class="jugend-eintritt">${formatDatumDeutsch(a.eintrittsdatum)}</td>
-              <td class="jugend-status">${a.status}</td>
-              <td class="jugend-actions">
-                ${canWrite ? `
-                  <button class="btn btn--small btn--info">Bearbeiten</button>
-                  <button class="btn btn--small btn--danger">Archivieren</button>
-                ` : ''}
-              </td>
-            </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
-// ── Mitglieder-Formular (Neu/Bearbeiten) ─────────────────────────────────────
-
-async function showForm(m = null) {
-  const formEl = document.getElementById('jugend-member-form');
-  const listEl = document.getElementById('jugend-list');
-  if (!formEl) return;
-  formEl.style.display = 'block';
-  if (listEl) listEl.style.display = 'none';
+async function showMemberForm(m = null) {
+  const c = document.getElementById('tab-content');
+  const list = document.getElementById('mitglieder-list');
+  if (!c) return;
+  if (list) list.style.display = 'none';
 
   const isEdit = !!m;
 
-  formEl.innerHTML = `
+  c.innerHTML = `
     <div class="card">
       <div class="card__header">
         <span>${isEdit ? 'Mitglied bearbeiten' : 'Neues Mitglied'}</span>
@@ -332,7 +213,7 @@ async function showForm(m = null) {
         <form id="member-form-el" class="form-grid">
           <div class="form-group form-group--full">
             <label>Name <span class="required">*</span></label>
-            <input type="text" id="fld-name" placeholder="Vor- und Nachname" value="${m ? esc(m.name) : ''}" required />
+            <input type="text" id="fld-name" placeholder="Vor- und Nachname" value="${m ? esc(m.name) : ''}" required maxlength="200" />
           </div>
           <div class="form-group form-group--half">
             <label>Geburtsdatum <span class="required">*</span></label>
@@ -344,7 +225,7 @@ async function showForm(m = null) {
           </div>
           <div class="form-group form-group--half">
             <label>Austrittsdatum</label>
-            <input type="date" id="fld-austrittsdatum" value="${m ? m.austrittsdatum || '' : ''}" />
+            <input type="date" id="fld-austrittsdatum" value="${m ? (m.austrittsdatum || '') : ''}" />
           </div>
           <div class="form-group form-group--half">
             <label>Geschlecht <span class="required">*</span></label>
@@ -356,15 +237,15 @@ async function showForm(m = null) {
           </div>
           <div class="form-group form-group--full">
             <label>Adresse</label>
-            <input type="text" id="fld-adresse" placeholder="Straße, Hausnummer, PLZ, Ort" value="${m ? esc(m.adresse || '') : ''}" />
+            <input type="text" id="fld-adresse" placeholder="Straße, Hausnummer, PLZ, Ort" value="${m ? esc(m.adresse || '') : ''}" maxlength="200" />
           </div>
           <div class="form-group form-group--half">
             <label>Telefon</label>
-            <input type="tel" id="fld-telefon" placeholder="Telefonnummer" value="${m ? esc(m.telefon || '') : ''}" />
+            <input type="tel" id="fld-telefon" placeholder="Telefonnummer" value="${m ? esc(m.telefon || '') : ''}" maxlength="50" />
           </div>
           <div class="form-group form-group--half">
             <label>E-Mail</label>
-            <input type="email" id="fld-email" placeholder="E-Mail-Adresse" value="${m ? esc(m.email || '') : ''}" />
+            <input type="email" id="fld-email" placeholder="E-Mail-Adresse" value="${m ? esc(m.email || '') : ''}" maxlength="200" />
           </div>
           <div class="form-group form-group--full">
             <label>Eltern / Erziehungsberechtigte – Name</label>
@@ -372,11 +253,11 @@ async function showForm(m = null) {
           </div>
           <div class="form-group form-group--half">
             <label>Eltern – Telefon</label>
-            <input type="tel" id="fld-eltern-telefon" placeholder="Telefonnummer" value="${m ? esc(m.eltern_telefon || '') : ''}" />
+            <input type="tel" id="fld-eltern-telefon" placeholder="Telefonnummer" value="${m ? esc(m.eltern_telefon || '') : ''}" maxlength="50" />
           </div>
           <div class="form-group form-group--half">
             <label>Eltern – E-Mail</label>
-            <input type="email" id="fld-eltern-email" placeholder="E-Mail-Adresse" value="${m ? esc(m.eltern_email || '') : ''}" />
+            <input type="email" id="fld-eltern-email" placeholder="E-Mail-Adresse" value="${m ? esc(m.eltern_email || '') : ''}" maxlength="200" />
           </div>
           <div class="form-group form-group--half">
             <label>Juleica</label>
@@ -384,13 +265,13 @@ async function showForm(m = null) {
           </div>
           <div class="form-group form-group--half">
             <label>Juleica gültig bis</label>
-            <input type="date" id="fld-juleica-ablauf" value="${m ? m.juleica_ablauf || '' : ''}" />
+            <input type="date" id="fld-juleica-ablauf" value="${m ? (m.juleica_ablauf || '') : ''}" />
           </div>
           <div class="form-group form-group--full">
             <label>Bemerkung</label>
             <textarea id="fld-bemerkung" rows="3" placeholder="Bemerkungen">${m ? esc(m.bemerkung || '') : ''}</textarea>
           </div>
-          <div class="form-group form-group--full" style="margin-top: 12px;">
+          <div class="form-group form-group--full" style="margin-top:12px">
             <button type="submit" class="btn btn--primary">${isEdit ? 'Speichern' : 'Anlegen'}</button>
           </div>
         </form>
@@ -398,28 +279,28 @@ async function showForm(m = null) {
     </div>
   `;
 
-  document.getElementById('btn-cancel-member')?.addEventListener('click', () => {
-    formEl.style.display = 'none';
-    if (listEl) listEl.style.display = '';
+  document.getElementById('btn-cancel-member').addEventListener('click', () => {
+    c.innerHTML = '';
+    if (list) list.style.display = '';
   });
 
-  document.getElementById('member-form-el')?.addEventListener('submit', async (e) => {
+  document.getElementById('member-form-el').addEventListener('submit', async (e) => {
     e.preventDefault();
-
     const name = document.getElementById('fld-name').value.trim();
-    if (!name) { toast('Name erforderlich', 'error'); return; }
-
+    if (!name) { toast('Name ist ein Pflichtfeld', 'error'); return; }
     const geburtsdatum = document.getElementById('fld-geburtsdatum').value;
     const eintrittsdatum = document.getElementById('fld-eintrittsdatum').value;
-    const austrittsdatum = document.getElementById('fld-austrittsdatum').value;
+    if (!geburtsdatum || !eintrittsdatum) { toast('Geburts- und Eintrittsdatum sind Pflichtfelder', 'error'); return; }
     const geschlecht = document.getElementById('fld-geschlecht').value;
-    const juleica = document.getElementById('fld-juleica').checked;
+    if (!geschlecht) { toast('Geschlecht ist ein Pflichtfeld', 'error'); return; }
+    const today = new Date().toISOString().slice(0, 10);
+    if (geburtsdatum > today) { toast('Geburtsdatum darf nicht in der Zukunft liegen', 'error'); return; }
 
     const body = {
       name,
-      geburtsdatum: geburtsdatum || null,
-      eintrittsdatum: eintrittsdatum || null,
-      austrittsdatum: austrittsdatum || null,
+      geburtsdatum,
+      eintrittsdatum,
+      austrittsdatum: document.getElementById('fld-austrittsdatum').value || null,
       geschlecht,
       adresse: document.getElementById('fld-adresse').value || null,
       telefon: document.getElementById('fld-telefon').value || null,
@@ -427,9 +308,10 @@ async function showForm(m = null) {
       eltern_name: document.getElementById('fld-eltern-name').value || null,
       eltern_telefon: document.getElementById('fld-eltern-telefon').value || null,
       eltern_email: document.getElementById('fld-eltern-email').value || null,
-      juleica: juleica,
+      juleica: document.getElementById('fld-juleica').checked,
       juleica_ablauf: document.getElementById('fld-juleica-ablauf').value || null,
       bemerkung: document.getElementById('fld-bemerkung').value || null,
+      archiviert: m?.archiviert ? true : null,
     };
 
     try {
@@ -440,14 +322,11 @@ async function showForm(m = null) {
         await api.createJugendmitglied(body);
         toast('Mitglied angelegt', 'success');
       }
-      formEl.style.display = 'none';
-      if (listEl) listEl.style.display = '';
-      const user = await api.me();
-      const isAdmin = user?.role === 'admin' || user?.role === 'superuser';
-      const perms = user?.permissions || [];
-      const canWrite = isAdmin || perms.includes('jugendfeuerwehr.mitglieder') || perms.includes('jugendfeuerwehr');
-      const canRead = canWrite || perms.includes('jugendfeuerwehr.mitglieder.lesen') || perms.includes('jugendfeuerwehr.lesen');
-      loadAndRenderMitglieder(canRead, canWrite);
+      const tab = c.closest('.jugend-tabs') ? c.querySelector('.jugend-tabs .tab-btn.active')?.dataset.tab : 'aktiv';
+      window.__jfMitgliederState = state;
+      c.innerHTML = '';
+      if (list) list.style.display = '';
+      await renderMitgliederTab(tab || 'aktiv', state);
     } catch (e) {
       toast(e.message || 'Fehler beim Speichern', 'error');
     }
@@ -456,102 +335,392 @@ async function showForm(m = null) {
 
 // ── Mitglieder-Details-Overlay ───────────────────────────────────────────────
 
-async function showMemberDetail(id) {
+async function showMemberDetail(m) {
+  const overlay = document.createElement('div');
+  overlay.className = 'error-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;';
+  overlay.innerHTML = `
+    <div class="card" style="max-width:500px;width:90%;background:var(--surface);padding:24px;border-radius:8px;">
+      <div class="card__header" style="margin-bottom:16px">
+        <span style="font-size:1.1rem;font-weight:600">${esc(m.name)}</span>
+        <button class="btn btn--sm btn--outline" onclick="this.closest('.error-overlay').remove()" style="float:right">Schließen</button>
+      </div>
+      <div style="font-size:0.9rem;line-height:1.6">
+        <p><strong>Geburtsdatum:</strong> ${formatDatumDeutsch(m.geburtsdatum)}</p>
+        <p><strong>Alter:</strong> ${m.alter_jahre ?? '-'} Jahre</p>
+        <p><strong>Eintritt:</strong> ${formatDatumDeutsch(m.eintrittsdatum)}</p>
+        <p><strong>Austritt:</strong> ${m.austrittsdatum ? formatDatumDeutsch(m.austrittsdatum) : '–'}</p>
+        <p><strong>Geschlecht:</strong> ${GESCHLECHT_LABELS[m.geschlecht] || m.geschlecht}</p>
+        ${m.adresse ? `<p><strong>Adresse:</strong> ${esc(m.adresse)}</p>` : ''}
+        ${m.telefon ? `<p><strong>Telefon:</strong> ${esc(m.telefon)}</p>` : ''}
+        ${m.email ? `<p><strong>E-Mail:</strong> ${esc(m.email)}</p>` : ''}
+        ${m.eltern_name ? `<p><strong>Eltern (Name):</strong> ${esc(m.eltern_name)}</p>` : ''}
+        ${m.eltern_telefon ? `<p><strong>Eltern (Telefon):</strong> ${esc(m.eltern_telefon)}</p>` : ''}
+        ${m.eltern_email ? `<p><strong>Eltern (E-Mail):</strong> ${esc(m.eltern_email)}</p>` : ''}
+        <p><strong>Juleica:</strong> ${m.juleica ? 'Ja' : 'Nein'}${m.juleica_ablauf ? ` (gültig bis ${formatDatumDeutsch(m.juleica_ablauf)})` : ''}</p>
+        ${m.bemerkung ? `<p><strong>Bemerkung:</strong> ${esc(m.bemerkung)}</p>` : ''}
+        <p><strong>Status:</strong> ${m.archiviert ? 'Archiviert' : 'Aktiv'}</p>
+        <hr style="margin:16px 0;border:none;height:1px;background:var(--border);">
+        <button class="btn btn--sm btn--outline" id="btn-vorgaenge">${icon('history', 14)} Mitgliedschaftsvorgänge</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.querySelector('.error-overlay button').addEventListener('click', () => overlay.remove());
+  document.getElementById('btn-vorgaenge')?.addEventListener('click', () => showVorgaenge(m.id));
+}
+
+// ── Seiten: Anwerter ──────────────────────────────────────────────────────────
+
+window.__jfAnwerterState = window.__jfAnwerterState || {};
+
+export async function renderJugendfeuerwehrAnwerter() {
+  const { container, state } = await setupPage('jugendfeuerwehr');
+  renderHeader(container, 'Anwerter', 'Anwerter verwalten und bewerben');
+
+  container.innerHTML += `
+    <div class="jugend-tabs">
+      <button class="tab-btn active" data-tab="aktiv">Aktiv</button>
+      <button class="tab-btn" data-tab="archiviert">Archiviert</button>
+    </div>
+    <div id="tab-content"></div>
+  `;
+
+  container.querySelectorAll('.jugend-tabs .tab-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      container.querySelectorAll('.jugend-tabs .tab-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      renderAnwerterTab(b.dataset.tab, state);
+    });
+  });
+
+  renderAnwerterTab('aktiv', state);
+  renderIcons(container);
+}
+
+async function renderAnwerterTab(tab, state) {
+  const c = document.getElementById('tab-content');
+  const canWrite = state.canWriteAnwerter;
+  const canCreate = state.canCreateAnwerter;
+
+  c.innerHTML = `
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      ${canCreate ? '<button class="btn btn--primary" id="btn-new-anwerter">Neuen Anwerter anlegen</button>' : ''}
+    </div>
+    <div id="anwerter-list"></div>
+  `;
+
+  if (canCreate) document.getElementById('btn-new-anwerter').addEventListener('click', () => showAnwerterForm());
+
+  let anwaeter;
   try {
-    const m = await api.getJugendmitglied(id);
-    const overlay = document.createElement('div');
-    overlay.className = 'error-overlay';
-    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;';
-    overlay.innerHTML = `
-      <div class="card" style="max-width:500px;width:90%;background:var(--surface);padding:24px;border-radius:8px;">
-        <div class="card__header" style="margin-bottom:16px;">
-          <span style="font-size:1.1rem;font-weight:600">${esc(m.name)}</span>
-          <button class="btn btn--sm btn--outline" onclick="this.closest('.error-overlay').remove()" style="float:right;">Schließen</button>
-        </div>
-        <div style="font-size:0.9rem;line-height:1.6;">
-          <p><strong>Geburtsdatum:</strong> ${formatDatumDeutsch(m.geburtsdatum)}</p>
-          <p><strong>Alter:</strong> ${m.alter_jahre ?? '-'} Jahre</p>
-          <p><strong>Eintritt:</strong> ${formatDatumDeutsch(m.eintrittsdatum)}</p>
-          <p><strong>Austritt:</strong> ${m.austrittsdatum ? formatDatumDeutsch(m.austrittsdatum) : '–'}</p>
-          <p><strong>Geschlecht:</strong> ${GESCHLECHT_LABELS[m.geschlecht] || m.geschlecht}</p>
-          ${m.adresse ? `<p><strong>Adresse:</strong> ${esc(m.adresse)}</p>` : ''}
-          ${m.telefon ? `<p><strong>Telefon:</strong> ${esc(m.telefon)}</p>` : ''}
-          ${m.email ? `<p><strong>E-Mail:</strong> ${esc(m.email)}</p>` : ''}
-          ${m.eltern_name ? `<p><strong>Eltern (Name):</strong> ${esc(m.eltern_name)}</p>` : ''}
-          ${m.eltern_telefon ? `<p><strong>Eltern (Telefon):</strong> ${esc(m.eltern_telefon)}</p>` : ''}
-          ${m.eltern_email ? `<p><strong>Eltern (E-Mail):</strong> ${esc(m.eltern_email)}</p>` : ''}
-          <p><strong>Juleica:</strong> ${m.juleica ? 'Ja' : 'Nein'}${m.juleica_ablauf ? ` (gültig bis ${formatDatumDeutsch(m.juleica_ablauf)})` : ''}</p>
-          ${m.bemerkung ? `<p><strong>Bemerkung:</strong> ${esc(m.bemerkung)}</p>` : ''}
-        </div>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-    document.querySelector('.error-overlay button').addEventListener('click', () => overlay.remove());
-  } catch (e) { toast(e.message, 'error'); }
-}
+    anwaeter = tab === 'archiviert' ? await api.getAnwaeterArchiviert() : await api.getAnwaeter();
+  } catch { anwaeter = []; }
 
-async function showAnwerterForm(a = null) {
-  // TODO: Implement Anwerter form for Betreuer/Jugendwart creation
-  toast('Anwerter-Formular wird implementiert', 'info');
-}
+  if (!anwaeter.length) {
+    c.innerHTML += `
+      <div class="empty-state">
+        <span class="icon icon--large">👦</span>
+        <p>Keine Anwärter vorhanden</p>
+        ${canCreate ? '<button class="btn btn--primary" id="btn-new-anw-empty">Neuen Anwerter anlegen</button>' : ''}
+      </div>`;
+    if (canCreate) document.getElementById('btn-new-anw-empty')?.addEventListener('click', () => showAnwerterForm());
+    return;
+  }
 
-async function renderKleiderkammerSubtab(subtab, canRead, canWrite) {
-  const container = document.getElementById('ktab-content');
-  if (subtab === 'artikel') {
-    container.innerHTML = `
-      <div style="margin-top: 12px;">
-        <table class="jugend-table" style="width:100%;">
-          <thead>
-            <tr><th>Name</th><th>Beschreibung</th><th>Menge</th><th>Einheit</th><th>Aktionen</th></tr>
-          </thead>
-          <tbody id="artikel-list"></tbody>
-        </table>
-      </div>
-    `;
-    try {
-      const artikel = await api.getLagerartikel();
-      const tbody = document.getElementById('artikel-list');
-      tbody.innerHTML = artikel.map(a => `
-        <tr>
-          <td>${esc(a.name)}</td>
-          <td>${esc(a.beschreibung || '-')}</td>
-          <td>${a.menge}</td>
-          <td>${a.einheit || 'Stück'}</td>
-          <td>
-            <button class="btn btn--small btn--secondary">Details</button>
-            ${canWrite ? `<button class="btn btn--small btn--info">Bearbeiten</button>` : ''}
-          </td>
-        </tr>
-      `).join('');
-    } catch (e) {
-      tbody.innerHTML = '<tr><td colspan="5">Fehler beim Laden der Artikel</td></tr>';
-    }
-  } else if (subtab === 'ausgaben') {
-    container.innerHTML = `
-      <div style="margin-top: 12px;">
-        <table class="jugend-table" style="width:100%;">
-          <thead>
-            <tr><th>Datum</th><th>Mitglied</th><th>Artikel</th><th>Menge</th><th>Bemerkung</th></tr>
-          </thead>
-          <tbody id="ausgaben-list"></tbody>
-        </table>
-      </div>
-    `;
+  c.innerHTML += `
+    <div style="margin-top:12px">
+      <table class="jugend-table">
+        <thead>
+          <tr><th>Name</th><th>Geburt</th><th>Alter</th><th>Eintritt</th><th>Status</th><th>Aktionen</th></tr>
+        </thead>
+        <tbody>
+          ${anwaeter.map(a => `
+          <tr data-id="${a.id}">
+            <td class="jugend-name"><strong>${esc(a.name)}</strong></td>
+            <td class="jugend-geburtsdatum">${formatDatumDeutsch(a.geburtsdatum)}</td>
+            <td class="jugend-alter">${a.alter_jahre ?? '-'}</td>
+            <td class="jugend-eintritt">${formatDatumDeutsch(a.eintrittsdatum)}</td>
+            <td class="jugend-status"><span class="badge badge--${a.status === 'archiviert' ? 'danger' : a.status === 'abgemeldet' ? 'warning' : 'success'}">${ANWERTER_STATUS_LABELS[a.status] || esc(a.status)}</span></td>
+            <td class="jugend-actions">
+              ${canWrite ? `
+                <button class="btn btn--small btn--info edit-anwerter" data-id="${a.id}">Bearbeiten</button>
+                <button class="btn btn--small btn--danger archive-anwerter" data-id="${a.id}">${a.status === 'archiviert' ? 'Wiederherstellen' : 'Archivieren'}</button>
+              ` : ''}
+              <button class="btn btn--small btn--secondary view-anwerter" data-id="${a.id}">Dienstteilnahmen</button>
+            </td>
+          </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  window.__jfAnwerterState = { tab, state, list };
+
+  const wrap = c.querySelector('.jugend-table tbody');
+  wrap?.querySelectorAll('.view-anwerter').forEach(b => {
+    b.addEventListener('click', () => renderAnwerterDienstteilnahmen(b.dataset.id, state));
+  });
+  if (canWrite) {
+    wrap?.querySelectorAll('.edit-anwerter').forEach(b => {
+      b.addEventListener('click', () => showAnwerterForm(anwaeter.find(x => x.id === b.dataset.id)));
+    });
+    wrap?.querySelectorAll('.archive-anwerter').forEach(b => {
+      b.addEventListener('click', async () => {
+        const a = anwaeter.find(x => x.id === b.dataset.id);
+        if (a.status === 'archiviert') {
+          if (!confirm(`Anwerter "${a.name}" wiederherstellen?`)) return;
+          try { await api.updateAnwerter(a.id, { status: 'aktiv' }); toast('Wiederhergestellt', 'success'); renderAnwerterTab(tab, state); }
+          catch (e) { toast(e.message, 'error'); }
+        } else {
+          if (!confirm(`Anwerter "${a.name}" wirklich archivieren?`)) return;
+          try { await api.updateAnwerter(a.id, { status: 'archiviert' }); toast('Archiviert', 'success'); renderAnwerterTab(tab, state); }
+          catch (e) { toast(e.message, 'error'); }
+        }
+      });
+    });
   }
 }
 
-async function showLagerartikelForm(l = null) {
-  // TODO: Implement form for creating/updating lagerartikel
-  toast('Lagerartikel-Formular wird implementiert', 'info');
-}
+async function showAnwerterForm(a = null) {
+  const c = document.getElementById('tab-content');
+  if (!c) return;
+  const isEdit = !!a;
 
-function renderDienstteilnahmenTab(canWrite) {
-  const container = document.getElementById('dienstteilnahmen-content');
-  container.innerHTML = `
-    <div style="margin-top: 12px;">
-      <p>Dienstteilnahmen für Anwäter werden chronologisch angezeigt.</p>
-      <p>Betreuer können Dienstteilnahmen ergänzen (wenn berechtigt).</p>
-      <p>Editierung erfordert Jugendwart-Rolle (jugendfeuerwehr).</p>
+  c.innerHTML = `
+    <div class="card">
+      <div class="card__header">
+        <span>${isEdit ? 'Anwerter bearbeiten' : 'Neuen Anwerter anlegen'}</span>
+        <button type="button" class="btn btn--sm btn--outline" id="btn-cancel-anwerter">Abbrechen</button>
+      </div>
+      <div class="card__body card__body--flush">
+        <form id="anwerter-form-el" class="form-grid">
+          <div class="form-group form-group--full">
+            <label>Name <span class="required">*</span></label>
+            <input type="text" id="fld-a-name" placeholder="Vor- und Nachname" value="${a ? esc(a.name) : ''}" required maxlength="200" />
+          </div>
+          <div class="form-group form-group--half">
+            <label>Geburtsdatum <span class="required">*</span></label>
+            <input type="date" id="fld-a-geburtsdatum" value="${a ? a.geburtsdatum : ''}" required />
+          </div>
+          <div class="form-group form-group--half">
+            <label>Eintrittsdatum <span class="required">*</span></label>
+            <input type="date" id="fld-a-eintrittsdatum" value="${a ? a.eintrittsdatum : ''}" required />
+          </div>
+          <div class="form-group form-group--half">
+            <label>Geschlecht <span class="required">*</span></label>
+            <select id="fld-a-geschlecht" required>
+              <option value="männlich" ${a && a.geschlecht === 'männlich' ? 'selected' : ''}>männlich</option>
+              <option value="weiblich" ${a && a.geschlecht === 'weiblich' ? 'selected' : ''}>weiblich</option>
+              <option value="divers" ${a && a.geschlecht === 'divers' ? 'selected' : ''}>divers</option>
+            </select>
+          </div>
+          <div class="form-group form-group--half">
+            <label>Status</label>
+            <select id="fld-a-status">
+              <option value="aktiv" ${a && a.status === 'aktiv' ? 'selected' : ''}>Aktiv</option>
+              <option value="aufgenommen" ${a && a.status === 'aufgenommen' ? 'selected' : ''}>Aufgenommen</option>
+              <option value="abgemeldet" ${a && a.status === 'abgemeldet' ? 'selected' : ''}>Abgemeldet</option>
+              <option value="archiviert" ${a && a.status === 'archiviert' ? 'selected' : ''}>Archiviert</option>
+            </select>
+          </div>
+          <div class="form-group form-group--full">
+            <label>Adresse</label>
+            <input type="text" id="fld-a-adresse" placeholder="Straße, Hausnummer, PLZ, Ort" value="${a ? esc(a.adresse || '') : ''}" maxlength="200" />
+          </div>
+          <div class="form-group form-group--half">
+            <label>Telefon</label>
+            <input type="tel" id="fld-a-telefon" placeholder="Telefonnummer" value="${a ? esc(a.telefon || '') : ''}" maxlength="50" />
+          </div>
+          <div class="form-group form-group--half">
+            <label>E-Mail</label>
+            <input type="email" id="fld-a-email" placeholder="E-Mail-Adresse" value="${a ? esc(a.email || '') : ''}" maxlength="200" />
+          </div>
+          <div class="form-group form-group--full">
+            <label>Eltern / Erziehungsberechtigte – Name</label>
+            <input type="text" id="fld-a-eltern-name" placeholder="Name" value="${a ? esc(a.eltern_name || '') : ''}" />
+          </div>
+          <div class="form-group form-group--half">
+            <label>Eltern – Telefon</label>
+            <input type="tel" id="fld-a-eltern-telefon" placeholder="Telefonnummer" value="${a ? esc(a.eltern_telefon || '') : ''}" maxlength="50" />
+          </div>
+          <div class="form-group form-group--half">
+            <label>Eltern – E-Mail</label>
+            <input type="email" id="fld-a-eltern-email" placeholder="E-Mail-Adresse" value="${a ? esc(a.eltern_email || '') : ''}" maxlength="200" />
+          </div>
+          <div class="form-group form-group--full">
+            <label>Bemerkung</label>
+            <textarea id="fld-a-bemerkung" rows="3" placeholder="Bemerkungen">${a ? esc(a.bemerkung || '') : ''}</textarea>
+          </div>
+          <div class="form-group form-group--full" style="margin-top:12px">
+            <button type="submit" class="btn btn--primary">${isEdit ? 'Speichern' : 'Anlegen'}</button>
+          </div>
+        </form>
+      </div>
     </div>
   `;
+
+  document.getElementById('btn-cancel-anwerter').addEventListener('click', () => {
+    c.innerHTML = '';
+  });
+
+  document.getElementById('anwerter-form-el').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('fld-a-name').value.trim();
+    if (!name) { toast('Name ist ein Pflichtfeld', 'error'); return; }
+    const geburtsdatum = document.getElementById('fld-a-geburtsdatum').value;
+    const eintrittsdatum = document.getElementById('fld-a-eintrittsdatum').value;
+    if (!geburtsdatum || !eintrittsdatum) { toast('Geburts- und Eintrittsdatum sind Pflichtfelder', 'error'); return; }
+    const geschlecht = document.getElementById('fld-a-geschlecht').value;
+    const today = new Date().toISOString().slice(0, 10);
+    if (geburtsdatum > today) { toast('Geburtsdatum darf nicht in der Zukunft liegen', 'error'); return; }
+
+    const body = {
+      name,
+      geburtsdatum,
+      eintrittsdatum,
+      geschlecht,
+      status: document.getElementById('fld-a-status').value,
+      adresse: document.getElementById('fld-a-adresse').value || null,
+      telefon: document.getElementById('fld-a-telefon').value || null,
+      email: document.getElementById('fld-a-email').value || null,
+      eltern_name: document.getElementById('fld-a-eltern-name').value || null,
+      eltern_telefon: document.getElementById('fld-a-eltern-telefon').value || null,
+      eltern_email: document.getElementById('fld-a-eltern-email').value || null,
+      bemerkung: document.getElementById('fld-a-bemerkung').value || null,
+    };
+
+    try {
+      if (isEdit) {
+        await api.updateAnwerter(a.id, body);
+        toast('Anwerter aktualisiert', 'success');
+      } else {
+        await api.createAnwerter(body);
+        toast('Anwerter angelegt', 'success');
+      }
+      c.innerHTML = '';
+      const { tab, state } = window.__jfAnwerterState || {};
+      if (tab) renderAnwerterTab(tab, state);
+    } catch (e) { toast(e.message || 'Fehler beim Speichern', 'error'); }
+  });
 }
+
+// ── Anwerter → Dienstteilnahmen ───────────────────────────────────────────────
+
+async function renderAnwerterDienstteilnahmen(anwerterId, state) {
+  const c = document.getElementById('tab-content');
+  try {
+    const [anwerter, teilnahmen] = await Promise.all([
+      api.getAnwerter(anwerterId),
+      api.getDienstteilnahmen(anwerterId),
+    ]);
+
+    let rows = teilnahmen.map(t => `
+      <tr>
+        <td class="jugend-geburtsdatum">${formatDatumDeutsch(t.datum)}</td>
+        <td class="jugend-name">${esc(t.termin_bezeichnung)}</td>
+        <td class="jugend-alter">${t.zeit_von ? formatTimeDeutsch(t.zeit_von) : '–'} – ${t.zeit_bis ? formatTimeDeutsch(t.zeit_bis) : '–'}</td>
+        <td class="jugend-status"><span class="badge badge--${t.status === 'bestätigt' ? 'success' : t.status === 'abwesend' ? 'danger' : 'warning'}">${esc(t.status)}</span></td>
+        <td class="jugend-bemerkung">${esc(t.bemerkung || '')}</td>
+      </tr>
+    `).join('');
+
+    c.innerHTML = `
+      <div style="margin-top:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3 style="margin:0;font-size:1.1rem">Dienstteilnahmen – ${esc(anwerter.name)}</h3>
+          ${state.canWriteDienstteilnahmen ? `<button class="btn btn--primary btn--sm" id="btn-new-teilnahme">Neue Teilnahme</button>` : ''}
+        </div>
+        <table class="jugend-table">
+          <thead><tr><th>Datum</th><th>Termin</th><th>Zeit</th><th>Status</th><th>Bemerkung</th></tr></thead>
+          <tbody>${teilnahmen.length ? rows : '<tr><td colspan="5" class="wrap-loading">Keine Dienstteilnahmen vorhanden</td></tr>'}</tbody>
+        </table>
+      </div>
+    `;
+
+    if (state.canWriteDienstteilnahmen) {
+      document.getElementById('btn-new-teilnahme').addEventListener('click', () => showDienstteilnahmeForm(anwerterId, state));
+    }
+  } catch (e) {
+    c.innerHTML = `<p class="error-msg error-msg--block">Fehler: ${esc(e.message)}</p>`;
+  }
+}
+
+function formatTimeDeutsch(t) {
+  if (!t) return '';
+  return t.slice(0, 5);
+}
+
+async function showDienstteilnahmeForm(anwerterId, state) {
+  const c = document.getElementById('tab-content');
+  c.innerHTML = `
+    <div class="card">
+      <div class="card__header">
+        <span>Neue Dienstteilnahme</span>
+        <button type="button" class="btn btn--sm btn--outline" id="btn-cancel-teilnahme">Abbrechen</button>
+      </div>
+      <div class="card__body card__body--flush">
+        <form id="teilnahme-form-el" class="form-grid">
+          <div class="form-group form-group--full">
+            <label>Termin-Bezeichnung <span class="required">*</span></label>
+            <input type="text" id="fld-t-bezeichnung" placeholder="z.B. Wachenstellung" required maxlength="200" />
+          </div>
+          <div class="form-group form-group--half">
+            <label>Datum <span class="required">*</span></label>
+            <input type="date" id="fld-t-datum" required />
+          </div>
+          <div class="form-group form-group--half">
+            <label>Zeit von</label>
+            <input type="time" id="fld-t-von" />
+          </div>
+          <div class="form-group form-group--half">
+            <label>Zeit bis</label>
+            <input type="time" id="fld-t-bis" />
+          </div>
+          <div class="form-group form-group--full">
+            <label>Status</label>
+            <select id="fld-t-status">
+              <option value="bestätigt">Bestätigt</option>
+              <option value="abwesend">Abwesend</option>
+              <option value="abgemeldet">Abgemeldet</option>
+            </select>
+          </div>
+          <div class="form-group form-group--full">
+            <label>Bemerkung</label>
+            <textarea id="fld-t-bemerkung" rows="3"></textarea>
+          </div>
+          <div class="form-group form-group--full" style="margin-top:12px">
+            <button type="submit" class="btn btn--primary">Anlegen</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('btn-cancel-teilnahme').addEventListener('click', () => {
+    renderAnwerterDienstteilnahmen(anwerterId, state);
+  });
+
+  document.getElementById('teilnahme-form-el').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const termin_bezeichnung = document.getElementById('fld-t-bezeichnung').value.trim();
+    if (!termin_bezeichnung) { toast('Termin-Bezeichnung ist ein Pflichtfeld', 'error'); return; }
+    const datum = document.getElementById('fld-t-datum').value;
+    if (!datum) { toast('Datum ist ein Pflichtfeld', 'error'); return; }
+
+    try {
+      await api.createDienstteilnahme(anwerterId, {
+        termin_bezeichnung,
+        datum,
+        zeit_von: document.getElementById('fld-t-von').value || null,
+        zeit_bis: document.getElementById('fld-t-bis').value || null,
+        bemerkung: document.getElementById('fld-t-bemerkung').value || null,
+        status: document.getElementById('fld-t-status').value || null,
+      });
+      toast('Dienstteilnahme angelegt', 'success');
+      renderAnwerterDienstteilnahmen(anwerterId, state);
+    } catch (e) { toast(e.message || 'Fehler beim Anlegen', 'error'); }
+  });
+}
+

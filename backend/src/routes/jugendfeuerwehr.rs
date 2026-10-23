@@ -768,7 +768,7 @@ pub struct CreateRueckgabe {
 pub async fn return_ausgabe(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path((_mitglied_id, ausgabe_id)): Path<(Uuid, Uuid)>,
+    Path(ausgabe_id): Path<Uuid>,
     Json(body): Json<CreateRueckgabe>,
 ) -> AppResult<Json<Kleiderausgabe>> {
     if body.rueckgabe_menge <= 0 {

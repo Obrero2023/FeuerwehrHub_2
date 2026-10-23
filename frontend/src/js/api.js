@@ -398,6 +398,7 @@ export const api = {
 
   // ── Jugendfeuerwehr ─────────────────────────────────────────────────
   getJugendmitglieder: () => request("GET", "/jugendfeuerwehr"),
+  getJugendmitgliederArchiviert: () => request("GET", "/jugendfeuerwehr/archiviert"),
   getJugendmitglied: (id) => request("GET", `/jugendfeuerwehr/${id}`),
   createJugendmitglied: (body) => request("POST", "/jugendfeuerwehr", body),
   updateJugendmitglied: (id, body) => request("PUT", `/jugendfeuerwehr/${id}`, body),
@@ -405,6 +406,7 @@ export const api = {
 
   // Jugendfeuerwehr — Anwerter
   getAnwaeter: () => request("GET", "/jugendfeuerwehr/anwaester"),
+  getAnwaeterArchiviert: () => request("GET", "/jugendfeuerwehr/anwaester/archiviert"),
   getAnwerter: (id) => request("GET", `/jugendfeuerwehr/anwaester/${id}`),
   createAnwerter: (body) => request("POST", "/jugendfeuerwehr/anwaester", body),
   updateAnwerter: (id, body) => request("PUT", `/jugendfeuerwehr/anwaester/${id}`, body),
