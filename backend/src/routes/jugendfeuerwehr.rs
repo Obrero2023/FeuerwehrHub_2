@@ -777,7 +777,7 @@ pub async fn create_ausgabe(
     // Atomare Bestandsreduktion: WHERE menge >= body.menge verhindert Überbestellung
     // Falls Größe angegeben: menge_per_groesse prüfen
     let groesse = body.groesse.clone();
-    let (updated_rows, lagerartikel) = if let Some(ref g) = groesse {
+    let updated_rows = if let Some(ref g) = groesse {
         // Prüfen ob genug in dieser Größe vorhanden
         let row: (i32,) = sqlx::query_as(
             r#"
@@ -810,7 +810,7 @@ pub async fn create_ausgabe(
         .execute(&state.db)
         .await?;
 
-        (updated.rows_affected(),)
+        updated.rows_affected()
     } else {
         // Ohne Größe: Gesamtmenge prüfen
         let updated = sqlx::query(
@@ -821,10 +821,10 @@ pub async fn create_ausgabe(
         .execute(&state.db)
         .await?;
 
-        (updated.rows_affected(),)
+        updated.rows_affected()
     };
 
-    if updated_rows.0 == 0 {
+    if updated_rows == 0 {
         return Err(AppError::Conflict("Nicht genug Lagerbestand verfügbar".into()));
     }
 
