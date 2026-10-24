@@ -200,7 +200,7 @@ function buildShell() {
   ];
 
   const jugendfeuerwehrItems = [
-    { page: 'jugendfeuerwehr', label: 'Mitglieder', icon: icon('user-group', 16) },
+    { page: 'jugendfeuerwehr', label: 'Jugendmitglieder', icon: icon('user-group', 16) },
     { page: 'jugendfeuerwehr/anwerter', label: 'Anwerter', icon: icon('user-plus', 16) },
     { page: 'jugendfeuerwehr/kleiderkammer', label: 'Kleiderkammer', icon: icon('shirt', 16) },
     { page: 'jugendfeuerwehr/dienstteilnahmen', label: 'Dienstteilnahmen', icon: icon('calendar-check', 16) },
