@@ -58,6 +58,8 @@ pub struct Lagerartikel {
     pub name: String,
     pub beschreibung: Option<String>,
     pub menge: i32,
+    pub groessen: serde_json::Value,        // JSON-Array: ["XS","S","M","L","XL"]
+    pub menge_per_groesse: serde_json::Value, // JSON-Object: {"XS":5,"S":10,"M":8}
     pub einheit: String,
     pub erstellt_von: Option<Uuid>,
     pub erstellt_von_name: Option<String>,
@@ -70,7 +72,8 @@ pub struct CreateLagerartikel {
     #[validate(length(min = 1, max = 200))]
     pub name: String,
     pub beschreibung: Option<String>,
-    pub menge: i32,
+    pub groessen: Option<serde_json::Value>,       // JSON-Array von Größen
+    pub menge_per_groesse: Option<serde_json::Value>, // JSON-Object Mengen pro Größe
     pub einheit: Option<String>,
 }
 
@@ -79,7 +82,8 @@ pub struct UpdateLagerartikel {
     #[validate(length(min = 1, max = 200))]
     pub name: Option<String>,
     pub beschreibung: Option<String>,
-    pub menge: Option<i32>,
+    pub groessen: Option<serde_json::Value>,
+    pub menge_per_groesse: Option<serde_json::Value>,
     pub einheit: Option<String>,
 }
 
@@ -91,6 +95,7 @@ pub struct Kleiderausgabe {
     pub lagerartikel_id: Uuid,
     pub lagerartikel_name: String,
     pub menge: i32,
+    pub groesse: Option<String>,
     pub ausgabedatum: NaiveDate,
     pub rueckgabedatum: Option<NaiveDate>,
     pub rueckgabe_menge: Option<i32>,
@@ -107,6 +112,7 @@ pub struct CreateAusgabe {
     pub mitglied_id: Uuid,
     pub lagerartikel_id: Uuid,
     pub menge: i32,
+    pub groesse: Option<String>,
     pub bemerkung: Option<String>,
 }
 
@@ -584,7 +590,7 @@ pub async fn list_lagerartikel(
 ) -> AppResult<Json<Vec<Lagerartikel>>> {
     let items = sqlx::query_as::<_, Lagerartikel>(
         r#"
-        SELECT id, name, beschreibung, menge, einheit,
+        SELECT id, name, beschreibung, menge, groessen, menge_per_groesse, einheit,
                erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
         FROM jugendfeuerwehr_lagerartikel
         ORDER BY name ASC
@@ -603,7 +609,7 @@ pub async fn get_lagerartikel(
 ) -> AppResult<Json<Lagerartikel>> {
     let item = sqlx::query_as::<_, Lagerartikel>(
         r#"
-        SELECT id, name, beschreibung, menge, einheit,
+        SELECT id, name, beschreibung, menge, groessen, menge_per_groesse, einheit,
                erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
         FROM jugendfeuerwehr_lagerartikel
         WHERE id = $1
@@ -623,22 +629,23 @@ pub async fn create_lagerartikel(
     Json(body): Json<CreateLagerartikel>,
 ) -> AppResult<Json<Lagerartikel>> {
     body.validate()?;
-    if body.menge < 0 {
-        return Err(AppError::BadRequest("Menge darf nicht negativ sein".into()));
-    }
+
+    let groessen = body.groessen.clone().unwrap_or_else(|| serde_json::json!([]));
+    let menge_per_groesse = body.menge_per_groesse.clone().unwrap_or_else(|| serde_json::json!({}));
 
     let item = sqlx::query_as::<_, Lagerartikel>(
         r#"
         INSERT INTO jugendfeuerwehr_lagerartikel
-            (name, beschreibung, menge, einheit, erstellt_von, erstellt_von_name)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING id, name, beschreibung, menge, einheit,
+            (name, beschreibung, groessen, menge_per_groesse, einheit, erstellt_von, erstellt_von_name)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id, name, beschreibung, menge, groessen, menge_per_groesse, einheit,
                     erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
         "#,
     )
     .bind(&body.name)
     .bind(&body.beschreibung)
-    .bind(body.menge)
+    .bind(&groessen)
+    .bind(&menge_per_groesse)
     .bind(body.einheit.unwrap_or_else(|| "Stück".to_string()))
     .bind(claims.sub)
     .bind(&claims.username)
@@ -672,17 +679,19 @@ pub async fn update_lagerartikel(
         UPDATE jugendfeuerwehr_lagerartikel
         SET name = COALESCE($1, name),
             beschreibung = COALESCE($2, beschreibung),
-            menge = COALESCE($3, menge),
-            einheit = COALESCE($4, einheit),
+            groessen = COALESCE($3, groessen),
+            menge_per_groesse = COALESCE($4, menge_per_groesse),
+            einheit = COALESCE($5, einheit),
             aktualisiert_am = NOW()
-        WHERE id = $5
-        RETURNING id, name, beschreibung, menge, einheit,
+        WHERE id = $6
+        RETURNING id, name, beschreibung, menge, groessen, menge_per_groesse, einheit,
                     erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
         "#,
     )
     .bind(body.name)
     .bind(&body.beschreibung)
-    .bind(body.menge)
+    .bind(&body.groessen)
+    .bind(&body.menge_per_groesse)
     .bind(body.einheit)
     .bind(id)
     .fetch_one(&state.db)
@@ -766,26 +775,67 @@ pub async fn create_ausgabe(
     }
 
     // Atomare Bestandsreduktion: WHERE menge >= body.menge verhindert Überbestellung
-    let updated = sqlx::query(
-        "UPDATE jugendfeuerwehr_lagerartikel SET menge = menge - $1 WHERE id = $2 AND menge >= $1"
-    )
-    .bind(body.menge)
-    .bind(body.lagerartikel_id)
-    .execute(&state.db)
-    .await?;
+    // Falls Größe angegeben: menge_per_groesse prüfen
+    let groesse = body.groesse.clone();
+    let (updated_rows, lagerartikel) = if let Some(ref g) = groesse {
+        // Prüfen ob genug in dieser Größe vorhanden
+        let row: (i32,) = sqlx::query_as(
+            r#"
+            SELECT COALESCE((menge_per_groesse ->> $1)::integer, 0) as menge_groesse
+            FROM jugendfeuerwehr_lagerartikel WHERE id = $2
+            "#
+        )
+        .bind(g)
+        .bind(body.lagerartikel_id)
+        .fetch_one(&state.db)
+        .await
+        .map_err(|_| AppError::NotFound)?;
 
-    if updated.rows_affected() == 0 {
+        if row.0 < body.menge {
+            return Err(AppError::Conflict("Nicht genug Lagerbestand in dieser Größe verfügbar".into()));
+        }
+
+        // Atomare Reduktion pro Größe
+        let updated = sqlx::query(
+            r#"
+            UPDATE jugendfeuerwehr_lagerartikel
+            SET menge = menge - $1,
+                menge_per_groesse = jsonb_set(menge_per_groesse, '{$2}', to_jsonb(COALESCE((menge_per_groesse ->> $2)::integer, 0) - $1))
+            WHERE id = $3 AND menge >= $1 AND COALESCE((menge_per_groesse ->> $2)::integer, 0) >= $1
+            "#
+        )
+        .bind(body.menge)
+        .bind(g)
+        .bind(body.lagerartikel_id)
+        .execute(&state.db)
+        .await?;
+
+        (updated.rows_affected(),)
+    } else {
+        // Ohne Größe: Gesamtmenge prüfen
+        let updated = sqlx::query(
+            "UPDATE jugendfeuerwehr_lagerartikel SET menge = menge - $1 WHERE id = $2 AND menge >= $1"
+        )
+        .bind(body.menge)
+        .bind(body.lagerartikel_id)
+        .execute(&state.db)
+        .await?;
+
+        (updated.rows_affected(),)
+    };
+
+    if updated_rows.0 == 0 {
         return Err(AppError::Conflict("Nicht genug Lagerbestand verfügbar".into()));
     }
 
     let ausgabe = sqlx::query_as::<_, Kleiderausgabe>(
         r#"
         INSERT INTO jugendfeuerwehr_kleiderausgaben
-            (mitglied_id, lagerartikel_id, menge, bemerkung, erstellt_von, erstellt_von_name)
-        VALUES ($1, $2, $3, $4, $5, $6)
+            (mitglied_id, lagerartikel_id, menge, groesse, bemerkung, erstellt_von, erstellt_von_name)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING ka.id, ka.mitglied_id, m.name as mitglied_name,
                    ka.lagerartikel_id, la.name as lagerartikel_name,
-                   ka.menge, ka.ausgabedatum, ka.rueckgabedatum,
+                   ka.menge, ka.groesse, ka.ausgabedatum, ka.rueckgabedatum,
                    ka.rueckgabe_menge, ka.rueckgabe_bemerkung, ka.bemerkung,
                    ka.erstellt_von, ka.erstellt_von_name, ka.erstellt_am, ka.aktualisiert_am
         FROM jugendfeuerwehr_kleiderausgaben ka
@@ -797,6 +847,7 @@ pub async fn create_ausgabe(
     .bind(body.mitglied_id)
     .bind(body.lagerartikel_id)
     .bind(body.menge)
+    .bind(&body.groesse)
     .bind(&body.bemerkung)
     .bind(claims.sub)
     .bind(&claims.username)

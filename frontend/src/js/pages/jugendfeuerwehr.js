@@ -869,10 +869,10 @@ async function renderKleiderkammerSubtab(subtab, state) {
       </div>
       <table class="jugend-table" style="width:100%">
         <thead>
-          <tr><th>Name</th><th>Beschreibung</th><th>Menge</th><th>Einheit</th><th>Aktionen</th></tr>
+          <tr><th>Name</th><th>Beschreibung</th><th>Größen</th><th>Bestand</th><th>Einheit</th><th>Aktionen</th></tr>
         </thead>
         <tbody id="artikel-list">
-          <tr><td colspan="5" class="wrap-loading">Lade...</td></tr>
+          <tr><td colspan="6" class="wrap-loading">Lade...</td></tr>
         </tbody>
       </table>
     `;
@@ -881,12 +881,19 @@ async function renderKleiderkammerSubtab(subtab, state) {
       const artikel = await api.getLagerartikel();
       const tbody = document.getElementById('artikel-list');
       if (!artikel.length) {
-        tbody.innerHTML = `<tr><td colspan="5" class="wrap-loading">Keine Lagerartikel vorhanden</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="wrap-loading">Keine Lagerartikel vorhanden</td></tr>`;
       } else {
-        tbody.innerHTML = artikel.map(a => `
+        tbody.innerHTML = artikel.map(a => {
+          const groessen = Array.isArray(a.groessen) ? a.groessen : [];
+          const mengePerGroesse = (a.menge_per_groesse && typeof a.menge_per_groesse === 'object') ? a.menge_per_groesse : {};
+          const groessenHtml = groessen.length
+            ? groessen.map(g => `${g}: ${mengePerGroesse[g] ?? 0}`).join(', ')
+            : '–';
+          return `
           <tr data-id="${a.id}">
             <td class="jugend-name"><strong>${esc(a.name)}</strong></td>
             <td class="jugend-bemerkung">${esc(a.beschreibung || '-')}</td>
+            <td class="jugend-groessen">${esc(groessenHtml)}</td>
             <td><strong>${a.menge}</strong></td>
             <td>${a.einheit || 'St&uuml;ck'}</td>
             <td class="jugend-actions">
@@ -895,15 +902,15 @@ async function renderKleiderkammerSubtab(subtab, state) {
                 <button class="btn btn--small btn--danger delete-artikel" data-id="${a.id}">L&ouml;schen</button>
               ` : ''}
             </td>
-          </tr>
-        `).join('');
+          </tr>`;
+        }).join('');
         renderIcons(tbody);
       }
       if (state.canWriteKleiderkammer) {
         document.getElementById('btn-new-artikel')?.addEventListener('click', () => showLagerartikelForm());
       }
     } catch (e) {
-      document.getElementById('artikel-list').innerHTML = `<tr><td colspan="5">Fehler beim Laden: ${esc(e.message)}</td></tr>`;
+      document.getElementById('artikel-list').innerHTML = `<tr><td colspan="6">Fehler beim Laden: ${esc(e.message)}</td></tr>`;
     }
   } else if (subtab === 'ausgaben') {
     container.innerHTML = `
@@ -961,6 +968,11 @@ async function showLagerartikelForm(l = null) {
   if (!container) return;
   const isEdit = !!l;
 
+  // Determine current sizes for the form
+  const currentGroessen = l && l.groessen ? (Array.isArray(l.groessen) ? l.groessen : []) : [];
+  const currentMengeProGroesse = l && l.menge_per_groesse ? l.menge_per_groesse : {};
+  const defaultGroessen = ['S', 'M', 'L', 'XL', 'XXL'];
+
   container.innerHTML = `
     <div class="card">
       <div class="card__header">
@@ -977,9 +989,15 @@ async function showLagerartikelForm(l = null) {
             <label>Beschreibung</label>
             <input type="text" id="fld-l-beschreibung" placeholder="Beschreibung" value="${l ? esc(l.beschreibung || '') : ''}" />
           </div>
-          <div class="form-group form-group--half">
-            <label>Menge <span class="required">*</span></label>
-            <input type="number" id="fld-l-menge" placeholder="0" value="${l ? l.menge : 0}" min="0" required />
+          <div class="form-group form-group--full">
+            <label>Verfügbare Größen (durch Komma getrennt)</label>
+            <input type="text" id="fld-l-groessen" placeholder="z.B.S,M,L,XL,XXL" value="${l ? currentGroessen.join(',') : defaultGroessen.join(',')}" maxlength="50" />
+            <small class="form-text--small">Beispiel: S,M,L,XL,XXL</small>
+          </div>
+          <div class="form-group form-group--full">
+            <label>Bestand pro Größe (durch Komma getrennt; Reihenfolge muss den Größen entsprechen)</label>
+            <input type="text" id="fld-l-menge-pro-groesse" placeholder="z.B.5,10,8,6,4" value="${l ? Object.entries(currentMengeProGroesse).map(([k,v]) => v).join(',') : ''}" maxlength="50" />
+            <small class="form-text--small">Beispiel: 5,10,8,6,4 (entspricht S=5,M=10,L=8,XL=6,XXL=4)</small>
           </div>
           <div class="form-group form-group--half">
             <label>Einheit</label>
@@ -999,17 +1017,36 @@ async function showLagerartikelForm(l = null) {
 
   document.getElementById('artikel-form-el').addEventListener('submit', async (e) => {
     e.preventDefault();
+
     const name = document.getElementById('fld-l-name').value.trim();
     if (!name) { toast('Name ist ein Pflichtfeld', 'error'); return; }
-    const mengeStr = document.getElementById('fld-l-menge').value;
-    const menge = parseInt(mengeStr, 10);
-    if (isNaN(menge) || menge < 0) { toast('Menge muss eine nicht-negative Zahl sein', 'error'); return; }
+
+    // Größen verarbeiten
+    const groessenInput = document.getElementById('fld-l-groessen').value.trim();
+    const groessen = groessenInput ? groessenInput.split(',').map(g => g.trim()).filter(g => g.length > 0) : [];
+
+    // Bestand pro Größe verarbeiten
+    const mengeProGroesseInput = document.getElementById('fld-l-menge-pro-groesse').value.trim();
+    const mengeProGroesse = mengeProGroesseInput ? mengeProGroesseInput.split(',').map(m => parseInt(m.trim(), 10) || 0) : [];
+
+    // Sicherstellen, dass die Arrays gleiche Länge haben
+    while (mengeProGroesse.length < groessen.length) {
+      mengeProGroesse.push(0);
+    }
+    mengeProGroesse.length = Math.min(mengeProGroesse.length, groessen.length);
+
+    const einheit = document.getElementById('fld-l-einheit').value.trim() || 'Stück';
+
+    // Gesamtmenge berechnen
+    const gesamtMenge = mengeProGroesse.reduce((sum, m) => sum + m, 0);
 
     const body = {
       name,
       beschreibung: document.getElementById('fld-l-beschreibung').value || null,
-      menge,
-      einheit: document.getElementById('fld-l-einheit').value || null,
+      groessen,
+      menge_per_groesse: mengeProGroesse.length > 0 ? mengeProGroesse : null,
+      einheit,
+      menge: gesamtMenge,
     };
 
     try {
@@ -1035,6 +1072,9 @@ async function showAusgabeForm() {
     [mitglieder, artikel] = await Promise.all([api.getJugendmitglieder(), api.getLagerartikel()]);
   } catch { /* ignore */ }
 
+  // Filter articles with stock > 0
+  const artikelMitBestand = artikel.filter(a => a.menge > 0);
+
   container.innerHTML = `
     <div class="card">
       <div class="card__header">
@@ -1054,8 +1094,23 @@ async function showAusgabeForm() {
             <label>Lagerartikel <span class="required">*</span></label>
             <select id="fld-aus-artikel" required>
               <option value="">&mdash; ausw&auml;hlen &mdash;</option>
-              ${artikel.filter(a => a.menge > 0).map(a => `<option value="${a.id}" data-menge="${a.menge}">${esc(a.name)} (${a.menge} ${a.einheit || 'St&uuml;ck'})</option>`).join('')}
+              ${artikelMitBestand.map(a => {
+                const groessen = Array.isArray(a.groessen) ? a.groessen : [];
+                const mengePerGroesse = (a.menge_per_groesse && typeof a.menge_per_groesse === 'object') ? a.menge_per_groesse : {};
+                const groessenHtml = groessen.length ? groessen.map(g => `${g}:${mengePerGroesse[g] ?? 0}`).join(',') : 'Keine Größen';
+                return `<option value="${a.id}" data-menge="${a.menge}" data-groessen='${JSON.stringify(groessenHtml)}'>${esc(a.name)} (${a.menge} ${a.einheit || 'St&uuml;ck'})</option>`;
+              }).join('')}
             </select>
+          </div>
+          <div class="form-group form-group--half">
+            <label>Größe</label>
+            <select id="fld-aus-groesse" disabled>
+              <option value="">&mdash; zuerst Artikel w&auml;hlen &mdash;</option>
+            </select>
+          </div>
+          <div class="form-group form-group--half">
+            <label>Verfügbar in dieser Größe</label>
+            <input type="text" id="fld-aus-verfuegbar" readonly style="background:#f5f5f5;" />
           </div>
           <div class="form-group form-group--half">
             <label>Menge <span class="required">*</span></label>
@@ -1081,29 +1136,73 @@ async function showAusgabeForm() {
     renderKleiderkammerSubtab('ausgaben', window.__jfKleiderState);
   });
 
-  const sel = document.getElementById('fld-aus-artikel');
-  const updateMengeMax = () => {
-    const opt = sel.options[sel.selectedIndex];
-    document.getElementById('fld-aus-menge').max = opt.dataset.menge || 1;
-  };
-  sel.addEventListener('change', updateMengeMax);
-  updateMengeMax();
+  const selArtikel = document.getElementById('fld-aus-artikel');
+  const selGroesse = document.getElementById('fld-aus-groesse');
+  const inpVerfuegbar = document.getElementById('fld-aus-verfuegbar');
+  const inpMenge = document.getElementById('fld-aus-menge');
+
+  // Größen aktualisieren wenn Artikel gewählt
+  selArtikel.addEventListener('change', () => {
+    const opt = selArtikel.options[selArtikel.selectedIndex];
+    selGroesse.innerHTML = '<option value="">&mdash; Gr&ouml;&szlig;e w&auml;hlen &mdash;</option>';
+    inpVerfuegbar.value = '';
+    inpMenge.max = 1;
+
+    if (!opt.value) {
+      selGroesse.disabled = true;
+      return;
+    }
+
+    // Größen aus data-groessen parsen
+    let groessenStr = opt.dataset.groessen || '';
+    if (groessenStr && groessenStr !== 'Keine Größen') {
+      groessenStr.split(',').forEach(pair => {
+        const [g, m] = pair.split(':');
+        const option = document.createElement('option');
+        option.value = g.trim();
+        option.textContent = `${g.trim()} (${m} St&uuml;ck verf&uuml;gbar)`;
+        option.dataset.menge = m;
+        selGroesse.appendChild(option);
+      });
+      selGroesse.disabled = false;
+    } else {
+      selGroesse.disabled = true;
+      inpVerfuegbar.value = 'Keine Größen definiert';
+    }
+  });
+
+  // Verfügbares Bestands anzeigen wenn Größe gewählt
+  selGroesse.addEventListener('change', () => {
+    const opt = selGroesse.options[selGroesse.selectedIndex];
+    if (opt && opt.dataset.menge) {
+      inpVerfuegbar.value = `${opt.dataset.menge} St&uuml;ck verf&uuml;gbar`;
+      inpMenge.max = opt.dataset.menge;
+    } else {
+      inpVerfuegbar.value = '';
+      inpMenge.max = 1;
+    }
+  });
 
   document.getElementById('ausgabe-form-el').addEventListener('submit', async (e) => {
     e.preventDefault();
     const mitgliedId = document.getElementById('fld-aus-mitglied').value;
     const artikelId = document.getElementById('fld-aus-artikel').value;
+    const groesse = document.getElementById('fld-aus-groesse').value;
     const menge = +document.getElementById('fld-aus-menge').value;
     if (!mitgliedId || !artikelId) { toast('Mitglied und Artikel sind Pflichtfelder', 'error'); return; }
     if (menge <= 0) { toast('Menge muss gr&ouml;ßer als 0 sein', 'error'); return; }
-    const opt = sel.options[sel.selectedIndex];
-    if (menge > +opt.dataset.menge) { toast(`Nicht genug Lagerbestand (verf&uuml;gbar: ${opt.dataset.menge})`, 'error'); return; }
+    // Wenn Größen definiert, muss eine gewählt werden
+    if (selGroesse.disabled === false && !groesse) { toast('Bitte Gr&ouml;&szlig;e w&auml;hlen', 'error'); return; }
+    const opt = selGroesse.options[selGroesse.selectedIndex];
+    const maxMenge = opt && opt.dataset.menge ? +opt.dataset.menge : (selArtikel.options[selArtikel.selectedIndex].dataset.menge || 1);
+    if (menge > maxMenge) { toast(`Nicht genug Lagerbestand (verf&uuml;gbar: ${maxMenge})`, 'error'); return; }
 
     try {
       await api.createKleiderausgabe({
         mitglied_id: mitgliedId,
         lagerartikel_id: artikelId,
         menge,
+        groesse,
         bemerkung: document.getElementById('fld-aus-bemerkung').value || null,
       });
       toast('Kleidung wurde ausgegeben', 'success');
