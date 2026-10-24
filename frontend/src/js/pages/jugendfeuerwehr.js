@@ -865,8 +865,8 @@ async function renderKleiderkammerSubtab(subtab, state) {
   if (subtab === 'bekleidung') {
     container.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <h3 style="margin:0;font-size:1.1rem">Lagerartikel</h3>
-        ${state.canWriteKleiderkammer ? '<button class="btn btn--primary btn--sm" id="btn-new-artikel">Neuen Lagerartikel anlegen</button>' : ''}
+        <h3 style="margin:0;font-size:1.1rem">Stammdaten</h3>
+        ${state.canWriteKleiderkammer ? '<button class="btn btn--primary btn--sm" id="btn-new-artikel">Neuen Stammartikel anlegen</button>' : ''}
       </div>
       <table class="jugend-table" style="width:100%">
         <thead>
@@ -882,7 +882,7 @@ async function renderKleiderkammerSubtab(subtab, state) {
       const artikel = await api.getLagerartikel();
       const tbody = document.getElementById('artikel-list');
       if (!artikel.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="wrap-loading">Keine Lagerartikel vorhanden</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="wrap-loading">Keine Stammartikel vorhanden</td></tr>`;
       } else {
         tbody.innerHTML = artikel.map(a => {
           const groessen = Array.isArray(a.groessen) ? a.groessen : [];
@@ -923,10 +923,10 @@ async function renderKleiderkammerSubtab(subtab, state) {
           b.addEventListener('click', async () => {
             const id = b.dataset.id;
             const name = b.closest('tr')?.querySelector('.jugend-name strong')?.textContent || '';
-            if (!confirm(`Lagerartikel "${name}" wirklich löschen?`)) return;
+            if (!confirm(`Stammartikel "${name}" wirklich löschen?`)) return;
             try {
               await api.deleteLagerartikel(id);
-              toast('Lagerartikel gelöscht', 'success');
+              toast('Stammartikel gelöscht', 'success');
               renderKleiderkammerSubtab('bekleidung', window.__jfKleiderState);
             } catch (e) {
               toast(e.message || 'Fehler beim Löschen', 'error');
@@ -956,7 +956,7 @@ async function renderKleiderkammerSubtab(subtab, state) {
       const artikel = await api.getLagerartikel();
       const tbody = document.getElementById('lager-list');
       if (!artikel.length) {
-        tbody.innerHTML = `<tr><td colspan="5" class="wrap-loading">Keine Lagerartikel vorhanden</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="wrap-loading">Keine Stammartikel vorhanden</td></tr>`;
       } else {
         tbody.innerHTML = artikel.map(a => {
           const groessen = Array.isArray(a.groessen) ? a.groessen : [];
@@ -1061,7 +1061,6 @@ async function showLagerartikelForm(l = null) {
 
   // Determine current sizes for the form
   const currentGroessen = l && l.groessen ? (Array.isArray(l.groessen) ? l.groessen : []) : [];
-  const currentMengeProGroesse = l && l.menge_per_groesse ? l.menge_per_groesse : {};
   const defaultGroessen = ['S', 'M', 'L', 'XL', 'XXL'];
 
   container.innerHTML = `
@@ -1085,10 +1084,6 @@ async function showLagerartikelForm(l = null) {
             <input type="text" id="fld-l-groessen" placeholder="z.B.S,M,L,XL,XXL" value="${l ? currentGroessen.join(',') : defaultGroessen.join(',')}" maxlength="50" />
             <small class="form-text--small">Beispiel: S,M,L,XL,XXL</small>
           </div>
-          <div class="form-group form-group--full">
-            <label>Bestand pro Größe (durch Komma getrennt; Reihenfolge muss den Größen entsprechen)</label>
-            <input type="text" id="fld-l-menge-pro-groesse" placeholder="z.B.5,10,8,6,4" value="${l ? Object.entries(currentMengeProGroesse).map(([k,v]) => v).join(',') : ''}" maxlength="50" />
-            <small class="form-text--small">Beispiel: 5,10,8,6,4 (entspricht S=5,M=10,L=8,XL=6,XXL=4)</small>
           </div>
           <div class="form-group form-group--half">
             <label>Einheit</label>
@@ -1103,7 +1098,7 @@ async function showLagerartikelForm(l = null) {
   `;
 
   document.getElementById('btn-cancel-artikel').addEventListener('click', () => {
-    renderKleiderkammerSubtab('artikel', window.__jfKleiderState);
+    renderKleiderkammerSubtab('bekleidung', window.__jfKleiderState);
   });
 
   document.getElementById('artikel-form-el').addEventListener('submit', async (e) => {
@@ -1116,26 +1111,22 @@ async function showLagerartikelForm(l = null) {
     const groessenInput = document.getElementById('fld-l-groessen').value.trim();
     const groessen = groessenInput ? groessenInput.split(',').map(g => g.trim()).filter(g => g.length > 0) : [];
 
-    // Bestand pro Größe verarbeiten
-    const mengeProGroesseInput = document.getElementById('fld-l-menge-pro-groesse').value.trim();
-    const mengeProGroesse = mengeProGroesseInput ? mengeProGroesseInput.split(',').map(m => parseInt(m.trim(), 10) || 0) : [];
-
-    // Sicherstellen, dass die Arrays gleiche Länge haben
-    while (mengeProGroesse.length < groessen.length) {
-      mengeProGroesse.push(0);
-    }
-    mengeProGroesse.length = Math.min(mengeProGroesse.length, groessen.length);
-
     const einheit = document.getElementById('fld-l-einheit').value.trim() || 'Stück';
 
-    // Gesamtmenge berechnen
-    const gesamtMenge = mengeProGroesse.reduce((sum, m) => sum + m, 0);
+    // Bestand per Größe ist im "Lager"-Subtab separat verwaltbar
+    // Beim Anlegen/Bearbeiten über dieses Formular wird menge_per_groesse auf {} zurückgesetzt
+    // → Default-Werte 0 für alle Größen
+    const mengePerGroesseObj = {};
+    for (const g of groessen) {
+      mengePerGroesseObj[g] = 0;
+    }
+    const gesamtMenge = 0;
 
     const body = {
       name,
       beschreibung: document.getElementById('fld-l-beschreibung').value || null,
       groessen,
-      menge_per_groesse: mengeProGroesse.length > 0 ? mengeProGroesse : null,
+      menge_per_groesse: Object.keys(mengePerGroesseObj).length > 0 ? mengePerGroesseObj : null,
       einheit,
       menge: gesamtMenge,
     };
@@ -1148,7 +1139,7 @@ async function showLagerartikelForm(l = null) {
         await api.createLagerartikel(body);
         toast('Lagerartikel angelegt', 'success');
       }
-      renderKleiderkammerSubtab('artikel', window.__jfKleiderState);
+      renderKleiderkammerSubtab('bekleidung', window.__jfKleiderState);
     } catch (e) { toast(e.message || 'Fehler beim Speichern', 'error'); }
   });
 }
