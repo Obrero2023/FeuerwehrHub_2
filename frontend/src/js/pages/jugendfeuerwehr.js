@@ -1066,7 +1066,7 @@ async function showLagerartikelForm(l = null) {
   container.innerHTML = `
     <div class="card">
       <div class="card__header">
-        <span>${isEdit ? 'Lagerartikel bearbeiten' : 'Neuen Lagerartikel anlegen'}</span>
+        <span>${isEdit ? 'Stammartikel bearbeiten' : 'Neuen Stammartikel anlegen'}</span>
         <button type="button" class="btn btn--sm btn--outline" id="btn-cancel-artikel">Abbrechen</button>
       </div>
       <div class="card__body card__body--flush">
