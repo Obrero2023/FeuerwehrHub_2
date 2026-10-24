@@ -712,6 +712,57 @@ pub async fn update_lagerartikel(
     Ok(Json(item))
 }
 
+#[derive(Deserialize)]
+pub struct UpdateLagerartikelStock {
+    pub size: String,
+    pub delta: i32,
+}
+
+pub async fn update_lagerartikel_stock(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateLagerartikelStock>,
+) -> AppResult<Json<Lagerartikel>> {
+    let result = sqlx::query_as::<_, Lagerartikel>(
+        r#"
+        UPDATE jugendfeuerwehr_lagerartikel
+        SET menge_per_groesse = jsonb_set(
+            menge_per_groesse,
+            ARRAY[$1],
+            ((COALESCE((menge_per_groesse ->> $1)::integer, 0) + $2))::text::jsonb,
+            true
+        )
+        WHERE id = $3
+          AND COALESCE((menge_per_groesse ->> $1)::integer, 0) + $2 >= 0
+        RETURNING id, name, beschreibung, menge, groessen, menge_per_groesse, einheit,
+                    erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
+        "#,
+    )
+    .bind(&body.size)
+    .bind(body.delta)
+    .bind(id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!("PATCH /api/jugendfeuerwehr/lagerartikel/{}/stock - database error: {}", id, e);
+        AppError::Conflict("Bestand kann nicht negativ sein oder Artikel/Größe nicht gefunden".into())
+    })?;
+
+    audit::log(
+        &state.db,
+        Some(claims.sub),
+        &claims.username,
+        "LAGERARTIKEL_STOCK_ADJUSTED",
+        Some("jugendfeuerwehr_lagerartikel"),
+        Some(result.id),
+        Some(&format!("{{\"size\":\"{}\",\"delta\":{}}}", body.size, body.delta)),
+    )
+    .await;
+
+    Ok(Json(result))
+}
+
 pub async fn delete_lagerartikel(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1581,7 +1632,7 @@ pub fn router(state: AppState) -> Router<AppState> {
     // Kleiderkammer: Lesen → jugendfeuerwehr.kleiderkammer.lesen, Schreiben → jugendfeuerwehr.kleiderkammer
     let kleiderkammer = Router::new()
         .route("/lagerartikel", get(list_lagerartikel).post(create_lagerartikel))
-        .route("/lagerartikel/:id", get(get_lagerartikel).put(update_lagerartikel).delete(delete_lagerartikel))
+        .route("/lagerartikel/:id", get(get_lagerartikel).put(update_lagerartikel).patch(update_lagerartikel_stock).delete(delete_lagerartikel))
         .route("/ausgaben", get(list_ausgaben).post(create_ausgabe))
         .route("/ausgaben/:ausgabe_id/rueckgabe", post(return_ausgabe))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_module("jugendfeuerwehr.kleiderkammer.lesen")))

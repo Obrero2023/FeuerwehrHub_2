@@ -840,7 +840,8 @@ export async function renderJugendfeuerwehrKleiderkammer() {
 
   container.innerHTML += `
     <div class="jugend-tabs" style="margin-bottom:0">
-      <button class="tab-btn active" data-ktab="artikel">Artikel &amp; Bestand</button>
+      <button class="tab-btn active" data-ktab="bekleidung">Bekleidung</button>
+      <button class="tab-btn" data-ktab="lager">Lager</button>
       <button class="tab-btn" data-ktab="ausgaben">Ausgaben &amp; R&uuml;ckgaben</button>
     </div>
     <div id="ktab-content" style="margin-top:12px"></div>
@@ -855,13 +856,13 @@ export async function renderJugendfeuerwehrKleiderkammer() {
   });
 
   window.__jfKleiderState = state;
-  renderKleiderkammerSubtab('artikel', state);
+  renderKleiderkammerSubtab('bekleidung', state);
   renderIcons(container);
 }
 
 async function renderKleiderkammerSubtab(subtab, state) {
   const container = document.getElementById('ktab-content');
-  if (subtab === 'artikel') {
+  if (subtab === 'bekleidung') {
     container.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <h3 style="margin:0;font-size:1.1rem">Lagerartikel</h3>
@@ -911,6 +912,72 @@ async function renderKleiderkammerSubtab(subtab, state) {
       }
     } catch (e) {
       document.getElementById('artikel-list').innerHTML = `<tr><td colspan="6">Fehler beim Laden: ${esc(e.message)}</td></tr>`;
+    }
+  } else if (subtab === 'lager') {
+    container.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="margin:0;font-size:1.1rem">Lager – Bestand pro Größe</h3>
+      </div>
+      <table class="jugend-table" style="width:100%">
+        <thead>
+          <tr><th>Artikel</th><th>Größen &amp; Bestand</th><th>Gesamt</th><th>Einheit</th><th>Aktionen</th></tr>
+        </thead>
+        <tbody id="lager-list">
+          <tr><td colspan="5" class="wrap-loading">Lade...</td></tr>
+        </tbody>
+      </table>
+    `;
+
+    try {
+      const artikel = await api.getLagerartikel();
+      const tbody = document.getElementById('lager-list');
+      if (!artikel.length) {
+        tbody.innerHTML = `<tr><td colspan="5" class="wrap-loading">Keine Lagerartikel vorhanden</td></tr>`;
+      } else {
+        tbody.innerHTML = artikel.map(a => {
+          const groessen = Array.isArray(a.groessen) ? a.groessen : [];
+          const mengePerGroesse = (a.menge_per_groesse && typeof a.menge_per_groesse === 'object') ? a.menge_per_groesse : {};
+          const groessenRows = groessen.length
+            ? groessen.map(g => `
+              <div style="display:flex;align-items:center;gap:8px;justify-content:space-between">
+                <span>${esc(g)}</span>
+                <div style="display:flex;align-items:center;gap:4px">
+                  <button class="btn btn--sm btn--outline" data-action="dec" data-size="${esc(g)}" data-id="${a.id}" ${state.canWriteKleiderkammer ? '' : 'disabled'}>−</button>
+                  <span style="min-width:32px;text-align:center">${mengePerGroesse[g] ?? 0}</span>
+                  <button class="btn btn--sm btn--outline" data-action="inc" data-size="${esc(g)}" data-id="${a.id}" ${state.canWriteKleiderkammer ? '' : 'disabled'}>+</button>
+                </div>
+              </div>`).join('')
+            : '<div style="color:#666;font-style:italic">Keine Größen definiert</div>';
+          return `
+          <tr data-id="${a.id}">
+            <td class="jugend-name"><strong>${esc(a.name)}</strong></td>
+            <td class="jugend-groessen">${groessenRows}</td>
+            <td><strong>${a.menge}</strong> ${a.einheit || 'Stück'}</td>
+            <td>${a.einheit || 'Stück'}</td>
+            <td class="jugend-actions"></td>
+          </tr>`;
+        }).join('');
+        renderIcons(tbody);
+      }
+      if (state.canWriteKleiderkammer) {
+        tbody?.querySelectorAll('button[data-action="inc"], button[data-action="dec"]').forEach(b => {
+          b.addEventListener('click', async () => {
+            const id = b.dataset.id;
+            const size = b.dataset.size;
+            const action = b.dataset.action;
+            const delta = action === 'inc' ? 1 : -1;
+            try {
+              await api.patchLagerartikelStock(id, size, delta);
+              toast('Bestand aktualisiert', 'success');
+              renderKleiderkammerSubtab('lager', window.__jfKleiderState);
+            } catch (e) {
+              toast(e.message || 'Fehler beim Aktualisieren des Bestands', 'error');
+            }
+          });
+        });
+      }
+    } catch (e) {
+      document.getElementById('lager-list').innerHTML = `<tr><td colspan="5">Fehler beim Laden: ${esc(e.message)}</td></tr>`;
     }
   } else if (subtab === 'ausgaben') {
     container.innerHTML = `
