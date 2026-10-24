@@ -148,7 +148,7 @@ async function renderMitgliederTab(tab, state) {
             <td class="jugend-juleica">${m.juleica ? '✓' : '–'}</td>
             <td class="jugend-status">${arch ? 'Archiviert' : 'Aktiv'}</td>
             <td class="jugend-actions">
-              <button class="btn btn--small btn--secondary view-mitglied" data-id="${m.id}">Details</button>
+              <button class="btn btn--small btn--primary view-mitglied" data-id="${m.id}">Details</button>
               ${canWrite ? `
                 <button class="btn btn--small btn--info edit-mitglied" data-id="${m.id}">Bearbeiten</button>
                 <button class="btn btn--small btn--danger delete-mitglied" data-id="${m.id}">${arch ? 'Wiederherstellen' : 'Archivieren'}</button>
