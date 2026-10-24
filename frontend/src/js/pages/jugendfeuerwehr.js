@@ -1084,7 +1084,6 @@ async function showLagerartikelForm(l = null) {
             <input type="text" id="fld-l-groessen" placeholder="z.B.S,M,L,XL,XXL" value="${l ? currentGroessen.join(',') : defaultGroessen.join(',')}" maxlength="50" />
             <small class="form-text--small">Beispiel: S,M,L,XL,XXL</small>
           </div>
-          </div>
           <div class="form-group form-group--half">
             <label>Einheit</label>
             <input type="text" id="fld-l-einheit" placeholder="St&uuml;ck" value="${l ? (l.einheit || 'St&uuml;ck') : 'St&uuml;ck'}" />
