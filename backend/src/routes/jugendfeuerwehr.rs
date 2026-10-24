@@ -116,6 +116,11 @@ pub struct CreateAusgabe {
 pub struct Anwerter {
     pub id: Uuid,
     pub name: String,
+    pub vorname: Option<String>,
+    pub nachname: Option<String>,
+    pub plz: Option<String>,
+    pub ort: Option<String>,
+    pub ortsteil: Option<String>,
     pub geburtsdatum: NaiveDate,
     pub eintrittsdatum: NaiveDate,
     pub geschlecht: String,
@@ -123,7 +128,9 @@ pub struct Anwerter {
     pub telefon: Option<String>,
     pub email: Option<String>,
     pub eltern_name: Option<String>,
-    pub eltern_telefon: Option<String>,
+    pub eltern_vorname: Option<String>,
+    pub eltern_nachname: Option<String>,
+    pub eltern_telefonnummer: Option<String>,
     pub eltern_email: Option<String>,
     pub bemerkung: Option<String>,
     pub status: String,
@@ -132,12 +139,15 @@ pub struct Anwerter {
     pub erstellt_von_name: Option<String>,
     pub erstellt_am: chrono::DateTime<chrono::Utc>,
     pub aktualisiert_am: chrono::DateTime<chrono::Utc>,
+    pub erstkontakt: Option<NaiveDate>,
 }
 
 #[derive(Deserialize, Validate)]
 pub struct CreateAnwerter {
     #[validate(length(min = 1, max = 200))]
-    pub name: String,
+    pub vorname: String,
+    #[validate(length(min = 1, max = 200))]
+    pub nachname: String,
     pub geburtsdatum: NaiveDate,
     pub eintrittsdatum: NaiveDate,
     pub geschlecht: String,
@@ -146,18 +156,30 @@ pub struct CreateAnwerter {
     pub telefon: Option<String>,
     #[validate(length(max = 200))]
     pub email: Option<String>,
-    pub eltern_name: Option<String>,
-    pub eltern_telefon: Option<String>,
+    #[validate(length(max = 50))]
+    pub plz: Option<String>,
+    #[validate(length(max = 100))]
+    pub ort: Option<String>,
+    #[validate(length(max = 100))]
+    pub ortsteil: Option<String>,
+    pub eltern_vorname: Option<String>,
+    pub eltern_nachname: Option<String>,
+    #[validate(length(max = 50))]
+    pub eltern_telefonnummer: Option<String>,
     #[validate(length(max = 200))]
     pub eltern_email: Option<String>,
     pub bemerkung: Option<String>,
     pub status: Option<String>,
+    pub erstkontakt: Option<NaiveDate>,
 }
 
 #[derive(Deserialize, Validate)]
 pub struct UpdateAnwerter {
-    #[validate(length(min = 1, max = 200))]
-    pub name: Option<String>,
+    pub vorname: Option<String>,
+    pub nachname: Option<String>,
+    pub plz: Option<String>,
+    pub ort: Option<String>,
+    pub ortsteil: Option<String>,
     pub geburtsdatum: Option<NaiveDate>,
     pub eintrittsdatum: Option<NaiveDate>,
     #[validate(length(min = 1, max = 20))]
@@ -167,12 +189,15 @@ pub struct UpdateAnwerter {
     pub telefon: Option<String>,
     #[validate(length(max = 200))]
     pub email: Option<String>,
-    pub eltern_name: Option<String>,
-    pub eltern_telefon: Option<String>,
+    pub eltern_vorname: Option<String>,
+    pub eltern_nachname: Option<String>,
+    #[validate(length(max = 50))]
+    pub eltern_telefonnummer: Option<String>,
     #[validate(length(max = 200))]
     pub eltern_email: Option<String>,
     pub bemerkung: Option<String>,
     pub status: Option<String>,
+    pub erstkontakt: Option<NaiveDate>,
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -907,11 +932,13 @@ pub async fn list_anwärter(
 ) -> AppResult<Json<Vec<Anwerter>>> {
     let anwaeter = sqlx::query_as::<_, Anwerter>(
         r#"
-        SELECT id, name, geburtsdatum, eintrittsdatum, geschlecht,
-               adresse, telefon, email, eltern_name, eltern_telefon,
-               eltern_email, bemerkung, status,
+        SELECT id, name, vorname, nachname, plz, ort, ortsteil,
+               geburtsdatum, eintrittsdatum, geschlecht,
+               adresse, telefon, email,
+               eltern_name, eltern_vorname, eltern_nachname, eltern_telefonnummer, eltern_email,
+               bemerkung, status,
                EXTRACT(YEAR FROM AGE(CURRENT_DATE, geburtsdatum))::INTEGER as alter_jahre,
-               erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
+               erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am, erstkontakt
         FROM jugendfeuerwehr_anwerter
         WHERE status IN ('aktiv', 'aufgenommen')
         ORDER BY name ASC
@@ -929,11 +956,13 @@ pub async fn list_anwärter_archiviert(
 ) -> AppResult<Json<Vec<Anwerter>>> {
     let anwaeter = sqlx::query_as::<_, Anwerter>(
         r#"
-        SELECT id, name, geburtsdatum, eintrittsdatum, geschlecht,
-               adresse, telefon, email, eltern_name, eltern_telefon,
-               eltern_email, bemerkung, status,
+        SELECT id, name, vorname, nachname, plz, ort, ortsteil,
+               geburtsdatum, eintrittsdatum, geschlecht,
+               adresse, telefon, email,
+               eltern_name, eltern_vorname, eltern_nachname, eltern_telefonnummer, eltern_email,
+               bemerkung, status,
                EXTRACT(YEAR FROM AGE(CURRENT_DATE, geburtsdatum))::INTEGER as alter_jahre,
-               erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
+               erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am, erstkontakt
         FROM jugendfeuerwehr_anwerter
         WHERE status = 'archiviert' OR status = 'abgemeldet'
         ORDER BY name ASC
@@ -952,11 +981,13 @@ pub async fn get_anwerter(
 ) -> AppResult<Json<Anwerter>> {
     let anwerter = sqlx::query_as::<_, Anwerter>(
         r#"
-        SELECT id, name, geburtsdatum, eintrittsdatum, geschlecht,
-               adresse, telefon, email, eltern_name, eltern_telefon,
-               eltern_email, bemerkung, status,
+        SELECT id, name, vorname, nachname, plz, ort, ortsteil,
+               geburtsdatum, eintrittsdatum, geschlecht,
+               adresse, telefon, email,
+               eltern_name, eltern_vorname, eltern_nachname, eltern_telefonnummer, eltern_email,
+               bemerkung, status,
                EXTRACT(YEAR FROM AGE(CURRENT_DATE, geburtsdatum))::INTEGER as alter_jahre,
-               erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
+               erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am, erstkontakt
         FROM jugendfeuerwehr_anwerter
         WHERE id = $1
         "#,
@@ -977,33 +1008,43 @@ pub async fn create_anwerter(
     body.validate()?;
 
     let status = body.status.unwrap_or_else(|| "aktiv".to_string());
+    let erstkontakt = body.erstkontakt.unwrap_or_else(|| chrono::Utc::now().date_naive());
 
     let anwerter = sqlx::query_as::<_, Anwerter>(
         r#"
         INSERT INTO jugendfeuerwehr_anwerter
-            (name, geburtsdatum, eintrittsdatum, geschlecht, adresse, telefon, email,
-             eltern_name, eltern_telefon, eltern_email, bemerkung, status,
+            (vorname, nachname, geburtsdatum, eintrittsdatum, geschlecht, adresse, telefon, email,
+             plz, ort, ortsteil,
+             eltern_vorname, eltern_nachname, eltern_telefonnummer, eltern_email, bemerkung, status, erstkontakt,
              erstellt_von, erstellt_von_name)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-        RETURNING id, name, geburtsdatum, eintrittsdatum, geschlecht,
-                    adresse, telefon, email, eltern_name, eltern_telefon,
-                    eltern_email, bemerkung, status,
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        RETURNING id, name, vorname, nachname, plz, ort, ortsteil,
+                    geburtsdatum, eintrittsdatum, geschlecht,
+                    adresse, telefon, email,
+                    eltern_name, eltern_vorname, eltern_nachname, eltern_telefonnummer, eltern_email,
+                    bemerkung, status,
                     EXTRACT(YEAR FROM AGE(CURRENT_DATE, geburtsdatum))::INTEGER as alter_jahre,
-                    erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
+                    erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am, erstkontakt
         "#,
     )
-    .bind(&body.name)
+    .bind(&body.vorname)
+    .bind(&body.nachname)
     .bind(body.geburtsdatum)
     .bind(body.eintrittsdatum)
     .bind(&body.geschlecht)
     .bind(&body.adresse)
     .bind(&body.telefon)
     .bind(&body.email)
-    .bind(&body.eltern_name)
-    .bind(&body.eltern_telefon)
+    .bind(&body.plz)
+    .bind(&body.ort)
+    .bind(&body.ortsteil)
+    .bind(&body.eltern_vorname)
+    .bind(&body.eltern_nachname)
+    .bind(&body.eltern_telefonnummer)
     .bind(&body.eltern_email)
     .bind(&body.bemerkung)
     .bind(&status)
+    .bind(erstkontakt)
     .bind(claims.sub)
     .bind(&claims.username)
     .fetch_one(&state.db)
@@ -1031,42 +1072,60 @@ pub async fn update_anwerter(
 ) -> AppResult<Json<Anwerter>> {
     body.validate()?;
 
+    let status = body.status.clone().unwrap_or_else(|| "aktiv".to_string());
+    let erstkontakt = body.erstkontakt.unwrap_or_else(|| chrono::Utc::now().date_naive());
+
     let anwerter = sqlx::query_as::<_, Anwerter>(
         r#"
         UPDATE jugendfeuerwehr_anwerter
-        SET name = COALESCE($1, name),
-            geburtsdatum = COALESCE($2, geburtsdatum),
-            eintrittsdatum = COALESCE($3, eintrittsdatum),
-            geschlecht = COALESCE($4, geschlecht),
-            adresse = COALESCE($5, adresse),
-            telefon = COALESCE($6, telefon),
-            email = COALESCE($7, email),
-            eltern_name = COALESCE($8, eltern_name),
-            eltern_telefon = COALESCE($9, eltern_telefon),
-            eltern_email = COALESCE($10, eltern_email),
-            bemerkung = COALESCE($11, bemerkung),
-            status = COALESCE($12, status),
+        SET name = trim(coalesce($1, '') || ' ' || coalesce($2, '')),
+            vorname = COALESCE($1, vorname),
+            nachname = COALESCE($2, nachname),
+            plz = COALESCE($3, plz),
+            ort = COALESCE($4, ort),
+            ortsteil = COALESCE($5, ortsteil),
+            geburtsdatum = COALESCE($6, geburtsdatum),
+            eintrittsdatum = COALESCE($7, eintrittsdatum),
+            geschlecht = COALESCE($8, geschlecht),
+            adresse = COALESCE($9, adresse),
+            telefon = COALESCE($10, telefon),
+            email = COALESCE($11, email),
+            eltern_vorname = COALESCE($12, eltern_vorname),
+            eltern_nachname = COALESCE($13, eltern_nachname),
+            eltern_telefonnummer = COALESCE($14, eltern_telefonnummer),
+            eltern_email = COALESCE($15, eltern_email),
+            bemerkung = COALESCE($16, bemerkung),
+            status = COALESCE($17, status),
+            erstkontakt = COALESCE($18, erstkontakt),
             aktualisiert_am = NOW()
-        WHERE id = $13
-        RETURNING id, name, geburtsdatum, eintrittsdatum, geschlecht,
-                    adresse, telefon, email, eltern_name, eltern_telefon,
-                    eltern_email, bemerkung, status,
+        WHERE id = $19
+        RETURNING id, name, vorname, nachname, plz, ort, ortsteil,
+                    geburtsdatum, eintrittsdatum, geschlecht,
+                    adresse, telefon, email,
+                    eltern_name, eltern_vorname, eltern_nachname, eltern_telefonnummer, eltern_email,
+                    bemerkung, status,
                     EXTRACT(YEAR FROM AGE(CURRENT_DATE, geburtsdatum))::INTEGER as alter_jahre,
-                    erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
+                    erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am, erstkontakt
         "#,
     )
-    .bind(body.name)
-    .bind(body.geburtsdatum)
-    .bind(body.eintrittsdatum)
-    .bind(body.geschlecht)
+    .bind(&body.vorname)
+    .bind(&body.nachname)
+    .bind(&body.plz)
+    .bind(&body.ort)
+    .bind(&body.ortsteil)
+    .bind(&body.geburtsdatum)
+    .bind(&body.eintrittsdatum)
+    .bind(&body.geschlecht)
     .bind(&body.adresse)
     .bind(&body.telefon)
     .bind(&body.email)
-    .bind(&body.eltern_name)
-    .bind(&body.eltern_telefon)
+    .bind(&body.eltern_vorname)
+    .bind(&body.eltern_nachname)
+    .bind(&body.eltern_telefonnummer)
     .bind(&body.eltern_email)
     .bind(&body.bemerkung)
-    .bind(body.status)
+    .bind(&body.status)
+    .bind(&body.erstkontakt)
     .bind(id)
     .fetch_one(&state.db)
     .await
