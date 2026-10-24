@@ -909,6 +909,30 @@ async function renderKleiderkammerSubtab(subtab, state) {
       }
       if (state.canWriteKleiderkammer) {
         document.getElementById('btn-new-artikel')?.addEventListener('click', () => showLagerartikelForm());
+        tbody?.querySelectorAll('.edit-artikel').forEach(b => {
+          b.addEventListener('click', async () => {
+            try {
+              const l = await api.getLagerartikelItem(b.dataset.id);
+              showLagerartikelForm(l);
+            } catch (e) {
+              toast(e.message || 'Fehler beim Laden des Artikels', 'error');
+            }
+          });
+        });
+        tbody?.querySelectorAll('.delete-artikel').forEach(b => {
+          b.addEventListener('click', async () => {
+            const id = b.dataset.id;
+            const name = b.closest('tr')?.querySelector('.jugend-name strong')?.textContent || '';
+            if (!confirm(`Lagerartikel "${name}" wirklich löschen?`)) return;
+            try {
+              await api.deleteLagerartikel(id);
+              toast('Lagerartikel gelöscht', 'success');
+              renderKleiderkammerSubtab('bekleidung', window.__jfKleiderState);
+            } catch (e) {
+              toast(e.message || 'Fehler beim Löschen', 'error');
+            }
+          });
+        });
       }
     } catch (e) {
       document.getElementById('artikel-list').innerHTML = `<tr><td colspan="6">Fehler beim Laden: ${esc(e.message)}</td></tr>`;
