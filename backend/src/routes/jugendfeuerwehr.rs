@@ -851,7 +851,7 @@ pub async fn create_ausgabe(
             r#"
             UPDATE jugendfeuerwehr_lagerartikel
             SET menge = menge - $1,
-                menge_per_groesse = jsonb_set(menge_per_groesse, '{$2}', to_jsonb(COALESCE((menge_per_groesse ->> $2)::integer, 0) - $1))
+                menge_per_groesse = jsonb_set(menge_per_groesse, ARRAY[$2], to_jsonb(COALESCE((menge_per_groesse ->> $2)::integer, 0) - $1))
             WHERE id = $3 AND menge >= $1 AND COALESCE((menge_per_groesse ->> $2)::integer, 0) >= $1
             "#
         )
@@ -1516,21 +1516,30 @@ pub async fn update_dienstteilnahme(
 
     let teilnahme = sqlx::query_as::<_, Dienstteilnahme>(
         r#"
-        UPDATE jugendfeuerwehr_dienstteilnahmen
-        SET termin_bezeichnung = COALESCE($1, termin_bezeichnung),
-            datum = COALESCE($2, datum),
-            zeit_von = COALESCE($3, zeit_von),
-            zeit_bis = COALESCE($4, zeit_bis),
-            bemerkung = COALESCE($5, bemerkung),
-            status = COALESCE($6, status),
-            bestaetigt_von = CASE WHEN $7 THEN $8 ELSE bestaetigt_von END,
-            bestaetigt_von_name = CASE WHEN $7 THEN $9 ELSE bestaetigt_von_name END,
-            bestaetigt_am = CASE WHEN $7 THEN NOW() ELSE bestaetigt_am END,
-            aktualisiert_am = NOW()
-        WHERE id = $10
-        RETURNING id, anwerter_id, termin_bezeichnung, datum, zeit_von, zeit_bis,
-                    bemerkung, bestaetigt_von_name, bestaetigt_am,
-                    status, erstellt_von_name, erstellt_am
+        WITH upd AS (
+            UPDATE jugendfeuerwehr_dienstteilnahmen
+            SET termin_bezeichnung = COALESCE($1, termin_bezeichnung),
+                datum = COALESCE($2, datum),
+                zeit_von = COALESCE($3, zeit_von),
+                zeit_bis = COALESCE($4, zeit_bis),
+                bemerkung = COALESCE($5, bemerkung),
+                status = COALESCE($6, status),
+                bestaetigt_von = CASE WHEN $7 THEN $8 ELSE bestaetigt_von END,
+                bestaetigt_von_name = CASE WHEN $7 THEN $9 ELSE bestaetigt_von_name END,
+                bestaetigt_am = CASE WHEN $7 THEN NOW() ELSE bestaetigt_am END,
+                aktualisiert_am = NOW()
+            WHERE id = $10
+            RETURNING id, anwerter_id, termin_bezeichnung, datum, zeit_von, zeit_bis,
+                        bemerkung, bestaetigt_von_name, bestaetigt_am,
+                        status, erstellt_von_name, erstellt_am
+        )
+        SELECT upd.id, upd.anwerter_id, a.name as anwerter_name,
+               upd.termin_bezeichnung, upd.datum, upd.zeit_von, upd.zeit_bis,
+               upd.bemerkung, upd.bestaetigt_von_name, upd.bestaetigt_am,
+               upd.status, upd.erstellt_von_name, upd.erstellt_am
+        FROM upd
+        JOIN jugendfeuerwehr_dienstteilnahmen dt ON dt.id = upd.id
+        JOIN jugendfeuerwehr_anwerter a ON a.id = dt.anwerter_id
         "#,
     )
     .bind(body.termin_bezeichnung)
@@ -1546,22 +1555,6 @@ pub async fn update_dienstteilnahme(
     .fetch_one(&state.db)
     .await
     .map_err(|_| AppError::NotFound)?;
-
-    // Fetch anwerter_name separately
-    let anwerter_name: String = sqlx::query_scalar(
-        r#"
-        SELECT a.name
-        FROM jugendfeuerwehr_dienstteilnahmen dt
-        JOIN jugendfeuerwehr_anwerter a ON a.id = dt.anwerter_id
-        WHERE dt.id = $1
-        "#,
-    )
-    .bind(id)
-    .fetch_one(&state.db)
-    .await?;
-
-    // Update teilnahme with the joined name
-    teilnahme.anwerter_name = anwerter_name;
 
     audit::log(
         &state.db,
