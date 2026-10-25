@@ -879,20 +879,12 @@ pub async fn create_ausgabe(
         return Err(AppError::Conflict("Nicht genug Lagerbestand verfügbar".into()));
     }
 
-    let ausgabe = sqlx::query_as::<_, Kleiderausgabe>(
+    let ausgabe_id: Uuid = sqlx::query_scalar(
         r#"
         INSERT INTO jugendfeuerwehr_kleiderausgaben
             (mitglied_id, lagerartikel_id, menge, groesse, bemerkung, erstellt_von, erstellt_von_name)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING ka.id, ka.mitglied_id, m.name as mitglied_name,
-                   ka.lagerartikel_id, la.name as lagerartikel_name,
-                   ka.menge, ka.groesse, ka.ausgabedatum, ka.rueckgabedatum,
-                   ka.rueckgabe_menge, ka.rueckgabe_bemerkung, ka.bemerkung,
-                   ka.erstellt_von, ka.erstellt_von_name, ka.erstellt_am, ka.aktualisiert_am
-        FROM jugendfeuerwehr_kleiderausgaben ka
-        JOIN jugendfeuerwehr_mitglieder m ON m.id = ka.mitglied_id
-        JOIN jugendfeuerwehr_lagerartikel la ON la.id = ka.lagerartikel_id
-        WHERE ka.id = jugendfeuerwehr_kleiderausgaben.id
+        RETURNING id
         "#,
     )
     .bind(body.mitglied_id)
@@ -902,6 +894,27 @@ pub async fn create_ausgabe(
     .bind(&body.bemerkung)
     .bind(claims.sub)
     .bind(&claims.username)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!("POST /api/jugendfeuerwehr/ausgaben - database error: {}", e);
+        AppError::Database(e)
+    })?;
+
+    let ausgabe = sqlx::query_as::<_, Kleiderausgabe>(
+        r#"
+        SELECT ka.id, ka.mitglied_id, m.name as mitglied_name,
+               ka.lagerartikel_id, la.name as lagerartikel_name,
+               ka.menge, ka.groesse, ka.ausgabedatum, ka.rueckgabedatum,
+               ka.rueckgabe_menge, ka.rueckgabe_bemerkung, ka.bemerkung,
+               ka.erstellt_von, ka.erstellt_von_name, ka.erstellt_am, ka.aktualisiert_am
+        FROM jugendfeuerwehr_kleiderausgaben ka
+        JOIN jugendfeuerwehr_mitglieder m ON m.id = ka.mitglied_id
+        JOIN jugendfeuerwehr_lagerartikel la ON la.id = ka.lagerartikel_id
+        WHERE ka.id = $1
+        "#,
+    )
+    .bind(ausgabe_id)
     .fetch_one(&state.db)
     .await
     .map_err(|e| {
