@@ -1273,7 +1273,7 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
 
     detailView.querySelectorAll('.btn-rueckgabe-edit').forEach(b => {
       b.addEventListener('click', () => {
-        showRueckgabeForm(b.dataset.id, `${esc(mitglied.vorname || '')} ${esc(mitglied.nachname || '')}`, '', +b.dataset.offen);
+        showRueckgabeForm(b.dataset.ausgabeId, `${esc(mitglied.vorname || '')} ${esc(mitglied.nachname || '')}`, '', +b.dataset.offen);
       });
     });
 
@@ -1361,6 +1361,73 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
       renderAusgabenTab(listView, state);
     });
   }
+}
+
+// ── Rückgabe-Formular (Modal) ───────────────────────────────────────────────────
+
+function showRueckgabeForm(ausgabeId, mitgliedName, artikelName, offenMenge) {
+  const overlay = document.createElement('div');
+  overlay.className = 'error-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;';
+  overlay.innerHTML = `
+    <div class="card" style="max-width:480px;width:90%;background:var(--surface);padding:24px;border-radius:8px;">
+      <div class="card__header" style="margin-bottom:20px;display:flex;align-items:flex-start;gap:12px">
+        <span style="font-size:1.1rem;font-weight:600">Rückgabe – ${esc(mitgliedName || '')}</span>
+        <button type="button" class="btn btn--sm btn--outline" onclick="this.closest('.error-overlay').remove()" style="margin-left:auto">Abbrechen</button>
+      </div>
+      <div style="font-size:0.9rem;color:var(--muted);margin-bottom:16px">Artikel: ${esc(artikelName || '')}<br>Offen: ${offenMenge} Stk.</div>
+      <form id="rueckgabe-form" class="form-grid">
+        <div class="form-group form-group--half">
+          <label>Rückgabemenge <span class="required">*</span></label>
+          <input type="number" id="fld-rueckgabe-menge" min="1" max="${offenMenge}" value="${offenMenge}" required />
+        </div>
+        <div class="form-group form-group--half">
+          <label>Rückgabedatum</label>
+          <input type="date" id="fld-rueckgabe-datum" value="${new Date().toISOString().slice(0, 10)}" />
+        </div>
+        <div class="form-group form-group--full">
+          <label>Bemerkung (intern)</label>
+          <textarea id="fld-rueckgabe-bemerkung" rows="2" placeholder="Interner Vermerk"></textarea>
+        </div>
+        <div class="form-group form-group--full">
+          <label>Rückgabe-Bemerkung (für Mitglied)</label>
+          <textarea id="fld-rueckgabe-bemerkung-ext" rows="2" placeholder="Sichtbar für Mitglied (optional)"></textarea>
+        </div>
+        <div class="form-group form-group--full" style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+          <button type="button" class="btn btn--outline" onclick="this.closest('.error-overlay').remove()">Abbrechen</button>
+          <button type="submit" class="btn btn--primary">Rückgabe buchen</button>
+        </div>
+      </form>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  document.getElementById('rueckgabe-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const menge = +document.getElementById('fld-rueckgabe-menge').value;
+    if (!menge || menge < 1 || menge > offenMenge) {
+      toast(`Menge muss zwischen 1 und ${offenMenge} liegen`, 'error');
+      return;
+    }
+    try {
+      await api.rueckgabeKleiderausgabe(ausgabeId, {
+        rueckgabe_menge: menge,
+        rueckgabedatum: document.getElementById('fld-rueckgabe-datum').value || null,
+        bemerkung: document.getElementById('fld-rueckgabe-bemerkung').value || null,
+        rueckgabe_bemerkung: document.getElementById('fld-rueckgabe-bemerkung-ext').value || null,
+      });
+      toast('Rückgabe gebucht', 'success');
+      overlay.remove();
+      // Refresh the current view – find which tab is active
+      const activeTab = document.querySelector('.jugend-tabs .tab-btn.active')?.dataset.ktab;
+      if (activeTab === 'ausgaben') {
+        const container = document.getElementById('ktab-content');
+        if (container) renderKleiderkammerSubtab('ausgaben', window.__jfKleiderState);
+      }
+    } catch (err) {
+      toast(err.message || 'Fehler bei der Rückgabe', 'error');
+    }
+  });
 }
 
 async function showLagerartikelForm(l = null) {
