@@ -1291,6 +1291,7 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
       });
 
       let changes = 0;
+      let errors = 0;
       for (let i = 0; i < inputs.length; i++) {
         const input = inputs[i];
         const row = rows[i];
@@ -1329,13 +1330,13 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
               }
             }
             if (remaining > 0) {
+              errors++;
               toast(`Nur ${delta - remaining} von ${delta} konnten zurückgegeben werden`, 'error');
-              input.value = orig;
             }
           }
         } catch (e) {
+          errors++;
           toast(e.message || 'Fehler beim Speichern der Kleidung', 'error');
-          input.value = orig;
         }
       }
       if (changes > 0) {
@@ -1343,6 +1344,8 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
         detailView.style.display = 'none';
         listView.style.display = '';
         renderAusgabenTab(listView, state);
+      } else if (errors > 0) {
+        // Fehler-Toasts wurden bereits einzeln angezeigt
       } else {
         toast('Keine Änderungen vorgenommen', 'info');
       }
