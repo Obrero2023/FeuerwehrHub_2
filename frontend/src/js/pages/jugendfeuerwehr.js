@@ -1108,9 +1108,18 @@ async function showMitgliedKleidung(mitgliedId, state) {
     const artikelMap = {};
     artikel.forEach(a => { artikelMap[a.id] = a; });
 
-    // Nur Ausgaben für dieses Mitglied, die noch nicht vollständig zurück sind
-    const meineAusgaben = ausgaben.filter(a => a.mitglied_id === mitgliedId);
-    const gehaltene = meineAusgaben.filter(a => a.menge - (a.rueckgabe_menge || 0) > 0);
+    // Gehaltene Bestände pro Mitglied: key = `${artikelId}|${groesse}` -> { offen, ausgaben }
+    const offenMap = {};
+    ausgaben.forEach(a => {
+      if (a.mitglied_id !== mitgliedId) return;
+      const offen = a.menge - (a.rueckgabe_menge || 0);
+      if (offen <= 0) return;
+      const g = a.groesse || '';
+      const key = `${a.lagerartikel_id}|${g}`;
+      if (!offenMap[key]) offenMap[key] = { offen: 0, ausgaben: [] };
+      offenMap[key].offen += offen;
+      offenMap[key].ausgaben.push(a);
+    });
 
     let html = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -1119,26 +1128,32 @@ async function showMitgliedKleidung(mitgliedId, state) {
       </div>
     `;
 
-    if (!gehaltene.length) {
-      html += `<p style="color:#666;font-style:italic">Keine Kleidung aktuell ausgeliehen.</p>`;
+    // Alle Stammdartikel × Größen anzeigen – auch solche, die das Mitglied noch nicht erhalten hat (offen = 0)
+    if (!artikel.length) {
+      html += `<p style="color:#666;font-style:italic">Keine Stammartikel vorhanden.</p>`;
     } else {
       html += `<table class="jugend-table" style="width:100%"><thead><tr><th>Artikel</th><th>Größe</th><th>Menge</th><th>Ausgabe am</th><th>Rückgabe am</th><th>Aktionen</th></tr></thead><tbody>`;
-      gehaltene.forEach(a => {
-        const artikel = artikelMap[a.lagerartikel_id];
-        const offen = a.menge - (a.rueckgabe_menge || 0);
-        html += `
-          <tr data-id="${a.id}">
-            <td class="jugend-name">${esc(a.lagerartikel_name)}</td>
-            <td>${esc(a.groesse || '–')}</td>
-            <td><strong>${offen}</strong> ${esc(artikel?.einheit || 'Stück')}</td>
-            <td class="jugend-geburtsdatum">${formatDatumDeutsch(a.ausgabedatum)}</td>
-            <td>${a.rueckgabedatum ? formatDatumDeutsch(a.rueckgabedatum) : '–'}</td>
-            <td class="jugend-actions">
-              <button class="btn btn--small btn--outline btn-rueckgabe-detail" data-id="${a.id}" data-mitglied-id="${a.mitglied_id}" data-mitglied-name="${esc(mitglied.vorname || '')} ${esc(mitglied.nachname || '')}" data-artikel-name="${esc(a.lagerartikel_name)}" data-offen="${offen}">Rückgabe</button>
-            </td>
-          </tr>
-        `;
-      });
+      for (const a of artikel) {
+        const groessen = Array.isArray(a.groessen) ? a.groessen : [];
+        const sizeList = groessen.length > 0 ? groessen.map(g => g) : [''];
+        for (const g of sizeList) {
+          const entry = offenMap[`${a.id}|${g}`];
+          const offen = entry?.offen || 0;
+          const ausgabe = entry?.ausgaben?.[0];
+          html += `
+            <tr data-id="${a.id}" data-groesse="${esc(g)}">
+              <td class="jugend-name"><strong>${esc(a.name)}</strong></td>
+              <td>${esc(g) || '–'}</td>
+              <td>${offen > 0 ? `<strong>${offen}</strong> ${esc(a.einheit || 'Stück')}` : '–'}</td>
+              <td class="jugend-geburtsdatum">${ausgabe ? formatDatumDeutsch(ausgabe.ausgabedatum) : '–'}</td>
+              <td>${ausgabe?.rueckgabedatum ? formatDatumDeutsch(ausgabe.rueckgabedatum) : '–'}</td>
+              <td class="jugend-actions">
+                ${offen > 0 ? `<button class="btn btn--small btn--outline btn-rueckgabe-detail" data-id="${ausgabe?.id}" data-mitglied-id="${mitgliedId}" data-mitglied-name="${esc((mitglied.vorname || '') + ' ' + (mitglied.nachname || ''))}" data-artikel-name="${esc(a.name)}" data-offen="${offen}">Rückgabe</button>` : ''}
+              </td>
+            </tr>
+          `;
+        }
+      }
       html += `</tbody></table>`;
     }
 
@@ -1184,8 +1199,18 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
     const artikelMap = {};
     artikel.forEach(a => { artikelMap[a.id] = a; });
 
-    const meineAusgaben = ausgaben.filter(a => a.mitglied_id === mitgliedId);
-    const gehaltene = meineAusgaben.filter(a => a.menge - (a.rueckgabe_menge || 0) > 0);
+    // Gehaltene Bestände pro Mitglied: key = `${artikelId}|${groesse}` -> { offen, ausgaben }
+    const offenMap = {};
+    ausgaben.forEach(a => {
+      if (a.mitglied_id !== mitgliedId) return;
+      const offen = a.menge - (a.rueckgabe_menge || 0);
+      if (offen <= 0) return;
+      const g = a.groesse || '';
+      const key = `${a.lagerartikel_id}|${g}`;
+      if (!offenMap[key]) offenMap[key] = { offen: 0, ausgaben: [] };
+      offenMap[key].offen += offen;
+      offenMap[key].ausgaben.push(a);
+    });
 
     let html = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -1194,30 +1219,40 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
       </div>
     `;
 
-    // Bestehende gehaltene Artikel bearbeiten
-    if (gehaltene.length) {
-      html += `<p style="font-weight:600;margin-bottom:8px">Aktuell ausgeliehene Kleidung:</p>`;
-      html += `<table class="jugend-table" style="width:100%"><thead><tr><th>Artikel</th><th>Größe</th><th>Menge</th><th>Aktionen</th></tr></thead><tbody>`;
-      gehaltene.forEach(a => {
-        const offen = a.menge - (a.rueckgabe_menge || 0);
-        html += `
-          <tr data-id="${a.id}">
-            <td class="jugend-name">${esc(a.lagerartikel_name)}</td>
-            <td>${esc(a.groesse || '–')}</td>
-            <td><strong>${offen}</strong></td>
-            <td class="jugend-actions">
-              <button class="btn btn--small btn--danger btn-rueckgabe-edit" data-id="${a.id}" data-offen="${offen}">Rückgabe</button>
-            </td>
-          </tr>
-        `;
-      });
-      html += `</tbody></table>`;
+    // Alle Stammdartikel × Größen als Bearbeitungs-Raster (aktuelle gehaltene Menge)
+    const rows = [];
+    for (const a of artikel) {
+      const groessen = Array.isArray(a.groessen) ? a.groessen : [];
+      const sizeList = groessen.length > 0 ? groessen.map(g => g) : [''];
+      for (const g of sizeList) {
+        const entry = offenMap[`${a.id}|${g}`];
+        const offen = entry?.offen || 0;
+        rows.push({ a, g, offen, entry });
+      }
     }
 
-    // Neue Zuweisung hinzufügen
-    html += `<hr style="margin:24px 0;border:none;height:1px;background:var(--border);">`;
-    html += `<p style="font-weight:600;margin-bottom:8px">Neue Kleidung zuweisen:</p>`;
+    html += `<p style="font-weight:600;margin-bottom:8px">Gehaltete Kleidung nach Größe bearbeiten:</p>`;
+    if (!rows.length) {
+      html += `<p style="color:#666;font-style:italic">Keine Stammartikel vorhanden.</p>`;
+    } else {
+      html += `<table class="jugend-table" style="width:100%"><thead><tr><th>Artikel</th><th>Größe</th><th>Menge</th><th>Aktionen</th></tr></thead><tbody>`;
+      for (const row of rows) {
+        const { a, g, offen, entry } = row;
+        const ausgabeId = entry?.ausgaben?.[0]?.id || '';
+        html += `
+          <tr data-id="${a.id}" data-groesse="${esc(g)}">
+            <td class="jugend-name"><strong>${esc(a.name)}</strong></td>
+            <td>${esc(g) || '–'}</td>
+            <td><input type="number" min="0" value="${offen}" data-id="${a.id}" data-groesse="${esc(g)}" class="edit-qty" data-orig="${offen}" data-ausgabe-id="${ausgabeId}" data-open="${offen}"/></td>
+            <td class="jugend-actions">${offen > 0 ? `<button class="btn btn--small btn--danger btn-rueckgabe-edit" data-id="${a.id}" data-groesse="${esc(g)}" data-ausgabe-id="${ausgabeId}" data-offen="${offen}">Rückgabe</button>` : ''}</td>
+          </tr>
+        `;
+      }
+      html += `</tbody></table>`;
+      html += `<div style="margin-top:12px"><button class="btn btn--primary" id="btn-speichern-kleidung">Klammoten aktualisieren</button></div>`;
+    }
 
+    // Neue Zuweisung hinzufügen (nur Lagerartikel mit verfügbarem Bestand)
     const artikelMitBestand = artikel.filter(a => {
       const mengePerGroesse = (a.menge_per_groesse && typeof a.menge_per_groesse === 'object') ? a.menge_per_groesse : {};
       const groessen = Array.isArray(a.groessen) ? a.groessen : [];
@@ -1225,6 +1260,8 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
     });
 
     if (artikelMitBestand.length) {
+      html += `<hr style="margin:24px 0;border:none;height:1px;background:var(--border);">`;
+      html += `<p style="font-weight:600;margin-bottom:8px">Neue Kleidung zuweisen:</p>`;
       html += `
         <form id="neue-zuweisung-form" class="form-grid">
           <div class="form-group form-group--half">
@@ -1346,6 +1383,75 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
         listView.style.display = '';
         renderAusgabenTab(listView, state);
       } catch (e) { toast(e.message || 'Fehler bei der Zuweisung', 'error'); }
+    });
+
+    // Geänderte Mengen im Bearbeitungs-Raster speichern
+    document.getElementById('btn-speichern-kleidung')?.addEventListener('click', async () => {
+      const inputs = detailView.querySelectorAll('.edit-qty');
+      if (!inputs.length) return;
+
+      // Restliche offene Bestände pro Ausgabedatensatz nachverfolgen
+      const openRemainder = new Map();
+      ausgaben.forEach(au => {
+        if (au.mitglied_id !== mitgliedId) return;
+        const offen = au.menge - (au.rueckgabe_menge || 0);
+        if (offen > 0) openRemainder.set(au.id, { au, remaining: offen });
+      });
+
+      let changes = 0;
+      for (let i = 0; i < inputs.length; i++) {
+        const input = inputs[i];
+        const row = rows[i];
+        if (!row) continue;
+        const orig = +input.dataset.orig;
+        const neu = Math.max(0, +input.value || 0);
+        if (neu === orig) continue;
+        try {
+          if (neu > orig) {
+            await api.createKleiderausgabe({
+              mitglied_id: mitgliedId,
+              lagerartikel_id: row.a.id,
+              menge: neu - orig,
+              groesse: row.g || null,
+            });
+            changes++;
+          } else if (neu < orig) {
+            const delta = orig - neu;
+            let remaining = delta;
+            const groupEntry = row.entry;
+            const ausgabeIds = groupEntry && groupEntry.ausgaben ? groupEntry.ausgaben.map(au => au.id) : [];
+            for (const aid of ausgabeIds) {
+              if (remaining <= 0) break;
+              const rec = openRemainder.get(aid);
+              if (!rec || rec.remaining <= 0) continue;
+              const take = Math.min(rec.remaining, remaining);
+              if (take > 0) {
+                await api.rueckgabeKleiderausgabe(aid, {
+                  rueckgabe_menge: take,
+                  rueckgabe_bemerkung: null,
+                  bemerkung: null,
+                });
+                rec.remaining -= take;
+                remaining -= take;
+                changes++;
+              }
+            }
+            if (remaining > 0) {
+              toast(`Nur ${delta - remaining} von ${delta} konnten zurückgegeben werden`, 'error');
+              input.value = orig;
+            }
+          }
+        } catch (e) {
+          toast(e.message || 'Fehler beim Speichern der Klammotte', 'error');
+          input.value = orig;
+        }
+      }
+      if (changes > 0) {
+        toast(`${changes} ${changes === 1 ? 'Eintrag' : 'Einträge'} aktualisiert`, 'success');
+        detailView.style.display = 'none';
+        listView.style.display = '';
+        renderAusgabenTab(listView, state);
+      }
     });
   } catch (e) {
     detailView.innerHTML = `<p class="error-msg error-msg--block">Fehler: ${esc(e.message)}</p>`;
