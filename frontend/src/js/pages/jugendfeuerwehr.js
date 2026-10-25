@@ -1227,7 +1227,10 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
       for (const g of sizeList) {
         const entry = offenMap[`${a.id}|${g}`];
         const offen = entry?.offen || 0;
-        rows.push({ a, g, offen, entry });
+        // Lagerbestand für diese Größe ermitteln
+        const mengePerGroesse = (a.menge_per_groesse && typeof a.menge_per_groesse === 'object') ? a.menge_per_groesse : {};
+        const lagerBestand = mengePerGroesse[g] ?? 0;
+        rows.push({ a, g, offen, entry, lagerBestand });
       }
     }
 
@@ -1235,72 +1238,34 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
     if (!rows.length) {
       html += `<p style="color:#666;font-style:italic">Keine Stammartikel vorhanden.</p>`;
     } else {
-      html += `<table class="jugend-table" style="width:100%"><thead><tr><th>Artikel</th><th>Größe</th><th>Menge</th><th>Aktionen</th></tr></thead><tbody>`;
+      html += `<table class="jugend-table" style="width:100%"><thead><tr><th>Artikel</th><th>Größe</th><th>Lagerbestand</th><th>Menge (gehalten)</th><th>Aktionen</th></tr></thead><tbody>`;
       for (const row of rows) {
-        const { a, g, offen, entry } = row;
+        const { a, g, offen, entry, lagerBestand } = row;
         const ausgabeId = entry?.ausgaben?.[0]?.id || '';
         html += `
           <tr data-id="${a.id}" data-groesse="${esc(g)}">
             <td class="jugend-name"><strong>${esc(a.name)}</strong></td>
             <td>${esc(g) || '–'}</td>
+            <td><strong>${lagerBestand}</strong> ${esc(a.einheit || 'Stück')}</td>
             <td><input type="number" min="0" value="${offen}" data-id="${a.id}" data-groesse="${esc(g)}" class="edit-qty" data-orig="${offen}" data-ausgabe-id="${ausgabeId}" data-open="${offen}"/></td>
             <td class="jugend-actions">${offen > 0 ? `<button class="btn btn--small btn--danger btn-rueckgabe-edit" data-id="${a.id}" data-groesse="${esc(g)}" data-ausgabe-id="${ausgabeId}" data-offen="${offen}">Rückgabe</button>` : ''}</td>
           </tr>
         `;
       }
       html += `</tbody></table>`;
-      html += `<div style="margin-top:12px"><button class="btn btn--primary" id="btn-speichern-kleidung">Klammoten aktualisieren</button></div>`;
+      html += `<div style="margin-top:12px"><button class="btn btn--primary" id="btn-speichern-kleidung">Kleidung aktualisieren</button></div>`;
     }
 
-    // Neue Zuweisung hinzufügen (nur Lagerartikel mit verfügbarem Bestand)
-    const artikelMitBestand = artikel.filter(a => {
-      const mengePerGroesse = (a.menge_per_groesse && typeof a.menge_per_groesse === 'object') ? a.menge_per_groesse : {};
-      const groessen = Array.isArray(a.groessen) ? a.groessen : [];
-      return groessen.some(g => (mengePerGroesse[g] ?? 0) > 0);
-    });
-
-    if (artikelMitBestand.length) {
-      html += `<hr style="margin:24px 0;border:none;height:1px;background:var(--border);">`;
-      html += `<p style="font-weight:600;margin-bottom:8px">Neue Kleidung zuweisen:</p>`;
-      html += `
-        <form id="neue-zuweisung-form" class="form-grid">
-          <div class="form-group form-group--half">
-            <label>Lagerartikel <span class="required">*</span></label>
-            <select id="fld-edit-artikel" required>
-              <option value="">&mdash; ausw&auml;hlen &mdash;</option>
-              ${artikelMitBestand.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group form-group--half">
-            <label>Größe</label>
-            <select id="fld-edit-groesse" disabled>
-              <option value="">&mdash; zuerst Artikel w&auml;hlen &mdash;</option>
-            </select>
-          </div>
-          <div class="form-group form-group--half">
-            <label>Verfügbar in dieser Größe</label>
-            <input type="text" id="fld-edit-verfuegbar" readonly style="background:#f5f5f5;" />
-          </div>
-          <div class="form-group form-group--half">
-            <label>Menge <span class="required">*</span></label>
-            <input type="number" id="fld-edit-menge" min="1" value="1" required />
-          </div>
-          <div class="form-group form-group--half">
-            <label>Ausgabedatum</label>
-            <input type="date" id="fld-edit-datum" value="${new Date().toISOString().slice(0, 10)}" />
-          </div>
-          <div class="form-group form-group--full">
-            <label>Bemerkung</label>
-            <textarea id="fld-edit-bemerkung" rows="2"></textarea>
-          </div>
-          <div class="form-group form-group--full" style="margin-top:12px">
-            <button type="submit" class="btn btn--primary">Zuweisen</button>
-          </div>
-        </form>
-      `;
-    } else {
-      html += `<p style="color:#666;font-style:italic">Keine Lagerartikel mit verfügbarem Bestand vorhanden.</p>`;
-    }
+    // Bemerkung-Feld für allgemeine Notizen
+    html += `
+      <div style="margin-top:24px">
+        <hr style="margin:0 0 16px 0;border:none;height:1px;background:var(--border);">
+        <div class="form-group form-group--full">
+          <label>Bemerkung</label>
+          <textarea id="fld-edit-bemerkung" rows="3" placeholder="Allgemeine Notizen zur Kleidung dieses Mitglieds"></textarea>
+        </div>
+      </div>
+    `;
 
     detailView.innerHTML = html;
 
@@ -1314,75 +1279,6 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
       b.addEventListener('click', () => {
         showRueckgabeForm(b.dataset.id, `${esc(mitglied.vorname || '')} ${esc(mitglied.nachname || '')}`, '', +b.dataset.offen);
       });
-    });
-
-    // Artikel-Auswahl: Größen laden
-    const selArtikel = document.getElementById('fld-edit-artikel');
-    const selGroesse = document.getElementById('fld-edit-groesse');
-    const inpVerfuegbar = document.getElementById('fld-edit-verfuegbar');
-    const inpMenge = document.getElementById('fld-edit-menge');
-
-    selArtikel.addEventListener('change', () => {
-      const opt = selArtikel.options[selArtikel.selectedIndex];
-      selGroesse.innerHTML = '<option value="">&mdash; Gr&ouml;&szlig;e w&auml;hlen &mdash;</option>';
-      inpVerfuegbar.value = '';
-      inpMenge.max = 1;
-
-      if (!opt.value) {
-        selGroesse.disabled = true;
-        return;
-      }
-
-      const artikel = artikelMap[opt.value];
-      const groessen = Array.isArray(artikel.groessen) ? artikel.groessen : [];
-      const mengePerGroesse = (artikel.menge_per_groesse && typeof artikel.menge_per_groesse === 'object') ? artikel.menge_per_groesse : {};
-
-      groessen.forEach(g => {
-        const verfuegbar = mengePerGroesse[g] ?? 0;
-        if (verfuegbar > 0) {
-          const option = document.createElement('option');
-          option.value = g;
-          option.textContent = `${g} (${verfuegbar} ${esc(artikel.einheit || 'Stück')} verf&uuml;gbar)`;
-          option.dataset.menge = verfuegbar;
-          selGroesse.appendChild(option);
-        }
-      });
-      selGroesse.disabled = groessen.length === 0;
-    });
-
-    selGroesse.addEventListener('change', () => {
-      const opt = selGroesse.options[selGroesse.selectedIndex];
-      if (opt && opt.dataset.menge) {
-        inpVerfuegbar.value = `${opt.dataset.menge} ${esc(selArtikel.options[selArtikel.selectedIndex]?.textContent?.split('(')[0] || '').trim()} verf&uuml;gbar`;
-        inpMenge.max = opt.dataset.menge;
-      } else {
-        inpVerfuegbar.value = '';
-        inpMenge.max = 1;
-      }
-    });
-
-    document.getElementById('neue-zuweisung-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const lagerartikel_id = document.getElementById('fld-edit-artikel').value;
-      const groesse = document.getElementById('fld-edit-groesse').value;
-      const menge = +document.getElementById('fld-edit-menge').value;
-      if (!lagerartikel_id) { toast('Bitte Lagerartikel w&auml;hlen', 'error'); return; }
-      if (!groesse) { toast('Bitte Gr&ouml;&szlig;e w&auml;hlen', 'error'); return; }
-      if (menge <= 0) { toast('Menge muss gr&ouml;ßer als 0 sein', 'error'); return; }
-
-      try {
-        await api.createKleiderausgabe({
-          mitglied_id: mitgliedId,
-          lagerartikel_id,
-          menge,
-          groesse,
-          bemerkung: document.getElementById('fld-edit-bemerkung').value || null,
-        });
-        toast('Kleidung zugewiesen', 'success');
-        detailView.style.display = 'none';
-        listView.style.display = '';
-        renderAusgabenTab(listView, state);
-      } catch (e) { toast(e.message || 'Fehler bei der Zuweisung', 'error'); }
     });
 
     // Geänderte Mengen im Bearbeitungs-Raster speichern
@@ -1442,7 +1338,7 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
             }
           }
         } catch (e) {
-          toast(e.message || 'Fehler beim Speichern der Klammotte', 'error');
+          toast(e.message || 'Fehler beim Speichern der Kleidung', 'error');
           input.value = orig;
         }
       }
