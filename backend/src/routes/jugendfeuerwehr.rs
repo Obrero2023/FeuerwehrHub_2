@@ -801,7 +801,7 @@ pub async fn list_ausgaben(
         r#"
         SELECT ka.id, ka.mitglied_id, m.name as mitglied_name,
                ka.lagerartikel_id, la.name as lagerartikel_name,
-               ka.menge, ka.ausgabedatum, ka.rueckgabedatum,
+               ka.menge, ka.groesse, ka.ausgabedatum, ka.rueckgabedatum,
                ka.rueckgabe_menge, ka.rueckgabe_bemerkung, ka.bemerkung,
                ka.erstellt_von, ka.erstellt_von_name, ka.erstellt_am, ka.aktualisiert_am
         FROM jugendfeuerwehr_kleiderausgaben ka
@@ -995,22 +995,26 @@ pub async fn return_ausgabe(
 
     let ausgabe = sqlx::query_as::<_, Kleiderausgabe>(
         r#"
-        UPDATE jugendfeuerwehr_kleiderausgaben
-        SET rueckgabedatum = COALESCE($1, rueckgabedatum),
-            rueckgabe_menge = $2,
-            rueckgabe_bemerkung = COALESCE($3, rueckgabe_bemerkung),
-            bemerkung = COALESCE($4, bemerkung),
-            aktualisiert_am = NOW()
-        WHERE id = $5
-        RETURNING ka.id, ka.mitglied_id, m.name as mitglied_name,
-                   ka.lagerartikel_id, la.name as lagerartikel_name,
-                   ka.menge, ka.ausgabedatum, ka.rueckgabedatum,
-                   ka.rueckgabe_menge, ka.rueckgabe_bemerkung, ka.bemerkung,
-                   ka.erstellt_von, ka.erstellt_von_name, ka.erstellt_am, ka.aktualisiert_am
-        FROM jugendfeuerwehr_kleiderausgaben ka
+        WITH upd AS (
+            UPDATE jugendfeuerwehr_kleiderausgaben
+            SET rueckgabedatum = COALESCE($1, rueckgabedatum),
+                rueckgabe_menge = $2,
+                rueckgabe_bemerkung = COALESCE($3, rueckgabe_bemerkung),
+                bemerkung = COALESCE($4, bemerkung),
+                aktualisiert_am = NOW()
+            WHERE id = $5
+            RETURNING id, mitglied_id, lagerartikel_id, menge, groesse, ausgabedatum, rueckgabedatum, rueckgabe_menge, rueckgabe_bemerkung, bemerkung, erstellt_von, erstellt_von_name, erstellt_am, aktualisiert_am
+        )
+        SELECT upd.id, upd.mitglied_id, m.name as mitglied_name,
+               upd.lagerartikel_id, la.name as lagerartikel_name,
+               upd.menge, upd.groesse, upd.ausgabedatum, upd.rueckgabedatum,
+               upd.rueckgabe_menge, upd.rueckgabe_bemerkung, upd.bemerkung,
+               upd.erstellt_von, upd.erstellt_von_name, upd.erstellt_am, upd.aktualisiert_am
+        FROM upd
+        JOIN jugendfeuerwehr_kleiderausgaben ka ON ka.id = upd.id
         JOIN jugendfeuerwehr_mitglieder m ON m.id = ka.mitglied_id
         JOIN jugendfeuerwehr_lagerartikel la ON la.id = ka.lagerartikel_id
-        WHERE ka.id = jugendfeuerwehr_kleiderausgaben.id
+        WHERE ka.id = upd.id
         "#,
     )
     .bind(rueckgabedatum)
@@ -1422,18 +1426,12 @@ pub async fn create_dienstteilnahme(
 
     let status = body.status.unwrap_or_else(|| "bestätigt".to_string());
 
-    let teilnahme = sqlx::query_as::<_, Dienstteilnahme>(
+    let teilnahme_id: Uuid = sqlx::query_scalar(
         r#"
         INSERT INTO jugendfeuerwehr_dienstteilnahmen
             (anwerter_id, termin_bezeichnung, datum, zeit_von, zeit_bis, bemerkung, status, erstellt_von, erstellt_von_name)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        RETURNING dt.id, dt.anwerter_id, a.name as anwerter_name,
-                    dt.termin_bezeichnung, dt.datum, dt.zeit_von, dt.zeit_bis,
-                    dt.bemerkung, dt.bestaetigt_von_name, dt.bestaetigt_am,
-                    dt.status, dt.erstellt_von_name, dt.erstellt_am
-        FROM jugendfeuerwehr_dienstteilnahmen dt
-        JOIN jugendfeuerwehr_anwerter a ON a.id = dt.anwerter_id
-        WHERE dt.id = jugendfeuerwehr_dienstteilnahmen.id
+        RETURNING id
         "#,
     )
     .bind(body.anwerter_id)
@@ -1445,6 +1443,21 @@ pub async fn create_dienstteilnahme(
     .bind(&status)
     .bind(claims.sub)
     .bind(&claims.username)
+    .fetch_one(&state.db)
+    .await?;
+
+    let teilnahme = sqlx::query_as::<_, Dienstteilnahme>(
+        r#"
+        SELECT dt.id, dt.anwerter_id, a.name as anwerter_name,
+                dt.termin_bezeichnung, dt.datum, dt.zeit_von, dt.zeit_bis,
+                dt.bemerkung, dt.bestaetigt_von_name, dt.bestaetigt_am,
+                dt.status, dt.erstellt_von_name, dt.erstellt_am
+        FROM jugendfeuerwehr_dienstteilnahmen dt
+        JOIN jugendfeuerwehr_anwerter a ON a.id = dt.anwerter_id
+        WHERE dt.id = $1
+        "#,
+    )
+    .bind(teilnahme_id)
     .fetch_one(&state.db)
     .await?;
 
@@ -1515,13 +1528,9 @@ pub async fn update_dienstteilnahme(
             bestaetigt_am = CASE WHEN $7 THEN NOW() ELSE bestaetigt_am END,
             aktualisiert_am = NOW()
         WHERE id = $10
-        RETURNING dt.id, dt.anwerter_id, a.name as anwerter_name,
-                    dt.termin_bezeichnung, dt.datum, dt.zeit_von, dt.zeit_bis,
-                    dt.bemerkung, dt.bestaetigt_von_name, dt.bestaetigt_am,
-                    dt.status, dt.erstellt_von_name, dt.erstellt_am
-        FROM jugendfeuerwehr_dienstteilnahmen dt
-        JOIN jugendfeuerwehr_anwerter a ON a.id = dt.anwerter_id
-        WHERE dt.id = jugendfeuerwehr_dienstteilnahmen.id
+        RETURNING id, anwerter_id, termin_bezeichnung, datum, zeit_von, zeit_bis,
+                    bemerkung, bestaetigt_von_name, bestaetigt_am,
+                    status, erstellt_von_name, erstellt_am
         "#,
     )
     .bind(body.termin_bezeichnung)
@@ -1537,6 +1546,22 @@ pub async fn update_dienstteilnahme(
     .fetch_one(&state.db)
     .await
     .map_err(|_| AppError::NotFound)?;
+
+    // Fetch anwerter_name separately
+    let anwerter_name: String = sqlx::query_scalar(
+        r#"
+        SELECT a.name
+        FROM jugendfeuerwehr_dienstteilnahmen dt
+        JOIN jugendfeuerwehr_anwerter a ON a.id = dt.anwerter_id
+        WHERE dt.id = $1
+        "#,
+    )
+    .bind(id)
+    .fetch_one(&state.db)
+    .await?;
+
+    // Update teilnahme with the joined name
+    teilnahme.anwerter_name = anwerter_name;
 
     audit::log(
         &state.db,
@@ -1590,18 +1615,12 @@ pub async fn create_vorgang(
         return Err(AppError::BadRequest("Typ muss 'anmeldung', 'abmeldung' oder 'ummeldung' sein".into()));
     }
 
-    let vorgang = sqlx::query_as::<_, Mitgliedschaftsvorgang>(
+    let vorgang_id: Uuid = sqlx::query_scalar(
         r#"
         INSERT INTO jugendfeuerwehr_mitgliedschaftsvorgaenge
             (mitglied_id, typ, datum, vorherischer_name, neuer_name, grund, bemerkung, erstellt_von, erstellt_von_name)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        RETURNING mv.id, mv.mitglied_id, m.name as mitglied_name,
-                    mv.typ, mv.datum, mv.vorherischer_name, mv.neuer_name,
-                    mv.grund, mv.bemerkung,
-                    mv.erstellt_von, mv.erstellt_von_name, mv.erstellt_am
-        FROM jugendfeuerwehr_mitgliedschaftsvorgaenge mv
-        JOIN jugendfeuerwehr_mitglieder m ON m.id = mv.mitglied_id
-        WHERE mv.id = jugendfeuerwehr_mitgliedschaftsvorgaenge.id
+        RETURNING id
         "#,
     )
     .bind(body.mitglied_id)
@@ -1613,6 +1632,21 @@ pub async fn create_vorgang(
     .bind(&body.bemerkung)
     .bind(claims.sub)
     .bind(&claims.username)
+    .fetch_one(&state.db)
+    .await?;
+
+    let vorgang = sqlx::query_as::<_, Mitgliedschaftsvorgang>(
+        r#"
+        SELECT mv.id, mv.mitglied_id, m.name as mitglied_name,
+               mv.typ, mv.datum, mv.vorherischer_name, mv.neuer_name,
+               mv.grund, mv.bemerkung,
+               mv.erstellt_von, mv.erstellt_von_name, mv.erstellt_am
+        FROM jugendfeuerwehr_mitgliedschaftsvorgaenge mv
+        JOIN jugendfeuerwehr_mitglieder m ON m.id = mv.mitglied_id
+        WHERE mv.id = $1
+        "#,
+    )
+    .bind(vorgang_id)
     .fetch_one(&state.db)
     .await?;
 

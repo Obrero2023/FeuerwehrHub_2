@@ -712,7 +712,7 @@ async function renderAnwerterDienstteilnahmen(anwerterId, state) {
     c.innerHTML = `
       <div style="margin-top:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <h3 style="margin:0;font-size:1.1rem">Dienstteilnahmen – ${esc(a.vorname || '')} ${a.nachname || ''}</h3>
+          <h3 style="margin:0;font-size:1.1rem">Dienstteilnahmen – ${esc(anwerter.vorname || '')} ${esc(anwerter.nachname || '')}</h3>
           ${state.canWriteDienstteilnahmen ? `<button class="btn btn--primary btn--sm" id="btn-new-teilnahme">Neue Teilnahme</button>` : ''}
         </div>
         <table class="jugend-table">
