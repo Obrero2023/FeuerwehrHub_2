@@ -1016,7 +1016,6 @@ async function renderAusgabenTab(container, state) {
   container.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <h3 style="margin:0;font-size:1.1rem">Ausgaben &amp; R&uuml;ckgaben</h3>
-      ${canWrite ? '<button class="btn btn--primary btn--sm" id="btn-new-ausgabe">Neue Ausgabe</button>' : ''}
     </div>
     <div id="ausgaben-mitglieder-view">
       <table class="jugend-table" style="width:100%">
@@ -1030,14 +1029,6 @@ async function renderAusgabenTab(container, state) {
     </div>
     <div id="ausgaben-detail-view" style="margin-top:24px;display:none"></div>
   `;
-
-  if (canWrite) {
-    document.getElementById('btn-new-ausgabe')?.addEventListener('click', () => {
-      document.getElementById('ausgaben-detail-view').style.display = 'none';
-      document.getElementById('ausgaben-mitglieder-view').style.display = '';
-      showAusgabeForm();
-    });
-  }
 
   try {
     const mitglieder = await api.getJugendmitglieder();
@@ -1215,7 +1206,10 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
     let html = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <h4 style="margin:0">${esc(mitglied.vorname || '')} ${esc(mitglied.nachname || '')} – Kleidung bearbeiten</h4>
-        <button class="btn btn--sm btn--outline" id="btn-zurueck-zu-mitgliedern-edit">Zur&uuml;ck</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn--sm btn--outline" id="btn-zurueck-zu-mitgliedern-edit">Zur&uuml;ck</button>
+          <button class="btn btn--sm btn--primary" id="btn-speichern-kleidung">Speichern</button>
+        </div>
       </div>
     `;
 
@@ -1253,7 +1247,6 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
         `;
       }
       html += `</tbody></table>`;
-      html += `<div style="margin-top:12px"><button class="btn btn--primary" id="btn-speichern-kleidung">Kleidung aktualisieren</button></div>`;
     }
 
     // Bemerkung-Feld für allgemeine Notizen
@@ -1445,213 +1438,6 @@ async function showLagerartikelForm(l = null) {
       }
       renderKleiderkammerSubtab('bekleidung', window.__jfKleiderState);
     } catch (e) { toast(e.message || 'Fehler beim Speichern', 'error'); }
-  });
-}
-
-async function showAusgabeForm() {
-  const container = document.getElementById('ktab-content');
-  if (!container) return;
-
-  let mitglieder = [];
-  let artikel = [];
-  try {
-    [mitglieder, artikel] = await Promise.all([api.getJugendmitglieder(), api.getLagerartikel()]);
-  } catch { /* ignore */ }
-
-  // Filter articles with stock > 0
-  const artikelMitBestand = artikel.filter(a => a.menge > 0);
-
-  container.innerHTML = `
-    <div class="card">
-      <div class="card__header">
-        <span>Kleidung ausgeben</span>
-        <button type="button" class="btn btn--sm btn--outline" id="btn-cancel-ausgabe">Abbrechen</button>
-      </div>
-      <div class="card__body card__body--flush">
-        <form id="ausgabe-form-el" class="form-grid">
-          <div class="form-group form-group--half">
-            <label>Mitglied <span class="required">*</span></label>
-            <select id="fld-aus-mitglied" required>
-              <option value="">&mdash; ausw&auml;hlen &mdash;</option>
-              ${mitglieder.filter(m => !m.archiviert).map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group form-group--half">
-            <label>Lagerartikel <span class="required">*</span></label>
-            <select id="fld-aus-artikel" required>
-              <option value="">&mdash; ausw&auml;hlen &mdash;</option>
-              ${artikelMitBestand.map(a => {
-                const groessen = Array.isArray(a.groessen) ? a.groessen : [];
-                const mengePerGroesse = (a.menge_per_groesse && typeof a.menge_per_groesse === 'object') ? a.menge_per_groesse : {};
-                const groessenHtml = groessen.length ? groessen.map(g => `${g}:${mengePerGroesse[g] ?? 0}`).join(',') : 'Keine Größen';
-                return `<option value="${a.id}" data-menge="${a.menge}" data-groessen='${JSON.stringify(groessenHtml)}'>${esc(a.name)} (${a.menge} ${a.einheit || 'St&uuml;ck'})</option>`;
-              }).join('')}
-            </select>
-          </div>
-          <div class="form-group form-group--half">
-            <label>Größe</label>
-            <select id="fld-aus-groesse" disabled>
-              <option value="">&mdash; zuerst Artikel w&auml;hlen &mdash;</option>
-            </select>
-          </div>
-          <div class="form-group form-group--half">
-            <label>Verfügbar in dieser Größe</label>
-            <input type="text" id="fld-aus-verfuegbar" readonly style="background:#f5f5f5;" />
-          </div>
-          <div class="form-group form-group--half">
-            <label>Menge <span class="required">*</span></label>
-            <input type="number" id="fld-aus-menge" min="1" value="1" required />
-          </div>
-          <div class="form-group form-group--half">
-            <label>Ausgabedatum</label>
-            <input type="date" id="fld-aus-datum" value="${new Date().toISOString().slice(0, 10)}" />
-          </div>
-          <div class="form-group form-group--full">
-            <label>Bemerkung</label>
-            <textarea id="fld-aus-bemerkung" rows="2"></textarea>
-          </div>
-          <div class="form-group form-group--full" style="margin-top:12px">
-            <button type="submit" class="btn btn--primary">Ausgeben</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  `;
-
-  document.getElementById('btn-cancel-ausgabe').addEventListener('click', () => {
-    renderKleiderkammerSubtab('ausgaben', window.__jfKleiderState);
-  });
-
-  const selArtikel = document.getElementById('fld-aus-artikel');
-  const selGroesse = document.getElementById('fld-aus-groesse');
-  const inpVerfuegbar = document.getElementById('fld-aus-verfuegbar');
-  const inpMenge = document.getElementById('fld-aus-menge');
-
-  // Größen aktualisieren wenn Artikel gewählt
-  selArtikel.addEventListener('change', () => {
-    const opt = selArtikel.options[selArtikel.selectedIndex];
-    selGroesse.innerHTML = '<option value="">&mdash; Gr&ouml;&szlig;e w&auml;hlen &mdash;</option>';
-    inpVerfuegbar.value = '';
-    inpMenge.max = 1;
-
-    if (!opt.value) {
-      selGroesse.disabled = true;
-      return;
-    }
-
-    // Größen aus data-groessen parsen
-    let groessenStr = opt.dataset.groessen || '';
-    if (groessenStr && groessenStr !== 'Keine Größen') {
-      groessenStr.split(',').forEach(pair => {
-        const [g, m] = pair.split(':');
-        const option = document.createElement('option');
-        option.value = g.trim();
-        option.textContent = `${g.trim()} (${m} St&uuml;ck verf&uuml;gbar)`;
-        option.dataset.menge = m;
-        selGroesse.appendChild(option);
-      });
-      selGroesse.disabled = false;
-    } else {
-      selGroesse.disabled = true;
-      inpVerfuegbar.value = 'Keine Größen definiert';
-    }
-  });
-
-  // Verfügbares Bestands anzeigen wenn Größe gewählt
-  selGroesse.addEventListener('change', () => {
-    const opt = selGroesse.options[selGroesse.selectedIndex];
-    if (opt && opt.dataset.menge) {
-      inpVerfuegbar.value = `${opt.dataset.menge} St&uuml;ck verf&uuml;gbar`;
-      inpMenge.max = opt.dataset.menge;
-    } else {
-      inpVerfuegbar.value = '';
-      inpMenge.max = 1;
-    }
-  });
-
-  document.getElementById('ausgabe-form-el').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const mitgliedId = document.getElementById('fld-aus-mitglied').value;
-    const artikelId = document.getElementById('fld-aus-artikel').value;
-    const groesse = document.getElementById('fld-aus-groesse').value;
-    const menge = +document.getElementById('fld-aus-menge').value;
-    if (!mitgliedId || !artikelId) { toast('Mitglied und Artikel sind Pflichtfelder', 'error'); return; }
-    if (menge <= 0) { toast('Menge muss gr&ouml;ßer als 0 sein', 'error'); return; }
-    // Wenn Größen definiert, muss eine gewählt werden
-    if (selGroesse.disabled === false && !groesse) { toast('Bitte Gr&ouml;&szlig;e w&auml;hlen', 'error'); return; }
-    const opt = selGroesse.options[selGroesse.selectedIndex];
-    const maxMenge = opt && opt.dataset.menge ? +opt.dataset.menge : (selArtikel.options[selArtikel.selectedIndex].dataset.menge || 1);
-    if (menge > maxMenge) { toast(`Nicht genug Lagerbestand (verf&uuml;gbar: ${maxMenge})`, 'error'); return; }
-
-    try {
-      await api.createKleiderausgabe({
-        mitglied_id: mitgliedId,
-        lagerartikel_id: artikelId,
-        menge,
-        groesse,
-        bemerkung: document.getElementById('fld-aus-bemerkung').value || null,
-      });
-      toast('Kleidung wurde ausgegeben', 'success');
-      renderKleiderkammerSubtab('ausgaben', window.__jfKleiderState);
-    } catch (e) { toast(e.message || 'Fehler bei der Ausgabe', 'error'); }
-  });
-}
-
-async function showRueckgabeForm(ausgabeId, mitgliedName, artikelName, offeneMenge) {
-  const container = document.getElementById('ktab-content');
-  if (!container) return;
-
-  container.innerHTML = `
-    <div class="card">
-      <div class="card__header">
-        <span>R&uuml;ckgabe &ndash; ${esc(mitgliedName)} / ${esc(artikelName)}</span>
-        <button type="button" class="btn btn--sm btn--outline" id="btn-cancel-rueckgabe">Abbrechen</button>
-      </div>
-      <div class="card__body card__body--flush">
-        <form id="rueckgabe-form-el" class="form-grid">
-          <div class="form-group form-group--full">
-            <p style="margin:0">Noch offen: <strong>${offeneMenge}</strong> St&uuml;ck</p>
-          </div>
-          <div class="form-group form-group--half">
-            <label>R&uuml;ckgabemenge <span class="required">*</span></label>
-            <input type="number" id="fld-r-menge" min="1" max="${offeneMenge}" value="${offeneMenge}" required />
-          </div>
-          <div class="form-group form-group--half">
-            <label>R&uuml;ckgabedatum</label>
-            <input type="date" id="fld-r-datum" value="${new Date().toISOString().slice(0, 10)}" />
-          </div>
-          <div class="form-group form-group--full">
-            <label>Bemerkung</label>
-            <textarea id="fld-r-bemerkung" rows="2" placeholder="z.B. Schaden, Grund der R&uuml;ckgabe"></textarea>
-          </div>
-          <div class="form-group form-group--full" style="margin-top:12px">
-            <button type="submit" class="btn btn--primary">R&uuml;ckgabe</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  `;
-
-  document.getElementById('btn-cancel-rueckgabe').addEventListener('click', () => {
-    renderKleiderkammerSubtab('ausgaben', window.__jfKleiderState);
-  });
-
-  document.getElementById('rueckgabe-form-el').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const menge = +document.getElementById('fld-r-menge').value;
-    if (menge <= 0) { toast('Menge muss gr&ouml;ßer als 0 sein', 'error'); return; }
-    if (menge > offeneMenge) { toast(`R&uuml;ckgabemenge darf ${offeneMenge} nicht &uuml;berschreiten`, 'error'); return; }
-
-    try {
-      await api.rueckgabeKleiderausgabe(ausgabeId, {
-        rueckgabe_menge: menge,
-        rueckgabedatum: document.getElementById('fld-r-datum').value || null,
-        bemerkung: document.getElementById('fld-r-bemerkung').value || null,
-        rueckgabe_bemerkung: document.getElementById('fld-r-bemerkung').value || null,
-      });
-      toast('R&uuml;ckgabe erfasst &ndash; Bestand wurde aktualisiert', 'success');
-      renderKleiderkammerSubtab('ausgaben', window.__jfKleiderState);
-    } catch (e) { toast(e.message || 'Fehler bei der R&uuml;ckgabe', 'error'); }
   });
 }
 
