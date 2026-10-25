@@ -1208,7 +1208,7 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
         <h4 style="margin:0">${esc(mitglied.vorname || '')} ${esc(mitglied.nachname || '')} – Kleidung bearbeiten</h4>
         <div style="display:flex;gap:8px">
           <button class="btn btn--sm btn--outline" id="btn-zurueck-zu-mitgliedern-edit">Zur&uuml;ck</button>
-          <button class="btn btn--sm btn--primary" id="btn-speichern-kleidung">Speichern</button>
+          <button class="btn btn--sm btn--primary" id="btn-speichern-kleidung-oben">Speichern</button>
         </div>
       </div>
     `;
@@ -1257,6 +1257,9 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
           <label>Bemerkung</label>
           <textarea id="fld-edit-bemerkung" rows="3" placeholder="Allgemeine Notizen zur Kleidung dieses Mitglieds"></textarea>
         </div>
+        <div style="margin-top:8px">
+          <button class="btn btn--sm btn--primary" id="btn-speichern-kleidung-unten">Speichern</button>
+        </div>
       </div>
     `;
 
@@ -1275,7 +1278,7 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
     });
 
     // Geänderte Mengen im Bearbeitungs-Raster speichern
-    document.getElementById('btn-speichern-kleidung')?.addEventListener('click', async () => {
+    async function speichernKleidung() {
       const inputs = detailView.querySelectorAll('.edit-qty');
       if (!inputs.length) return;
 
@@ -1340,8 +1343,13 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
         detailView.style.display = 'none';
         listView.style.display = '';
         renderAusgabenTab(listView, state);
+      } else {
+        toast('Keine Änderungen vorgenommen', 'info');
       }
-    });
+    }
+
+    document.getElementById('btn-speichern-kleidung-oben')?.addEventListener('click', speichernKleidung);
+    document.getElementById('btn-speichern-kleidung-unten')?.addEventListener('click', speichernKleidung);
   } catch (e) {
     detailView.innerHTML = `<p class="error-msg error-msg--block">Fehler: ${esc(e.message)}</p>`;
     document.getElementById('btn-zurueck-zu-mitgliedern-edit')?.addEventListener('click', () => {
