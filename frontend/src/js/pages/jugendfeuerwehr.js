@@ -1004,53 +1004,356 @@ async function renderKleiderkammerSubtab(subtab, state) {
       document.getElementById('lager-list').innerHTML = `<tr><td colspan="5">Fehler beim Laden: ${esc(e.message)}</td></tr>`;
     }
   } else if (subtab === 'ausgaben') {
-    container.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <h3 style="margin:0;font-size:1.1rem">Ausgaben &amp; R&uuml;ckgaben</h3>
-        ${state.canWriteKleiderkammer ? '<button class="btn btn--primary btn--sm" id="btn-new-ausgabe">Neue Ausgabe</button>' : ''}
-      </div>
+    renderAusgabenTab(container, state);
+  }
+}
+
+// ── Ausgaben & Rückgaben: Mitglieder-Liste ─────────────────────────────────
+
+async function renderAusgabenTab(container, state) {
+  const canWrite = state.canWriteKleiderkammer;
+
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h3 style="margin:0;font-size:1.1rem">Ausgaben &amp; R&uuml;ckgaben</h3>
+      ${canWrite ? '<button class="btn btn--primary btn--sm" id="btn-new-ausgabe">Neue Ausgabe</button>' : ''}
+    </div>
+    <div id="ausgaben-mitglieder-view">
       <table class="jugend-table" style="width:100%">
         <thead>
-          <tr><th>Datum</th><th>Mitglied</th><th>Artikel</th><th>Menge</th><th>R&uuml;ckgabe</th><th>Bemerkung</th><th>Aktionen</th></tr>
+          <tr><th>Name</th><th>Geburtsdatum</th><th>Aktuelle Kleidung</th><th>Aktionen</th></tr>
         </thead>
-        <tbody id="ausgaben-list">
-          <tr><td colspan="7" class="wrap-loading">Lade...</td></tr>
+        <tbody id="ausgaben-mitglieder-list">
+          <tr><td colspan="4" class="wrap-loading">Lade...</td></tr>
         </tbody>
       </table>
+    </div>
+    <div id="ausgaben-detail-view" style="margin-top:24px;display:none"></div>
+  `;
+
+  if (canWrite) {
+    document.getElementById('btn-new-ausgabe')?.addEventListener('click', () => {
+      document.getElementById('ausgaben-detail-view').style.display = 'none';
+      document.getElementById('ausgaben-mitglieder-view').style.display = '';
+      showAusgabeForm();
+    });
+  }
+
+  try {
+    const mitglieder = await api.getJugendmitglieder();
+    const ausgaben = await api.getKleiderausgaben();
+    const artikel = await api.getLagerartikel();
+
+    const activeMitglieder = mitglieder.filter(m => !m.archiviert);
+    const tbody = document.getElementById('ausgaben-mitglieder-list');
+
+    if (!activeMitglieder.length) {
+      tbody.innerHTML = `<tr><td colspan="4" class="wrap-loading">Keine aktiven Jugendmitglieder vorhanden</td></tr>`;
+      return;
+    }
+
+    // Anzahl aktuell ausgegebener (nicht vollständig zurückerhaltener) Artikel pro Mitglied
+    const ausgabenProMitglied = {};
+    ausgaben.forEach(a => {
+      const offen = a.menge - (a.rueckgabe_menge || 0);
+      if (offen > 0) {
+        ausgabenProMitglied[a.mitglied_id] = (ausgabenProMitglied[a.mitglied_id] || 0) + offen;
+      }
+    });
+
+    tbody.innerHTML = activeMitglieder.map(m => {
+      const artikelCount = ausgabenProMitglied[m.id] || 0;
+      return `
+        <tr data-id="${m.id}">
+          <td class="jugend-name"><strong>${esc(m.vorname || '')} ${esc(m.nachname || '')}</strong></td>
+          <td class="jugend-geburtsdatum">${formatDatumDeutsch(m.geburtsdatum)}</td>
+          <td>${artikelCount} ${artikelCount === 1 ? 'Artikel' : 'Artikel'}</td>
+          <td class="jugend-actions">
+            <button class="btn btn--small btn--secondary btn-details-mitglied" data-id="${m.id}">Details</button>
+            ${canWrite ? `<button class="btn btn--small btn--outline btn-bearbeiten-mitglied" data-id="${m.id}">Bearbeiten</button>` : ''}
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    tbody.querySelectorAll('.btn-details-mitglied').forEach(b => {
+      b.addEventListener('click', () => showMitgliedKleidung(b.dataset.id, state));
+    });
+    if (canWrite) {
+      tbody.querySelectorAll('.btn-bearbeiten-mitglied').forEach(b => {
+        b.addEventListener('click', () => showMitgliedKleidungBearbeiten(b.dataset.id, state));
+      });
+    }
+  } catch (e) {
+    document.getElementById('ausgaben-mitglieder-list').innerHTML = `<tr><td colspan="4">Fehler beim Laden: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+// ── Mitglied: aktuelle Kleidung anzeigen (Details) ──────────────────────────
+
+async function showMitgliedKleidung(mitgliedId, state) {
+  const detailView = document.getElementById('ausgaben-detail-view');
+  const listView = document.getElementById('ausgaben-mitglieder-view');
+  listView.style.display = 'none';
+  detailView.style.display = '';
+  detailView.innerHTML = '<div class="wrap-loading">Lade...</div>';
+
+  try {
+    const [mitglied, ausgaben, artikel] = await Promise.all([
+      api.getJugendmitglied(mitgliedId),
+      api.getKleiderausgaben(),
+      api.getLagerartikel(),
+    ]);
+
+    const artikelMap = {};
+    artikel.forEach(a => { artikelMap[a.id] = a; });
+
+    // Nur Ausgaben für dieses Mitglied, die noch nicht vollständig zurück sind
+    const meineAusgaben = ausgaben.filter(a => a.mitglied_id === mitgliedId);
+    const gehaltene = meineAusgaben.filter(a => a.menge - (a.rueckgabe_menge || 0) > 0);
+
+    let html = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h4 style="margin:0">${esc(mitglied.vorname || '')} ${esc(mitglied.nachname || '')} – Aktuelle Kleidung</h4>
+        <button class="btn btn--sm btn--outline" id="btn-zurueck-zu-mitgliedern">Zur&uuml;ck</button>
+      </div>
     `;
 
-    try {
-      const ausgaben = await api.getKleiderausgaben();
-      const tbody = document.getElementById('ausgaben-list');
-      if (!ausgaben.length) {
-        tbody.innerHTML = `<tr><td colspan="7" class="wrap-loading">Keine Ausgaben vorhanden</td></tr>`;
-      } else {
-        tbody.innerHTML = ausgaben.map(a => `
+    if (!gehaltene.length) {
+      html += `<p style="color:#666;font-style:italic">Keine Kleidung aktuell ausgeliehen.</p>`;
+    } else {
+      html += `<table class="jugend-table" style="width:100%"><thead><tr><th>Artikel</th><th>Größe</th><th>Menge</th><th>Ausgabe am</th><th>Rückgabe am</th><th>Aktionen</th></tr></thead><tbody>`;
+      gehaltene.forEach(a => {
+        const artikel = artikelMap[a.lagerartikel_id];
+        const offen = a.menge - (a.rueckgabe_menge || 0);
+        html += `
           <tr data-id="${a.id}">
-            <td class="jugend-geburtsdatum">${formatDatumDeutsch(a.ausgabedatum)}</td>
-            <td class="jugend-name">${esc(a.mitglied_name)}</td>
             <td class="jugend-name">${esc(a.lagerartikel_name)}</td>
-            <td><strong>${a.menge}</strong></td>
-            <td>${a.rueckgabe_menge != null ? `${a.rueckgabe_menge} ${a.rueckgabedatum ? '(' + formatDatumDeutsch(a.rueckgabedatum) + ')' : ''}` : '&ndash;'}</td>
-            <td class="jugend-bemerkung">${esc(a.bemerkung || '')}</td>
+            <td>${esc(a.groesse || '–')}</td>
+            <td><strong>${offen}</strong> ${esc(artikel?.einheit || 'Stück')}</td>
+            <td class="jugend-geburtsdatum">${formatDatumDeutsch(a.ausgabedatum)}</td>
+            <td>${a.rueckgabedatum ? formatDatumDeutsch(a.rueckgabedatum) : '–'}</td>
             <td class="jugend-actions">
-              ${a.rueckgabe_menge == null || a.rueckgabe_menge < a.menge ? `
-                <button class="btn btn--small btn--outline rueckgabe-ausgabe" data-id="${a.id}" data-mitglied="${a.mitglied_name}" data-artikel="${a.lagerartikel_name}" data-offen="${a.menge - (a.rueckgabe_menge || 0)}">R&uuml;ckgabe</button>
-              ` : ''}
+              <button class="btn btn--small btn--outline btn-rueckgabe-detail" data-id="${a.id}" data-mitglied-id="${a.mitglied_id}" data-mitglied-name="${esc(mitglied.vorname || '')} ${esc(mitglied.nachname || '')}" data-artikel-name="${esc(a.lagerartikel_name)}" data-offen="${offen}">Rückgabe</button>
             </td>
           </tr>
-        `).join('');
-        renderIcons(tbody);
-      }
-      if (state.canWriteKleiderkammer) {
-        tbody?.querySelectorAll('.rueckgabe-ausgabe').forEach(b => {
-          b.addEventListener('click', () => showRueckgabeForm(b.dataset.id, b.dataset.mitglied, b.dataset.artikel, +b.dataset.offen));
-        });
-      }
-      document.getElementById('btn-new-ausgabe')?.addEventListener('click', () => showAusgabeForm());
-    } catch (e) {
-      document.getElementById('ausgaben-list').innerHTML = `<tr><td colspan="7">Fehler beim Laden: ${esc(e.message)}</td></tr>`;
+        `;
+      });
+      html += `</tbody></table>`;
     }
+
+    detailView.innerHTML = html;
+
+    document.getElementById('btn-zurueck-zu-mitgliedern').addEventListener('click', () => {
+      detailView.style.display = 'none';
+      listView.style.display = '';
+      renderAusgabenTab(listView, state);
+    });
+
+    detailView.querySelectorAll('.btn-rueckgabe-detail').forEach(b => {
+      b.addEventListener('click', () => {
+        showRueckgabeForm(b.dataset.id, b.dataset.mitgliedName, b.dataset.artikelName, +b.dataset.offen);
+      });
+    });
+  } catch (e) {
+    detailView.innerHTML = `<p class="error-msg error-msg--block">Fehler: ${esc(e.message)}</p>`;
+    document.getElementById('btn-zurueck-zu-mitgliedern')?.addEventListener('click', () => {
+      detailView.style.display = 'none';
+      listView.style.display = '';
+      renderAusgabenTab(listView, state);
+    });
+  }
+}
+
+// ── Mitglied: Kleidung bearbeiten ───────────────────────────────────────────
+
+async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
+  const detailView = document.getElementById('ausgaben-detail-view');
+  const listView = document.getElementById('ausgaben-mitglieder-view');
+  listView.style.display = 'none';
+  detailView.style.display = '';
+  detailView.innerHTML = '<div class="wrap-loading">Lade...</div>';
+
+  try {
+    const [mitglied, ausgaben, artikel] = await Promise.all([
+      api.getJugendmitglied(mitgliedId),
+      api.getKleiderausgaben(),
+      api.getLagerartikel(),
+    ]);
+
+    const artikelMap = {};
+    artikel.forEach(a => { artikelMap[a.id] = a; });
+
+    const meineAusgaben = ausgaben.filter(a => a.mitglied_id === mitgliedId);
+    const gehaltene = meineAusgaben.filter(a => a.menge - (a.rueckgabe_menge || 0) > 0);
+
+    let html = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h4 style="margin:0">${esc(mitglied.vorname || '')} ${esc(mitglied.nachname || '')} – Kleidung bearbeiten</h4>
+        <button class="btn btn--sm btn--outline" id="btn-zurueck-zu-mitgliedern-edit">Zur&uuml;ck</button>
+      </div>
+    `;
+
+    // Bestehende gehaltene Artikel bearbeiten
+    if (gehaltene.length) {
+      html += `<p style="font-weight:600;margin-bottom:8px">Aktuell ausgeliehene Kleidung:</p>`;
+      html += `<table class="jugend-table" style="width:100%"><thead><tr><th>Artikel</th><th>Größe</th><th>Menge</th><th>Aktionen</th></tr></thead><tbody>`;
+      gehaltene.forEach(a => {
+        const offen = a.menge - (a.rueckgabe_menge || 0);
+        html += `
+          <tr data-id="${a.id}">
+            <td class="jugend-name">${esc(a.lagerartikel_name)}</td>
+            <td>${esc(a.groesse || '–')}</td>
+            <td><strong>${offen}</strong></td>
+            <td class="jugend-actions">
+              <button class="btn btn--small btn--danger btn-rueckgabe-edit" data-id="${a.id}" data-offen="${offen}">Rückgabe</button>
+            </td>
+          </tr>
+        `;
+      });
+      html += `</tbody></table>`;
+    }
+
+    // Neue Zuweisung hinzufügen
+    html += `<hr style="margin:24px 0;border:none;height:1px;background:var(--border);">`;
+    html += `<p style="font-weight:600;margin-bottom:8px">Neue Kleidung zuweisen:</p>`;
+
+    const artikelMitBestand = artikel.filter(a => {
+      const mengePerGroesse = (a.menge_per_groesse && typeof a.menge_per_groesse === 'object') ? a.menge_per_groesse : {};
+      const groessen = Array.isArray(a.groessen) ? a.groessen : [];
+      return groessen.some(g => (mengePerGroesse[g] ?? 0) > 0);
+    });
+
+    if (artikelMitBestand.length) {
+      html += `
+        <form id="neue-zuweisung-form" class="form-grid">
+          <div class="form-group form-group--half">
+            <label>Lagerartikel <span class="required">*</span></label>
+            <select id="fld-edit-artikel" required>
+              <option value="">&mdash; ausw&auml;hlen &mdash;</option>
+              ${artikelMitBestand.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group form-group--half">
+            <label>Größe</label>
+            <select id="fld-edit-groesse" disabled>
+              <option value="">&mdash; zuerst Artikel w&auml;hlen &mdash;</option>
+            </select>
+          </div>
+          <div class="form-group form-group--half">
+            <label>Verfügbar in dieser Größe</label>
+            <input type="text" id="fld-edit-verfuegbar" readonly style="background:#f5f5f5;" />
+          </div>
+          <div class="form-group form-group--half">
+            <label>Menge <span class="required">*</span></label>
+            <input type="number" id="fld-edit-menge" min="1" value="1" required />
+          </div>
+          <div class="form-group form-group--half">
+            <label>Ausgabedatum</label>
+            <input type="date" id="fld-edit-datum" value="${new Date().toISOString().slice(0, 10)}" />
+          </div>
+          <div class="form-group form-group--full">
+            <label>Bemerkung</label>
+            <textarea id="fld-edit-bemerkung" rows="2"></textarea>
+          </div>
+          <div class="form-group form-group--full" style="margin-top:12px">
+            <button type="submit" class="btn btn--primary">Zuweisen</button>
+          </div>
+        </form>
+      `;
+    } else {
+      html += `<p style="color:#666;font-style:italic">Keine Lagerartikel mit verfügbarem Bestand vorhanden.</p>`;
+    }
+
+    detailView.innerHTML = html;
+
+    document.getElementById('btn-zurueck-zu-mitgliedern-edit').addEventListener('click', () => {
+      detailView.style.display = 'none';
+      listView.style.display = '';
+      renderAusgabenTab(listView, state);
+    });
+
+    detailView.querySelectorAll('.btn-rueckgabe-edit').forEach(b => {
+      b.addEventListener('click', () => {
+        showRueckgabeForm(b.dataset.id, `${esc(mitglied.vorname || '')} ${esc(mitglied.nachname || '')}`, '', +b.dataset.offen);
+      });
+    });
+
+    // Artikel-Auswahl: Größen laden
+    const selArtikel = document.getElementById('fld-edit-artikel');
+    const selGroesse = document.getElementById('fld-edit-groesse');
+    const inpVerfuegbar = document.getElementById('fld-edit-verfuegbar');
+    const inpMenge = document.getElementById('fld-edit-menge');
+
+    selArtikel.addEventListener('change', () => {
+      const opt = selArtikel.options[selArtikel.selectedIndex];
+      selGroesse.innerHTML = '<option value="">&mdash; Gr&ouml;&szlig;e w&auml;hlen &mdash;</option>';
+      inpVerfuegbar.value = '';
+      inpMenge.max = 1;
+
+      if (!opt.value) {
+        selGroesse.disabled = true;
+        return;
+      }
+
+      const artikel = artikelMap[opt.value];
+      const groessen = Array.isArray(artikel.groessen) ? artikel.groessen : [];
+      const mengePerGroesse = (artikel.menge_per_groesse && typeof artikel.menge_per_groesse === 'object') ? artikel.menge_per_groesse : {};
+
+      groessen.forEach(g => {
+        const verfuegbar = mengePerGroesse[g] ?? 0;
+        if (verfuegbar > 0) {
+          const option = document.createElement('option');
+          option.value = g;
+          option.textContent = `${g} (${verfuegbar} ${esc(artikel.einheit || 'Stück')} verf&uuml;gbar)`;
+          option.dataset.menge = verfuegbar;
+          selGroesse.appendChild(option);
+        }
+      });
+      selGroesse.disabled = groessen.length === 0;
+    });
+
+    selGroesse.addEventListener('change', () => {
+      const opt = selGroesse.options[selGroesse.selectedIndex];
+      if (opt && opt.dataset.menge) {
+        inpVerfuegbar.value = `${opt.dataset.menge} ${esc(selArtikel.options[selArtikel.selectedIndex]?.textContent?.split('(')[0] || '').trim()} verf&uuml;gbar`;
+        inpMenge.max = opt.dataset.menge;
+      } else {
+        inpVerfuegbar.value = '';
+        inpMenge.max = 1;
+      }
+    });
+
+    document.getElementById('neue-zuweisung-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const lagerartikel_id = document.getElementById('fld-edit-artikel').value;
+      const groesse = document.getElementById('fld-edit-groesse').value;
+      const menge = +document.getElementById('fld-edit-menge').value;
+      if (!lagerartikel_id) { toast('Bitte Lagerartikel w&auml;hlen', 'error'); return; }
+      if (!groesse) { toast('Bitte Gr&ouml;&szlig;e w&auml;hlen', 'error'); return; }
+      if (menge <= 0) { toast('Menge muss gr&ouml;ßer als 0 sein', 'error'); return; }
+
+      try {
+        await api.createKleiderausgabe({
+          mitglied_id: mitgliedId,
+          lagerartikel_id,
+          menge,
+          groesse,
+          bemerkung: document.getElementById('fld-edit-bemerkung').value || null,
+        });
+        toast('Kleidung zugewiesen', 'success');
+        detailView.style.display = 'none';
+        listView.style.display = '';
+        renderAusgabenTab(listView, state);
+      } catch (e) { toast(e.message || 'Fehler bei der Zuweisung', 'error'); }
+    });
+  } catch (e) {
+    detailView.innerHTML = `<p class="error-msg error-msg--block">Fehler: ${esc(e.message)}</p>`;
+    document.getElementById('btn-zurueck-zu-mitgliedern-edit')?.addEventListener('click', () => {
+      detailView.style.display = 'none';
+      listView.style.display = '';
+      renderAusgabenTab(listView, state);
+    });
   }
 }
 
