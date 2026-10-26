@@ -839,7 +839,7 @@ pub async fn create_ausgabe(
             "#
         )
         .bind(g)
-        .bind(lagerartikel_id)
+        .bind(body.lagerartikel_id)
         .fetch_one(&state.db)
         .await
         .map_err(|_| AppError::NotFound)?;
@@ -859,7 +859,7 @@ pub async fn create_ausgabe(
         )
         .bind(body.menge)
         .bind(g)
-        .bind(lagerartikel_id)
+        .bind(body.lagerartikel_id)
         .execute(&state.db)
         .await?;
 
@@ -870,7 +870,7 @@ pub async fn create_ausgabe(
             "UPDATE jugendfeuerwehr_lagerartikel SET menge = menge - $1 WHERE id = $2 AND menge >= $1"
         )
         .bind(body.menge)
-        .bind(lagerartikel_id)
+        .bind(body.lagerartikel_id)
         .execute(&state.db)
         .await?;
 
@@ -889,8 +889,8 @@ pub async fn create_ausgabe(
         RETURNING id
         "#,
     )
-    .bind(mitglied_id)
-    .bind(lagerartikel_id)
+    .bind(body.mitglied_id)
+    .bind(body.lagerartikel_id)
     .bind(body.menge)
     .bind(&body.groesse)
     .bind(&body.bemerkung)
@@ -999,7 +999,7 @@ pub async fn return_ausgabe(
     // Atomare Bestandserhöhung innerhalb der Transaktion
     sqlx::query("UPDATE jugendfeuerwehr_lagerartikel SET menge = menge + $1 WHERE id = $2")
         .bind(body.rueckgabe_menge)
-        .bind(lagerartikel_id)
+        .bind(body.lagerartikel_id)
         .execute(&mut *tx)
         .await?;
 
@@ -1098,11 +1098,15 @@ pub async fn uebernehmen_kleiderartikel(
         return Err(AppError::BadRequest("Menge muss größer als 0 sein".into()));
     }
 
+    // IDs parsen
+    let lagerartikel_id: Uuid = body.lagerartikel_id.parse().map_err(|_| AppError::BadRequest("Invalid lagerartikel_id".into()))?;
+    let mitglied_id: Uuid = body.mitglied_id.parse().map_err(|_| AppError::BadRequest("Invalid mitglied_id".into()))?;
+
     // Prüfen ob genug Lagerbestand vorhanden ist
     let lagerartikel = sqlx::query_as::<_, Lagerartikel>(
         r#"SELECT id, name, beschreibung, menge, groessen, menge_per_groesse, einheit FROM jugendfeuerwehr_lagerartikel WHERE id = $1"#
     )
-    .bind(lagerartikel_id)
+    .bind(body.lagerartikel_id)
     .fetch_one(&state.db)
     .await
     .map_err(|_| AppError::NotFound)?;
@@ -1138,7 +1142,7 @@ pub async fn uebernehmen_kleiderartikel(
     )
     .bind(body.menge)
     .bind(&groesse)
-    .bind(lagerartikel_id)
+    .bind(body.lagerartikel_id)
     .execute(&state.db)
     .await?;
 
@@ -1155,8 +1159,8 @@ pub async fn uebernehmen_kleiderartikel(
         RETURNING id
         "#,
     )
-    .bind(mitglied_id)
-    .bind(lagerartikel_id)
+    .bind(body.mitglied_id)
+    .bind(body.lagerartikel_id)
     .bind(body.menge)
     .bind(&body.groesse)
     .bind(None::<String>) // Bemerkung optional
@@ -1750,7 +1754,7 @@ pub async fn list_vorgaenge(
         ORDER BY mv.datum DESC
         "#,
     )
-    .bind(mitglied_id)
+    .bind(body.mitglied_id)
     .fetch_all(&state.db)
     .await?;
 
@@ -1777,7 +1781,7 @@ pub async fn create_vorgang(
         RETURNING id
         "#,
     )
-    .bind(mitglied_id)
+    .bind(body.mitglied_id)
     .bind(&body.typ)
     .bind(body.datum)
     .bind(&body.vorherischer_name)
@@ -1842,7 +1846,7 @@ pub async fn export_jugendmitglied_bestellung(
         ORDER BY ka.ausgabedatum DESC
         "#,
     )
-    .bind(mitglied_id)
+    .bind(body.mitglied_id)
     .fetch_all(&state.db)
     .await?;
 
@@ -1925,7 +1929,7 @@ pub async fn create_bestellung(
     )
     .bind(body.menge)
     .bind(groesse)
-    .bind(lagerartikel_id)
+    .bind(body.lagerartikel_id)
     .execute(&state.db)
     .await?;
 
@@ -1941,8 +1945,8 @@ pub async fn create_bestellung(
         RETURNING id
         "#,
     )
-    .bind(mitglied_id)
-    .bind(lagerartikel_id)
+    .bind(body.mitglied_id)
+    .bind(body.lagerartikel_id)
     .bind(body.menge)
     .bind(&body.groesse)
     .bind(&body.bemerkung)
