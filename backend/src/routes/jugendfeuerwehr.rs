@@ -999,7 +999,7 @@ pub async fn return_ausgabe(
     // Atomare Bestandserhöhung innerhalb der Transaktion
     sqlx::query("UPDATE jugendfeuerwehr_lagerartikel SET menge = menge + $1 WHERE id = $2")
         .bind(body.rueckgabe_menge)
-        .bind(body.lagerartikel_id)
+        .bind(lagerartikel_id)
         .execute(&mut *tx)
         .await?;
 
@@ -1106,7 +1106,7 @@ pub async fn uebernehmen_kleiderartikel(
     let lagerartikel = sqlx::query_as::<_, Lagerartikel>(
         r#"SELECT id, name, beschreibung, menge, groessen, menge_per_groesse, einheit FROM jugendfeuerwehr_lagerartikel WHERE id = $1"#
     )
-    .bind(body.lagerartikel_id)
+    .bind(&lagerartikel_id)
     .fetch_one(&state.db)
     .await
     .map_err(|_| AppError::NotFound)?;
@@ -1142,7 +1142,7 @@ pub async fn uebernehmen_kleiderartikel(
     )
     .bind(body.menge)
     .bind(&groesse)
-    .bind(body.lagerartikel_id)
+    .bind(lagerartikel_id)
     .execute(&state.db)
     .await?;
 
@@ -1159,8 +1159,8 @@ pub async fn uebernehmen_kleiderartikel(
         RETURNING id
         "#,
     )
-    .bind(body.mitglied_id)
-    .bind(body.lagerartikel_id)
+    .bind(mitglied_id)
+    .bind(lagerartikel_id)
     .bind(body.menge)
     .bind(&body.groesse)
     .bind(None::<String>) // Bemerkung optional
@@ -1754,7 +1754,7 @@ pub async fn list_vorgaenge(
         ORDER BY mv.datum DESC
         "#,
     )
-    .bind(body.mitglied_id)
+    .bind(mitglied_id)
     .fetch_all(&state.db)
     .await?;
 
@@ -1846,7 +1846,7 @@ pub async fn export_jugendmitglied_bestellung(
         ORDER BY ka.ausgabedatum DESC
         "#,
     )
-    .bind(body.mitglied_id)
+    .bind(mitglied_id)
     .fetch_all(&state.db)
     .await?;
 
