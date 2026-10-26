@@ -950,9 +950,9 @@ pub struct CreateRueckgabe {
 #[derive(Deserialize, Validate)]
 pub struct UebernehmenKleiderartikel {
     #[validate(length(min = 1))]
-    pub mitglied_id: Uuid,
+    pub mitglied_id: String,
     #[validate(length(min = 1))]
-    pub lagerartikel_id: Uuid,
+    pub lagerartikel_id: String,
     pub menge: i32,
     pub groesse: Option<String>,
     pub bemerkung: Option<String>,
