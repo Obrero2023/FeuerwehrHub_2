@@ -1,6 +1,8 @@
 use axum::{
     extract::{Path, Query, State},
+    http::HeaderMap,
     middleware,
+    response::{IntoResponse, Response},
     routing::{delete, get, post, put},
     Extension, Json, Router,
 };
@@ -1658,6 +1660,177 @@ pub async fn create_vorgang(
     Ok(Json(vorgang))
 }
 
+// ── Export: Jugendmitglied Bestellungen ───────────────────────────────────────
+
+/// Exports a Jugendmitglied's Kleidungsausgaben (orders) as a CSV file.
+/// Each Jugendmitglied therefore gets an individual file showing their
+/// current and past clothing orders/returns for the clerk to hand over.
+pub async fn export_jugendmitglied_bestellung(
+    State(state): State<AppState>,
+    Path(mitglied_id): Path<Uuid>,
+) -> AppResult<impl IntoResponse> {
+    let eintraege = sqlx::query_as::<_, Kleiderausgabe>(
+        r#"
+        SELECT ka.id, ka.mitglied_id, m.name as mitglied_name,
+               ka.lagerartikel_id, la.name as lagerartikel_name,
+               ka.menge, ka.groesse, ka.ausgabedatum, ka.rueckgabedatum,
+               ka.rueckgabe_menge, ka.rueckgabe_bemerkung, ka.bemerkung,
+               ka.erstellt_von, ka.erstellt_von_name, ka.erstellt_am, ka.aktualisiert_am
+        FROM jugendfeuerwehr_kleiderausgaben ka
+        JOIN jugendfeuerwehr_mitglieder m ON m.id = ka.mitglied_id
+        JOIN jugendfeuerwehr_lagerartikel la ON la.id = ka.lagerartikel_id
+        WHERE ka.mitglied_id = $1
+        ORDER BY ka.ausgabedatum DESC
+        "#,
+    )
+    .bind(mitglied_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    fn csv_safe(s: &str) -> String {
+        if s.starts_with(['=', '+', '-', '@', '\t', '\r']) {
+            format!("'{}", s)
+        } else {
+            s.to_string()
+        }
+    }
+
+    let mut csv = String::from("Artikel,Größe,Menge,Ausgabedatum,Rückgabedatum,Rückgabe-Menge,Status,Bemerkung\n");
+    for e in &eintraege {
+        let rueckgabe_menge = e.rueckgabe_menge.unwrap_or(0);
+        let status = if rueckgabe_menge >= e.menge {
+            "Vollständig zurückgegeben"
+        } else if rueckgabe_menge > 0 {
+            "Teilweise zurückgegeben"
+        } else {
+            "Offen / Ausgegeben"
+        };
+        let offen = e.menge - rueckgabe_menge;
+        let bemerkung = csv_safe(e.bemerkung.as_deref().unwrap_or(""))
+            .replace('"', "\"\"");
+        let artikel = csv_safe(&e.lagerartikel_name).replace('"', "\"\"");
+        let groesse = csv_safe(e.groesse.as_deref().unwrap_or("")).replace('"', "\"\"");
+        csv.push_str(&format!(
+            "\"{}\",\"{}\",{},{},{},{},{:?},{}\n",
+            artikel, groesse, e.menge,
+            e.ausgabedatum,
+            e.rueckgabedatum.map(|d| d.to_string()).unwrap_or_default(),
+            rueckgabe_menge,
+            offen,
+            bemerkung
+        ));
+    }
+
+    let filename = format!("bestellung_jugendmitglied_{}.csv", mitglied_id);
+    let body = csv;
+    let mut headers = HeaderMap::new();
+    headers.insert("Content-Type", "text/csv; charset=utf-8".parse().unwrap());
+    headers.insert(
+        "Content-Disposition",
+        format!("attachment; filename=\"{}\"", filename).parse().unwrap(),
+    );
+
+    Ok((headers, body))
+}
+
+// ── Bestellungen: Neue Bestellung für Jugendmitglied ─────────────────────────
+
+/// Erstellt eine neue Kleiderausgabe (Bestellung) für ein Jugendmitglied.
+/// Bei einer Bestellung wird die Bestellung erfasst, aber der Lagerbestand
+/// wird nicht automatisch verringert (da der Artikel oft ohnehin nicht vorrätig ist).
+/// Die spätere Rückgabe erfolgt dann über die bekannten Rückgabe-Flows.
+pub async fn create_bestellung(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateAusgabe>,
+) -> AppResult<Json<Kleiderausgabe>> {
+    if body.menge <= 0 {
+        return Err(AppError::BadRequest("Menge muss größer als 0 sein".into()));
+    }
+
+    // Bestandsreduktion ohne untere Grenze prüfen (Bestellungen erlauben
+    // Artikeln zu bestellen, die aktuell nicht verfügbar sind)
+    let groesse = body.groesse.clone();
+    let updated_rows = sqlx::query(
+        r#"
+        UPDATE jugendfeuerwehr_lagerartikel
+        SET menge = menge - $1,
+            menge_per_groesse = jsonb_set(
+                menge_per_groesse,
+                ARRAY[$2],
+                to_jsonb(COALESCE((menge_per_groesse ->> $2)::integer, 0) - $1),
+                true
+            )
+        WHERE id = $3
+        "#,
+    )
+    .bind(body.menge)
+    .bind(groesse)
+    .bind(body.lagerartikel_id)
+    .execute(&state.db)
+    .await?;
+
+    if updated_rows.rows_affected() == 0 {
+        return Err(AppError::Conflict("Artikel nicht gefunden oder Bestellung fehlgeschlagen".into()));
+    }
+
+    let ausgabe_id: Uuid = sqlx::query_scalar(
+        r#"
+        INSERT INTO jugendfeuerwehr_kleiderausgaben
+            (mitglied_id, lagerartikel_id, menge, groesse, bemerkung, erstellt_von, erstellt_von_name)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id
+        "#,
+    )
+    .bind(body.mitglied_id)
+    .bind(body.lagerartikel_id)
+    .bind(body.menge)
+    .bind(&body.groesse)
+    .bind(&body.bemerkung)
+    .bind(claims.sub)
+    .bind(&claims.username)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!("POST /jugendfeuerwehr/bestellungen - database error: {}", e);
+        AppError::Database(e)
+    })?;
+
+    let ausgabe = sqlx::query_as::<_, Kleiderausgabe>(
+        r#"
+        SELECT ka.id, ka.mitglied_id, m.name as mitglied_name,
+               ka.lagerartikel_id, la.name as lagerartikel_name,
+               ka.menge, ka.groesse, ka.ausgabedatum, ka.rueckgabedatum,
+               ka.rueckgabe_menge, ka.rueckgabe_bemerkung, ka.bemerkung,
+               ka.erstellt_von, ka.erstellt_von_name, ka.erstellt_am, ka.aktualisiert_am
+        FROM jugendfeuerwehr_kleiderausgaben ka
+        JOIN jugendfeuerwehr_mitglieder m ON m.id = ka.mitglied_id
+        JOIN jugendfeuerwehr_lagerartikel la ON la.id = ka.lagerartikel_id
+        WHERE ka.id = $1
+        "#,
+    )
+    .bind(ausgabe_id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!("POST /jugendfeuerwehr/bestellungen - fetch ausgabe error: {}", e);
+        AppError::Database(e)
+    })?;
+
+    audit::log(
+        &state.db,
+        Some(claims.sub),
+        &claims.username,
+        "KLEIDERAUSGABE_BESTELLT",
+        Some("jugendfeuerwehr_kleiderausgaben"),
+        Some(ausgabe_id),
+        None,
+    )
+    .await;
+
+    Ok(Json(ausgabe))
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 
 pub fn router(state: AppState) -> Router<AppState> {
@@ -1666,6 +1839,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/", get(list_jugendmitglieder).post(create_jugendmitglied))
         .route("/archiviert", get(list_jugendmitglieder_archiviert))
         .route("/:id", get(get_jugendmitglied).put(update_jugendmitglied).delete(delete_jugendmitglied))
+        .route("/:id/export", get(export_jugendmitglied_bestellung))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_module("jugendfeuerwehr.lesen")))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
@@ -1696,6 +1870,12 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/vorgaenge", post(create_vorgang))
         .route("/:mitglied_id/vorgaenge", get(list_vorgaenge))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_module("jugendfeuerwehr.lesen")))
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
+
+    // Bestellungen: Neue Bestellung für Jugendmitglied (ohne Lagerbestand-Prüfung)
+    let bestellungen = Router::new()
+        .route("/bestellungen", post(create_bestellung))
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_module("jugendfeuerwehr.mitglieder")))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
     Router::new()

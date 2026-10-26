@@ -1115,7 +1115,10 @@ async function showMitgliedKleidung(mitgliedId, state) {
     let html = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <h4 style="margin:0">${esc(mitglied.vorname || '')} ${esc(mitglied.nachname || '')} – Aktuelle Kleidung</h4>
-        <button class="btn btn--sm btn--outline" id="btn-zurueck-zu-mitgliedern">Zur&uuml;ck</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn--sm btn--outline" id="btn-export-bestellung" data-mitglied-id="${mitgliedId}" data-mitglied-name="${esc((mitglied.vorname || '') + ' ' + (mitglied.nachname || ''))}">Bestellung exportieren</button>
+          <button class="btn btn--sm btn--outline" id="btn-zurueck-zu-mitgliedern">Zur&uuml;ck</button>
+        </div>
       </div>
     `;
 
@@ -1140,6 +1143,7 @@ async function showMitgliedKleidung(mitgliedId, state) {
               <td>${ausgabe?.rueckgabedatum ? formatDatumDeutsch(ausgabe.rueckgabedatum) : '–'}</td>
               <td class="jugend-actions">
                 ${offen > 0 ? `<button class="btn btn--small btn--outline btn-rueckgabe-detail" data-id="${ausgabe?.id}" data-mitglied-id="${mitgliedId}" data-mitglied-name="${esc((mitglied.vorname || '') + ' ' + (mitglied.nachname || ''))}" data-artikel-name="${esc(a.name)}" data-offen="${offen}">Rückgabe</button>` : ''}
+                ${offen === 0 && !ausgabe?.rueckgabedatum ? `<button class="btn btn--small btn--primary btn-bestellen-detail" data-id="${a.id}" data-groesse="${esc(g)}" data-mitglied-id="${mitgliedId}" data-artikel-name="${esc(a.name)}">Bestellen</button>` : ''}
               </td>
             </tr>
           `;
@@ -1159,6 +1163,54 @@ async function showMitgliedKleidung(mitgliedId, state) {
     detailView.querySelectorAll('.btn-rueckgabe-detail').forEach(b => {
       b.addEventListener('click', () => {
         showRueckgabeForm(b.dataset.id, b.dataset.mitgliedName, b.dataset.artikelName, +b.dataset.offen);
+      });
+    });
+
+    // Export bestellungen (CSV)
+    detailView.querySelectorAll('.btn-export-bestellung').forEach(b => {
+      b.addEventListener('click', async () => {
+        const mitgliedId = b.dataset.mitgliedId;
+        const mitgliedName = b.dataset.mitgliedName;
+        try {
+          const csv = await api.getMitgliedBestellungen(mitgliedId);
+          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `bestellung_jugendmitglied_${mitgliedId}.csv`;
+          a.textContent = `Download: Bestellungen für ${mitgliedName}`;
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+        } catch (err) {
+          toast(`Fehler beim Exportieren: ${err.message || err}`, 'error');
+        }
+      });
+    });
+
+    // Bestellen-Button (wenn kein Gegenstand gehalten wird / Bestellung nötig)
+    detailView.querySelectorAll('.btn-bestellen-detail').forEach(b => {
+      b.addEventListener('click', async () => {
+        const mitgliedId = b.dataset.mitgliedId;
+        const artikelName = b.dataset.artikelName;
+        const groesse = b.dataset.groesse;
+        const mengeStr = window.prompt(`Wie viele "${artikelName}" (${groesse}) soll bestellt werden?`, '1');
+        const menge = parseInt(mengeStr, 10);
+        if (!menge || menge < 1) return;
+        try {
+          await api.createBestellung({
+            mitglied_id: mitgliedId,
+            lagerartikel_id: b.dataset.id,
+            menge,
+            groesse: groesse || null,
+          });
+          toast('Bestellung erfolgreich erstellt', 'success');
+          // Detail-View neu laden
+          await showMitgliedKleidung(mitgliedId, state);
+        } catch (err) {
+          toast(`Fehler bei Bestellung: ${err.message || err}`, 'error');
+        }
       });
     });
   } catch (e) {
@@ -1242,7 +1294,10 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
             <td>${esc(g) || '–'}</td>
             <td><strong>${lagerBestand}</strong> ${esc(a.einheit || 'Stück')}</td>
             <td><input type="number" min="0" value="${offen}" data-id="${a.id}" data-groesse="${esc(g)}" class="edit-qty" data-orig="${offen}" data-ausgabe-id="${ausgabeId}" data-open="${offen}"/></td>
-            <td class="jugend-actions">${offen > 0 ? `<button class="btn btn--small btn--danger btn-rueckgabe-edit" data-id="${a.id}" data-groesse="${esc(g)}" data-ausgabe-id="${ausgabeId}" data-offen="${offen}">Rückgabe</button>` : ''}</td>
+            <td class="jugend-actions">
+              ${offen > 0 ? `<button class="btn btn--small btn--danger btn-rueckgabe-edit" data-id="${a.id}" data-groesse="${esc(g)}" data-ausgabe-id="${ausgabeId}" data-offen="${offen}">Rückgabe</button>` : ''}
+              ${lagerBestand === 0 ? `<button class="btn btn--small btn--primary btn-bestellen-edit" data-id="${a.id}" data-groesse="${esc(g)}" data-mitglied-id="${mitgliedId}" data-artikel-name="${esc(a.name)}" data-lagerbestand="0">Bestellen</button>` : ''}
+            </td>
           </tr>
         `;
       }
@@ -1274,6 +1329,31 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
     detailView.querySelectorAll('.btn-rueckgabe-edit').forEach(b => {
       b.addEventListener('click', () => {
         showRueckgabeForm(b.dataset.ausgabeId, `${esc(mitglied.vorname || '')} ${esc(mitglied.nachname || '')}`, '', +b.dataset.offen);
+      });
+    });
+
+    // Bestellen-Button (wenn Lagerbestand 0)
+    detailView.querySelectorAll('.btn-bestellen-edit').forEach(b => {
+      b.addEventListener('click', async () => {
+        const mitgliedId = b.dataset.mitgliedId;
+        const artikelName = b.dataset.artikelName;
+        const groesse = b.dataset.groesse;
+        const mengeStr = window.prompt(`Wie viele "${artikelName}" (${groesse}) soll bestellt werden?`, '1');
+        const menge = parseInt(mengeStr, 10);
+        if (!menge || menge < 1) return;
+        try {
+          await api.createBestellung({
+            mitglied_id: mitgliedId,
+            lagerartikel_id: b.dataset.id,
+            menge,
+            groesse: groesse || null,
+          });
+          toast('Bestellung erfolgreich erstellt', 'success');
+          // Bearbeitungs-View neu laden
+          await showMitgliedKleidungBearbeiten(mitgliedId, state);
+        } catch (err) {
+          toast(`Fehler bei Bestellung: ${err.message || err}`, 'error');
+        }
       });
     });
 

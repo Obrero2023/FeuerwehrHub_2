@@ -428,6 +428,9 @@ export const api = {
   getKleiderausgaben: () => request("GET", "/jugendfeuerwehr/ausgaben"),
   createKleiderausgabe: (body) => request("POST", "/jugendfeuerwehr/ausgaben", body),
   rueckgabeKleiderausgabe: (ausgabeId, body) => request("POST", `/jugendfeuerwehr/ausgaben/${ausgabeId}/rueckgabe`, body),
+  createBestellung: (body) => request("POST", "/jugendfeuerwehr/bestellungen", body),
+  // Export: each youth member's clothing orders as CSV
+  getMitgliedBestellungen: (memberId) => request("GET", `/jugendfeuerwehr/${memberId}/export`),
 
   // Jugendfeuerwehr — Mitgliedschaftsvorgänge
   getMitgliedschaftsvorgaenge: (mitgliedId) => request("GET", `/jugendfeuerwehr/${mitgliedId}/vorgaenge`),
