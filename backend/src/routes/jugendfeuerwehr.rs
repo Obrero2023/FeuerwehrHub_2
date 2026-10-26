@@ -946,6 +946,18 @@ pub struct CreateRueckgabe {
     pub rueckgabe_bemerkung: Option<String>,
 }
 
+/// Daten für die Übernahme eines angekommenen Artikels (Verteilung an Jugendmitglied)
+#[derive(Deserialize, Validate)]
+pub struct UebernehmenKleiderartikel {
+    #[validate(length(min = 1))]
+    pub mitglied_id: Uuid,
+    #[validate(length(min = 1))]
+    pub lagerartikel_id: Uuid,
+    pub menge: i32,
+    pub groesse: Option<String>,
+    pub bemerkung: Option<String>,
+}
+
 pub async fn return_ausgabe(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1071,6 +1083,125 @@ pub async fn delete_ausgabe(
     .await;
 
     Ok(Json(serde_json::json!({ "ok": true, "message": "Bestellung gelöscht" })))
+}
+
+/// Artikel übernehmen (Wenn Artikel angekommen ist)
+///
+/// Übernommenen Artikel einem Jugendmitglied zuweisen.
+/// Reduziert den Lagerbestand und erstellt eine Kleiderausgabe mit heutigem Datum.
+pub async fn uebernehmen_kleiderartikel(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<UebernehmenKleiderartikel>,
+) -> AppResult<Json<Kleiderausgabe>> {
+    if body.menge <= 0 {
+        return Err(AppError::BadRequest("Menge muss größer als 0 sein".into()));
+    }
+
+    // Prüfen ob genug Lagerbestand vorhanden ist
+    let lagerartikel = sqlx::query_as::<_, Lagerartikel>(
+        r#"SELECT id, name, beschreibung, menge, groessen, menge_per_groesse, einheit FROM jugendfeuerwehr_lagerartikel WHERE id = $1"#
+    )
+    .bind(body.lagerartikel_id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|_| AppError::NotFound)?;
+
+    // Lagerbestand aus menge_per_groesse Objekt berechnen
+    let mut total_lagerbestand: i32 = 0;
+    if let Some(obj) = lagerartikel.menge_per_groesse.as_object() {
+        for (_k, v) in obj {
+            if let Some(n) = v.as_i64() {
+                total_lagerbestand += n as i32;
+            }
+        }
+    }
+
+    if total_lagerbestand < body.menge {
+        return Err(AppError::Conflict("Nicht genug Lagerbestand verfügbar".into()));
+    }
+
+    // Bestandsreduktion
+    let groesse = body.groesse.clone().unwrap_or_default();
+    let updated = sqlx::query(
+        r#"
+        UPDATE jugendfeuerwehr_lagerartikel
+        SET menge = menge - $1,
+            menge_per_groesse = jsonb_set(
+                menge_per_groesse,
+                ARRAY[$2],
+                to_jsonb(COALESCE((menge_per_groesse ->> $2)::integer, 0) - $1),
+                true
+            )
+        WHERE id = $3
+        "#,
+    )
+    .bind(body.menge)
+    .bind(&groesse)
+    .bind(body.lagerartikel_id)
+    .execute(&state.db)
+    .await?;
+
+    if updated.rows_affected() == 0 {
+        return Err(AppError::Conflict("Artikel nicht gefunden oder Bestandsreduktion fehlgeschlagen".into()));
+    }
+
+    // Kleiderausgabe erstellen
+    let ausgabe_id: Uuid = sqlx::query_scalar(
+        r#"
+        INSERT INTO jugendfeuerwehr_kleiderausgaben
+            (mitglied_id, lagerartikel_id, menge, groesse, bemerkung, erstellt_von, erstellt_von_name)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id
+        "#,
+    )
+    .bind(body.mitglied_id)
+    .bind(body.lagerartikel_id)
+    .bind(body.menge)
+    .bind(&body.groesse)
+    .bind(None::<String>) // Bemerkung optional
+    .bind(claims.sub)
+    .bind(&claims.username)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!("POST /jugendfeuerwehr/uebernehmen - database error: {}", e);
+        AppError::Database(e)
+    })?;
+
+    let ausgabe = sqlx::query_as::<_, Kleiderausgabe>(
+        r#"
+        SELECT ka.id, ka.mitglied_id, m.name as mitglied_name,
+               ka.lagerartikel_id, la.name as lagerartikel_name,
+               ka.menge, ka.groesse, ka.ausgabedatum, ka.rueckgabedatum,
+               ka.rueckgabe_menge, ka.rueckgabe_bemerkung, ka.bemerkung,
+               ka.erstellt_von, ka.erstellt_von_name, ka.erstellt_am, ka.aktualisiert_am
+        FROM jugendfeuerwehr_kleiderausgaben ka
+        JOIN jugendfeuerwehr_mitglieder m ON m.id = ka.mitglied_id
+        JOIN jugendfeuerwehr_lagerartikel la ON la.id = ka.lagerartikel_id
+        WHERE ka.id = $1
+        "#,
+    )
+    .bind(ausgabe_id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!("POST /jugendfeuerwehr/uebernehmen - fetch error: {}", e);
+        AppError::Database(e)
+    })?;
+
+    audit::log(
+        &state.db,
+        Some(claims.sub),
+        &claims.username,
+        "KLEIDERAUSGABE_UEBERNAHMEN",
+        Some("jugendfeuerwehr_kleiderausgaben"),
+        Some(ausgabe_id),
+        None,
+    )
+    .await;
+
+    Ok(Json(ausgabe))
 }
 
 // ── Anwerter Routes ────────────────────────────────────────────────────────
@@ -1913,5 +2044,6 @@ pub fn router(state: AppState) -> Router<AppState> {
         .merge(anwerter)
         .merge(vorgaenge)
         .merge(bestellungen)
+        .merge(uebernehmen)
         .route_layer(middleware::from_fn_with_state(state, require_auth))
 }

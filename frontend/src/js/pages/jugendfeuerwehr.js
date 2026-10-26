@@ -1046,7 +1046,10 @@ async function renderBestellteArtikelTab(container, state) {
       <td class="jugend-geburtsdatum">${formatDatumDeutsch(a.ausgabedatum)}</td>
       <td class="jugend-status"><span class="badge badge--${(a.rueckgabe_menge || 0) >= a.menge ? 'success' : 'warning'}">${status}</span></td>
       <td class="jugend-actions">
-        ${canWrite ? `<button class="btn btn--small btn--danger btn-bestellung-loeschen" data-id="${a.id}">Bestellung löschen</button>` : ''}
+        ${canWrite ? `
+          ${(a.rueckgabe_menge || 0) < a.menge ? `<button class="btn btn--small btn--primary btn-uebernehmen-bestellung" data-id="${a.id}" data-artikelName="${esc(a.lagerartikel_name || 'Artikel')}" data-groesse="${a.groesse || ''}" data-menge="${a.menge}" data-lagerartikelId="${a.lagerartikel_id}">Artikel übernehmen</button>` : ''}
+          ${a.id > 0 ? `<button class="btn btn--small btn--danger btn-bestellung-loeschen" data-id="${a.id}">Bestellung löschen</button>` : ''}
+        ` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -1097,6 +1100,73 @@ async function renderBestellteArtikelTab(container, state) {
         } catch (err) {
           toast(`Fehler: ${err.message || err}`, 'error');
         }
+      });
+    });
+
+    // "Artikel übernehmen" Button-Handler
+    tbody.querySelectorAll('.btn-uebernehmen-bestellung').forEach(b => {
+      b.addEventListener('click', async () => {
+        const artikelName = b.dataset.artikelName;
+        const groesse = b.dataset.groesse;
+        const menge = +b.dataset.menge;
+        const lagerartikelId = b.dataset.lagerartikelId;
+
+        // Jugendmitglieder laden
+        const alle = await api.getJugendmitglieder();
+        const activeMitglieder = alle.filter(m => !m.archiviert);
+
+        if (!activeMitglieder.length) {
+          toast('Keine aktiven Jugendmitglieder vorhanden', 'error');
+          return;
+        }
+
+        const overlay = document.createElement('div');
+        overlay.className = 'error-overlay';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;';
+        overlay.innerHTML = `
+          <div class="card" style="max-width:500px;width:90%;background:var(--surface);padding:24px;border-radius:8px;">
+            <div class="card__header" style="margin-bottom:20px;display:flex;align-items:flex-start;gap:12px">
+              <span style="font-size:1.1rem;font-weight:600">Artikel übernehmen: ${esc(artikelName)} (${groesse || '-'}) × ${menge}</span>
+            </div>
+            <form id="uebernehmen-form" class="form-grid">
+              <div class="form-group form-group--full">
+                <label>Jugendmitglied <span class="required">*</span></label>
+                <select id="fld-u-mitglied" required>
+                  <option value="">-- Auswählen --</option>
+                  ${activeMitglieder.map(m => `<option value="${m.id}">${esc(m.vorname || '')} ${esc(m.nachname || '')}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-group form-group--half">
+                <label>Menge <span class="required">*</span></label>
+                <input type="number" id="fld-u-menge" min="1" max="${menge}" value="${menge}" required />
+              </div>
+              <div class="form-group form-group--half">
+                <label>Größe</label>
+                <input type="text" id="fld-u-groesse" value="${groesse || ''}" />
+              </div>
+              <div class="form-group form-group--full" style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+                <button type="button" class="btn btn--outline" onclick="this.closest('.error-overlay').remove()">Abbrechen</button>
+                <button type="submit" class="btn btn--primary">Übernehmen & Übergabe</button>
+              </div>
+            </form>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+        document.getElementById('uebernehmen-form').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const mitgliedId = document.getElementById('fld-u-mitglied').value;
+          const uebernehmenMenge = +document.getElementById('fld-u-menge').value;
+          const uebernehmenGroesse = document.getElementById('fld-u-groesse').value.trim() || null;
+          if (!mitgliedId) { toast('Bitte ein Jugendmitglied auswählen', 'error'); return; }
+          try {
+            await api.übernehmenKleiderartikel(mitgliedId, lagerartikelId, uebernehmenMenge, uebernehmenGroesse);
+            toast('Artikel erfolgreich übergeben', 'success');
+            overlay.remove();
+            renderBestellteArtikelTab(container, state);
+          } catch (err) {
+            toast(`Fehler: ${err.message || err}`, 'error');
+          }
+        });
       });
     });
   }
