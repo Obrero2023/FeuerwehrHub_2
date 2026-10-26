@@ -1045,6 +1045,34 @@ pub async fn return_ausgabe(
     Ok(Json(ausgabe))
 }
 
+pub async fn delete_ausgabe(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(ausgabe_id): Path<Uuid>,
+) -> AppResult<Json<serde_json::Value>> {
+    let result = sqlx::query("DELETE FROM jugendfeuerwehr_kleiderausgaben WHERE id = $1")
+        .bind(ausgabe_id)
+        .execute(&state.db)
+        .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    audit::log(
+        &state.db,
+        Some(claims.sub),
+        &claims.username,
+        "KLEIDERAUSGABE_DELETED",
+        Some("jugendfeuerwehr_kleiderausgaben"),
+        Some(ausgabe_id),
+        None,
+    )
+    .await;
+
+    Ok(Json(serde_json::json!({ "ok": true, "message": "Bestellung gelöscht" })))
+}
+
 // ── Anwerter Routes ────────────────────────────────────────────────────────
 
 pub async fn list_anwärter(
@@ -1848,6 +1876,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/lagerartikel", get(list_lagerartikel).post(create_lagerartikel))
         .route("/lagerartikel/:id", get(get_lagerartikel).put(update_lagerartikel).patch(update_lagerartikel_stock).delete(delete_lagerartikel))
         .route("/ausgaben", get(list_ausgaben).post(create_ausgabe))
+        .route("/ausgaben/:ausgabe_id", delete(delete_ausgabe))
         .route("/ausgaben/:ausgabe_id/rueckgabe", post(return_ausgabe))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_module("jugendfeuerwehr.kleiderkammer.lesen")))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
@@ -1883,5 +1912,6 @@ pub fn router(state: AppState) -> Router<AppState> {
         .merge(kleiderkammer)
         .merge(anwerter)
         .merge(vorgaenge)
+        .merge(bestellungen)
         .route_layer(middleware::from_fn_with_state(state, require_auth))
 }

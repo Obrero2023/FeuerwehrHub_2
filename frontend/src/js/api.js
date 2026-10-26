@@ -429,6 +429,7 @@ export const api = {
   createKleiderausgabe: (body) => request("POST", "/jugendfeuerwehr/ausgaben", body),
   rueckgabeKleiderausgabe: (ausgabeId, body) => request("POST", `/jugendfeuerwehr/ausgaben/${ausgabeId}/rueckgabe`, body),
   createBestellung: (body) => request("POST", "/jugendfeuerwehr/bestellungen", body),
+  deleteKleiderausgabe: (ausgabeId) => request("DELETE", `/jugendfeuerwehr/ausgaben/${ausgabeId}`),
   // Export: each youth member's clothing orders as CSV
   getMitgliedBestellungen: (memberId) => request("GET", `/jugendfeuerwehr/${memberId}/export`),
 

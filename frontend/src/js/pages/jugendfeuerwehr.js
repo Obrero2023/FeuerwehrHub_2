@@ -843,6 +843,7 @@ export async function renderJugendfeuerwehrKleiderkammer() {
       <button class="tab-btn active" data-ktab="bekleidung">Bekleidung</button>
       <button class="tab-btn" data-ktab="lager">Lager</button>
       <button class="tab-btn" data-ktab="ausgaben">Ausgaben &amp; R&uuml;ckgaben</button>
+      <button class="tab-btn" data-ktab="bestellungen">Bestellte Artikel</button>
     </div>
     <div id="ktab-content" style="margin-top:12px"></div>
   `;
@@ -1005,6 +1006,99 @@ async function renderKleiderkammerSubtab(subtab, state) {
     }
   } else if (subtab === 'ausgaben') {
     renderAusgabenTab(container, state);
+  } else if (subtab === 'bestellungen') {
+    renderBestellteArtikelTab(container, state);
+  }
+}
+
+async function renderBestellteArtikelTab(container, state) {
+  const canWrite = state.canWriteKleiderkammer;
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h3 style="margin:0;font-size:1.1rem">Bestellte Artikel (Ubersicht)</h3>
+      ${canWrite ? '<button class="btn btn--primary btn--sm" id="btn-new-bestellung">Neue Bestellung anlegen</button>' : ''}
+    </div>
+    <div id="bestellte-artikel-list">
+      <table class="jugend-table" style="width:100%">
+        <thead>
+          <tr><th>Artikel</th><th>Größe</th><th>Menge</th><th>Bestellt am</th><th>Status</th><th>Aktionen</th></tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="6" class="wrap-loading">Lade...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  const tbody = document.getElementById('bestellte-artikel-list');
+  const ausgaben = await api.getKleiderausgaben();
+  const artikel = await api.getLagerartikel();
+
+  const rows = ausgaben.map(a => {
+    const status = (a.rueckgabe_menge || 0) >= a.menge ? 'Zurückgegeben' : 'Bestellt';
+    const lagerArtikel = Array.isArray(artikel) ? artikel.find(x => x.id === a.lagerartikel_id) : null;
+    const artikelName = lagerArtikel ? lagerArtikel.name : 'Unbekannt';
+    const groesseLabel = Array.isArray(lagerArtikel?.groessen) && lagerArtikel.groessen.includes(a.groesse || '') ? (a.groesse || '') : (a.groesse || '-');
+    return `<tr data-id="${a.id}">
+      <td class="jugend-name"><strong>${esc(artikelName)}</strong></td>
+      <td>${esc(groesseLabel)}</td>
+      <td>${a.menge}</td>
+      <td class="jugend-geburtsdatum">${formatDatumDeutsch(a.ausgabedatum)}</td>
+      <td class="jugend-status"><span class="badge badge--${(a.rueckgabe_menge || 0) >= a.menge ? 'success' : 'warning'}">${status}</span></td>
+      <td class="jugend-actions">
+        ${canWrite ? `<button class="btn btn--small btn--danger btn-bestellung-loeschen" data-id="${a.id}">Bestellung löschen</button>` : ''}
+      </td>
+    </tr>`;
+  }).join('');
+
+  tbody.innerHTML = rows || `<tr><td colspan="6">Keine Bestellungen vorhanden</td></tr>`;
+
+  if (canWrite) {
+    document.getElementById('btn-new-bestellung')?.addEventListener('click', () => {
+      const overlay = document.createElement('div');
+      overlay.className = 'error-overlay';
+      overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;';
+      overlay.innerHTML = `
+        <div class="card" style="max-width:480px;width:90%;background:var(--surface);padding:24px;border-radius:8px;">
+          <div class="card__header" style="margin-bottom:20px;display:flex;align-items:flex-start;gap:12px">
+            <span style="font-size:1.1rem;font-weight:600">Neue Bestellung</span>
+          </div>
+          <form id="bestellung-form" class="form-grid">
+            <div class="form-group form-group--full">
+              <label>Artikel (ID) <span class="required">*</span></label>
+              <input type="text" id="fld-b-lagerartikel-id" placeholder="UUID des Artikels" required />
+            </div>
+            <div class="form-group form-group--half">
+              <label>Größe</label>
+              <input type="text" id="fld-b-groesse" />
+            </div>
+            <div class="form-group form-group--half">
+              <label>Menge <span class="required">*</span></label>
+              <input type="number" id="fld-b-menge" min="1" value="1" required />
+            </div>
+            <div class="form-group form-group--full" style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+              <button type="button" class="btn btn--outline" onclick="this.closest('.error-overlay').remove()">Abbrechen</button>
+              <button type="submit" class="btn btn--primary">Bestellung erstellen</button>
+            </div>
+          </form>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      document.getElementById('bestellung-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const lagerartikelId = document.getElementById('fld-b-lagerartikel-id').value.trim();
+        const groesse = document.getElementById('fld-b-groesse').value.trim() || null;
+        const menge = +document.getElementById('fld-b-menge').value;
+        try {
+          await api.createBestellung({ mitglied_id: null, lagerartikel_id: lagerartikelId, menge, groesse });
+          toast('Bestellung erstellt', 'success');
+          overlay.remove();
+          renderBestellteArtikelTab(container, state);
+        } catch (err) {
+          toast(`Fehler: ${err.message || err}`, 'error');
+        }
+      });
+    });
   }
 }
 
