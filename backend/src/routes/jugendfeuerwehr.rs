@@ -839,7 +839,7 @@ pub async fn create_ausgabe(
             "#
         )
         .bind(g)
-        .bind(body.lagerartikel_id)
+        .bind(lagerartikel_id)
         .fetch_one(&state.db)
         .await
         .map_err(|_| AppError::NotFound)?;
@@ -859,7 +859,7 @@ pub async fn create_ausgabe(
         )
         .bind(body.menge)
         .bind(g)
-        .bind(body.lagerartikel_id)
+        .bind(lagerartikel_id)
         .execute(&state.db)
         .await?;
 
@@ -870,7 +870,7 @@ pub async fn create_ausgabe(
             "UPDATE jugendfeuerwehr_lagerartikel SET menge = menge - $1 WHERE id = $2 AND menge >= $1"
         )
         .bind(body.menge)
-        .bind(body.lagerartikel_id)
+        .bind(lagerartikel_id)
         .execute(&state.db)
         .await?;
 
@@ -889,8 +889,8 @@ pub async fn create_ausgabe(
         RETURNING id
         "#,
     )
-    .bind(body.mitglied_id)
-    .bind(body.lagerartikel_id)
+    .bind(mitglied_id)
+    .bind(lagerartikel_id)
     .bind(body.menge)
     .bind(&body.groesse)
     .bind(&body.bemerkung)
@@ -1102,7 +1102,7 @@ pub async fn uebernehmen_kleiderartikel(
     let lagerartikel = sqlx::query_as::<_, Lagerartikel>(
         r#"SELECT id, name, beschreibung, menge, groessen, menge_per_groesse, einheit FROM jugendfeuerwehr_lagerartikel WHERE id = $1"#
     )
-    .bind(body.lagerartikel_id)
+    .bind(lagerartikel_id)
     .fetch_one(&state.db)
     .await
     .map_err(|_| AppError::NotFound)?;
@@ -1138,7 +1138,7 @@ pub async fn uebernehmen_kleiderartikel(
     )
     .bind(body.menge)
     .bind(&groesse)
-    .bind(body.lagerartikel_id)
+    .bind(lagerartikel_id)
     .execute(&state.db)
     .await?;
 
@@ -1155,8 +1155,8 @@ pub async fn uebernehmen_kleiderartikel(
         RETURNING id
         "#,
     )
-    .bind(body.mitglied_id)
-    .bind(body.lagerartikel_id)
+    .bind(mitglied_id)
+    .bind(lagerartikel_id)
     .bind(body.menge)
     .bind(&body.groesse)
     .bind(None::<String>) // Bemerkung optional
@@ -1777,7 +1777,7 @@ pub async fn create_vorgang(
         RETURNING id
         "#,
     )
-    .bind(body.mitglied_id)
+    .bind(mitglied_id)
     .bind(&body.typ)
     .bind(body.datum)
     .bind(&body.vorherischer_name)
@@ -1925,7 +1925,7 @@ pub async fn create_bestellung(
     )
     .bind(body.menge)
     .bind(groesse)
-    .bind(body.lagerartikel_id)
+    .bind(lagerartikel_id)
     .execute(&state.db)
     .await?;
 
@@ -1941,8 +1941,8 @@ pub async fn create_bestellung(
         RETURNING id
         "#,
     )
-    .bind(body.mitglied_id)
-    .bind(body.lagerartikel_id)
+    .bind(mitglied_id)
+    .bind(lagerartikel_id)
     .bind(body.menge)
     .bind(&body.groesse)
     .bind(&body.bemerkung)
@@ -2035,6 +2035,12 @@ pub fn router(state: AppState) -> Router<AppState> {
     // Bestellungen: Neue Bestellung für Jugendmitglied (ohne Lagerbestand-Prüfung)
     let bestellungen = Router::new()
         .route("/bestellungen", post(create_bestellung))
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_module("jugendfeuerwehr.mitglieder")))
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
+
+    // Übernahme: Artikel übernehmen (wenn Bestellung eingetroffen ist)
+    let uebernehmen = Router::new()
+        .route("/uebernehmen", post(uebernehmen_kleiderartikel))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_module("jugendfeuerwehr.mitglieder")))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
