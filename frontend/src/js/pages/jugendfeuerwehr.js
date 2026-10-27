@@ -102,6 +102,7 @@ async function renderMitgliederTab(tab, state) {
 
   if (!canRead) {
     c.innerHTML += '<p style="color:#c00;margin-top:12px">Keine Berechtigung zum Einsehen von Mitgliederdaten.</p>';
+    if (canWrite) document.getElementById('btn-new-mitglied').addEventListener('click', () => showMemberForm(null, state));
     return;
   }
 
