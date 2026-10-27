@@ -1164,7 +1164,11 @@ async function renderBestellteArtikelTab(container, state) {
       toast('Export erstellt', 'success');
     });
 
-    document.getElementById('btn-new-bestellung')?.addEventListener('click', () => {
+    document.getElementById('btn-new-bestellung')?.addEventListener('click', async () => {
+      // Members laden für Dropdown
+      const alle = await api.getJugendmitglieder();
+      const activeMitglieder = alle.filter(m => !m.archiviert);
+
       const overlay = document.createElement('div');
       overlay.className = 'modal-overlay';
       overlay.innerHTML = `
@@ -1230,20 +1234,11 @@ async function renderBestellteArtikelTab(container, state) {
         }
       });
 
-      // Mitglied-Dropdown beim Artikel-Wechsel aktualisieren (falls nötig)
-      const mitgliedSelect = document.getElementById('fld-b-mitglied-id');
-      const mitgliederLaden = async () => {
-        const mitglieder = await api.getJugendmitglieder();
-        const active = mitglieder.filter(m => !m.archiviert);
-        mitgliedSelect.innerHTML = '<option value="">-- Mitglied auswählen --</option>';
-        active.forEach(m => {
-          const opt = document.createElement('option');
-          opt.value = m.id;
-          opt.textContent = `${esc(m.vorname || '')} ${esc(m.nachname || '')}`;
-          mitgliedSelect.appendChild(opt);
-        });
-      };
-      mitgliederLaden();
+      // Mitglied-Dropdown kann leer sein, wenn keine aktiven Mitglieder
+      if (!activeMitglieder.length) {
+        document.getElementById('fld-b-mitglied-id').disabled = true;
+        document.getElementById('fld-b-mitglied-id').innerHTML = '<option value="">Keine aktiven Mitglieder</option>';
+      }
 
       const closeModal = () => {
         overlay.classList.remove('active');
