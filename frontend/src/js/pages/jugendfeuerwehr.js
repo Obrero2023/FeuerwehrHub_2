@@ -1192,6 +1192,13 @@ async function renderBestellteArtikelTab(container, state) {
                 <label>Menge <span class="required">*</span></label>
                 <input type="number" id="fld-b-menge" min="1" value="1" required />
               </div>
+              <div class="form-group form-group--full">
+                <label>Jugendmitglied <span class="required">*</span></label>
+                <select id="fld-b-mitglied-id" required>
+                  <option value="">-- Mitglied auswählen --</option>
+                  ${activeMitglieder.map(m => `<option value="${m.id}">${esc(m.vorname || '')} ${esc(m.nachname || '')}</option>`).join('')}
+                </select>
+              </div>
               <div class="form-group form-group--full" style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
                 <button type="button" class="btn btn--outline" data-close-modal>Abbrechen</button>
                 <button type="submit" class="btn btn--primary">Bestellung erstellen</button>
@@ -1223,6 +1230,21 @@ async function renderBestellteArtikelTab(container, state) {
         }
       });
 
+      // Mitglied-Dropdown beim Artikel-Wechsel aktualisieren (falls nötig)
+      const mitgliedSelect = document.getElementById('fld-b-mitglied-id');
+      const mitgliederLaden = async () => {
+        const mitglieder = await api.getJugendmitglieder();
+        const active = mitglieder.filter(m => !m.archiviert);
+        mitgliedSelect.innerHTML = '<option value="">-- Mitglied auswählen --</option>';
+        active.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m.id;
+          opt.textContent = `${esc(m.vorname || '')} ${esc(m.nachname || '')}`;
+          mitgliedSelect.appendChild(opt);
+        });
+      };
+      mitgliederLaden();
+
       const closeModal = () => {
         overlay.classList.remove('active');
         setTimeout(() => overlay.remove(), 150);
@@ -1234,10 +1256,12 @@ async function renderBestellteArtikelTab(container, state) {
       document.getElementById('bestellung-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const lagerartikelId = document.getElementById('fld-b-lagerartikel-id').value.trim();
-        const groesse = document.getElementById('fld-b-groesse').value.trim() || null;
         const menge = +document.getElementById('fld-b-menge').value;
+        const mitgliedId = document.getElementById('fld-b-mitglied-id').value.trim();
+        if (!lagerartikelId) { toast('Bitte einen Artikel auswählen', 'error'); return; }
+        if (!mitgliedId) { toast('Bitte ein Jugendmitglied auswählen', 'error'); return; }
         try {
-          await api.createBestellung({ mitglied_id: null, lagerartikel_id: lagerartikelId, menge, groesse });
+          await api.createBestellung({ mitglied_id: mitgliedId, lagerartikel_id: lagerartikelId, menge, groesse: document.getElementById('fld-b-groesse').value.trim() || null });
           toast('Bestellung erstellt', 'success');
           closeModal();
           renderBestellteArtikelTab(container, state);
