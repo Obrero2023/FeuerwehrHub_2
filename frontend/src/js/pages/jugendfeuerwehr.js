@@ -585,8 +585,12 @@ async function showAnwerterForm(a = null) {
             <label>Geburtstag <span class="required">*</span></label>
             <input type="date" id="fld-a-geburtsdatum" value="${a ? a.geburtsdatum : ''}" required />
           </div>
+          <div class="form-group form-group--full">
+            <label>Straße Hausnummer</label>
+            <input type="text" id="fld-a-adresse" placeholder="Straße, Hausnummer, PLZ, Ort" value="${a ? esc(a.adresse || '') : ''}" maxlength="200" />
+          </div>
           <div class="form-group form-group--half">
-            <label>Plz</label>
+            <label>PLZ</label>
             <input type="text" id="fld-a-plz" placeholder="PLZ" value="${a ? a.plz || '' : ''}" maxlength="10" />
           </div>
           <div class="form-group form-group--half">
@@ -598,57 +602,24 @@ async function showAnwerterForm(a = null) {
             <input type="text" id="fld-a-ortsteil" placeholder="Ortsteil" value="${a ? a.ortsteil || '' : ''}" maxlength="50" />
           </div>
           <div class="form-group form-group--half">
-            <label>Geschlecht <span class="required">*</span></label>
-            <select id="fld-a-geschlecht" required>
-              <option value="männlich" ${a && a.geschlecht === 'männlich' ? 'selected' : ''}>männlich</option>
-              <option value="weiblich" ${a && a.geschlecht === 'weiblich' ? 'selected' : ''}>weiblich</option>
-              <option value="divers" ${a && a.geschlecht === 'divers' ? 'selected' : ''}>divers</option>
-            </select>
-          </div>
-          <div class="form-group form-group--half">
-            <label>Eintrittsdatum <span class="required">*</span></label>
-            <input type="date" id="fld-a-eintrittsdatum" value="${a ? a.eintrittsdatum : ''}" required />
-          </div>
-          <div class="form-group form-group--half">
-            <label>Status</label>
-            <select id="fld-a-status">
-              <option value="aktiv" ${a && a.status === 'aktiv' ? 'selected' : ''}>Aktiv</option>
-              <option value="aufgenommen" ${a && a.status === 'aufgenommen' ? 'selected' : ''}>Aufgenommen</option>
-              <option value="abgemeldet" ${a && a.status === 'abgemeldet' ? 'selected' : ''}>Abgemeldet</option>
-              <option value="archiviert" ${a && a.status === 'archiviert' ? 'selected' : ''}>Archiviert</option>
-            </select>
-          </div>
-          <div class="form-group form-group--half">
-            <label>Erstkontakt</label>
-            <input type="date" id="fld-a-erstkontakt" value="${a ? (a.erstkontakt || new Date().toISOString().slice(0, 10)) : new Date().toISOString().slice(0, 10)}" />
-          </div>
-          <div class="form-group form-group--half">
-            <label>Telefonnummer</label>
+            <label>Telefonnummer <span class="required">*</span></label>
             <input type="tel" id="fld-a-telefonnummer" placeholder="Telefonnummer" value="${a ? esc(a.telefon || '') : ''}" maxlength="50" />
           </div>
           <div class="form-group form-group--half">
-            <label>E-Mail</label>
+            <label>E-Mail <span class="required">*</span></label>
             <input type="email" id="fld-a-email" placeholder="E-Mail-Adresse" value="${a ? esc(a.email || '') : ''}" maxlength="200" />
           </div>
-          <div class="form-group form-group--half">
-            <label>Erziehungsberechtigte – Vorname</label>
-            <input type="text" id="fld-a-eltern-vorname" placeholder="Vorname" value="${a ? esc(a.eltern_vorname || '') : ''}" maxlength="200" />
+          <div class="form-group form-group--full">
+            <label>Name des Erziehungsberechtigten</label>
+            <input type="text" id="fld-a-eltern-vorname" placeholder="Name" value="${a ? esc(a.eltern_vorname || '') : ''}" maxlength="200" />
           </div>
           <div class="form-group form-group--half">
-            <label>Erziehungsberechtigte – Nachname</label>
-            <input type="text" id="fld-a-eltern-nachname" placeholder="Nachname" value="${a ? esc(a.eltern_nachname || '') : ''}" maxlength="200" />
-          </div>
-          <div class="form-group form-group--half">
-            <label>Eltern – Telefon</label>
+            <label>Telefonnummer Erziehungsberechtigten</label>
             <input type="tel" id="fld-a-eltern-telefon" placeholder="Telefonnummer" value="${a ? esc(a.eltern_telefonnummer || '') : ''}" maxlength="50" />
           </div>
           <div class="form-group form-group--half">
-            <label>Eltern – E-Mail</label>
-            <input type="email" id="fld-a-eltern-email" placeholder="E-Mail-Adresse" value="${a ? esc(a.eltern_email || '') : ''}" maxlength="200" />
-          </div>
-          <div class="form-group form-group--full">
-            <label>Bemerkung</label>
-            <textarea id="fld-a-bemerkung" rows="3" placeholder="Bemerkungen">${a ? esc(a.bemerkung || '') : ''}</textarea>
+            <label>Datum Erstkontakt</label>
+            <input type="date" id="fld-a-erstkontakt" value="${a ? (a.erstkontakt || new Date().toISOString().slice(0, 10)) : new Date().toISOString().slice(0, 10)}" />
           </div>
           <div class="form-group form-group--full" style="margin-top:12px">
             <button type="submit" class="btn btn--primary">${isEdit ? 'Speichern' : 'Anlegen'}</button>
@@ -669,38 +640,29 @@ async function showAnwerterForm(a = null) {
     const nachname = document.getElementById('fld-a-nachname').value.trim();
     if (!vorname || !nachname) { toast('Vorname und Nachname sind Pflichtfelder', 'error'); return; }
     const geburtsdatum = document.getElementById('fld-a-geburtsdatum').value;
-    const plz = document.getElementById('fld-a-plz').value.trim();
-    const ort = document.getElementById('fld-a-ort').value.trim();
-    const ortsteil = document.getElementById('fld-a-ortsteil').value.trim();
-    const eintrittsdatum = document.getElementById('fld-a-eintrittsdatum').value;
-    if (!geburtsdatum || !eintrittsdatum) { toast('Geburts- und Eintrittsdatum sind Pflichtfelder', 'error'); return; }
-    const geschlecht = document.getElementById('fld-a-geschlecht').value;
-    if (!geschlecht) { toast('Geschlecht ist ein Pflichtfeld', 'error'); return; }
+    if (!geburtsdatum) { toast('Geburtsdatum ist ein Pflichtfeld', 'error'); return; }
+    const today = new Date().toISOString().slice(0, 10);
+    if (geburtsdatum > today) { toast('Geburtsdatum darf nicht in der Zukunft liegen', 'error'); return; }
     const telefon = document.getElementById('fld-a-telefonnummer').value.trim();
     if (!telefon) { toast('Telefonnummer ist ein Pflichtfeld', 'error'); return; }
     const email = document.getElementById('fld-a-email').value.trim();
     if (!email) { toast('E-Mail-Adresse ist ein Pflichtfeld', 'error'); return; }
-    const eltern_vorname = document.getElementById('fld-a-eltern-vorname').value.trim();
-    const eltern_nachname = document.getElementById('fld-a-eltern-nachname').value.trim();
-    const today = new Date().toISOString().slice(0, 10);
-    if (geburtsdatum > today) { toast('Geburtsdatum darf nicht in der Zukunft liegen', 'error'); return; }
 
     const body = {
       vorname,
       nachname,
       geburtsdatum,
-      plz,
-      ort,
-      ortsteil,
-      eintrittsdatum,
+      plz: document.getElementById('fld-a-plz').value.trim() || null,
+      ort: document.getElementById('fld-a-ort').value.trim() || null,
+      ortsteil: document.getElementById('fld-a-ortsteil').value.trim() || null,
+      adresse: document.getElementById('fld-a-adresse').value.trim() || null,
+      eintrittsdatum: today,
+      geschlecht: 'männlich',
       telefon,
       email,
-      eltern_vorname,
-      eltern_nachname,
+      eltern_vorname: document.getElementById('fld-a-eltern-vorname').value.trim() || null,
       eltern_telefonnummer: document.getElementById('fld-a-eltern-telefon').value || null,
       erstkontakt: document.getElementById('fld-a-erstkontakt').value || null,
-      status: document.getElementById('fld-a-status').value,
-      bemerkung: document.getElementById('fld-a-bemerkung').value || null,
     };
 
     try {
