@@ -832,7 +832,7 @@ async function showDienstteilnahmeForm(anwerterId, state) {
 async function showVorgaenge(mitgliedId) {
   try {
     const vorgaenge = await api.getMitgliedschaftsvorgaenge(mitgliedId);
-    const overlay = document.querySelector('.error-overlay');
+    const overlay = document.querySelector('.modal-overlay');
     if (overlay) {
       const box = document.createElement('div');
       box.style.marginTop = '16px';
@@ -850,7 +850,7 @@ async function showVorgaenge(mitgliedId) {
           </tbody>
         </table>
       `;
-      overlay.querySelector('.card').appendChild(box);
+      overlay.querySelector('.modal__body').appendChild(box);
     }
   } catch (e) {
     toast(e.message, 'error');
