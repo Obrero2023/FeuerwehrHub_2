@@ -1123,34 +1123,46 @@ async function renderBestellteArtikelTab(container, state) {
   if (canWrite) {
     document.getElementById('btn-new-bestellung')?.addEventListener('click', () => {
       const overlay = document.createElement('div');
-      overlay.className = 'error-overlay';
-      overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;';
+      overlay.className = 'modal-overlay';
       overlay.innerHTML = `
-        <div class="card" style="max-width:480px;width:90%;background:var(--surface);padding:24px;border-radius:8px;">
-          <div class="card__header" style="margin-bottom:20px;display:flex;align-items:flex-start;gap:12px">
+        <div class="modal modal--md">
+          <div class="modal__header">
             <span style="font-size:1.1rem;font-weight:600">Neue Bestellung</span>
+            <button type="button" class="modal__close" aria-label="Schließen">✕</button>
           </div>
-          <form id="bestellung-form" class="form-grid">
-            <div class="form-group form-group--full">
-              <label>Artikel (ID) <span class="required">*</span></label>
-              <input type="text" id="fld-b-lagerartikel-id" placeholder="UUID des Artikels" required />
-            </div>
-            <div class="form-group form-group--half">
-              <label>Größe</label>
-              <input type="text" id="fld-b-groesse" />
-            </div>
-            <div class="form-group form-group--half">
-              <label>Menge <span class="required">*</span></label>
-              <input type="number" id="fld-b-menge" min="1" value="1" required />
-            </div>
-            <div class="form-group form-group--full" style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
-              <button type="button" class="btn btn--outline" onclick="this.closest('.error-overlay').remove()">Abbrechen</button>
-              <button type="submit" class="btn btn--primary">Bestellung erstellen</button>
-            </div>
-          </form>
+          <div class="modal__body">
+            <form id="bestellung-form" class="form-grid">
+              <div class="form-group form-group--full">
+                <label>Artikel (ID) <span class="required">*</span></label>
+                <input type="text" id="fld-b-lagerartikel-id" placeholder="UUID des Artikels" required />
+              </div>
+              <div class="form-group form-group--half">
+                <label>Größe</label>
+                <input type="text" id="fld-b-groesse" />
+              </div>
+              <div class="form-group form-group--half">
+                <label>Menge <span class="required">*</span></label>
+                <input type="number" id="fld-b-menge" min="1" value="1" required />
+              </div>
+            </form>
+          </div>
+          <div class="modal__footer">
+            <button type="button" class="btn btn--outline" data-close-modal>Abbrechen</button>
+            <button type="submit" class="btn btn--primary" form="bestellung-form">Bestellung erstellen</button>
+          </div>
         </div>
       `;
       document.body.appendChild(overlay);
+      requestAnimationFrame(() => overlay.classList.add('active'));
+
+      const closeModal = () => {
+        overlay.classList.remove('active');
+        setTimeout(() => overlay.remove(), 150);
+      };
+      overlay.querySelectorAll('.modal__close').forEach(btn => btn.addEventListener('click', closeModal));
+      overlay.querySelectorAll('[data-close-modal]').forEach(btn => btn.addEventListener('click', closeModal));
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
       document.getElementById('bestellung-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const lagerartikelId = document.getElementById('fld-b-lagerartikel-id').value.trim();
@@ -1159,7 +1171,7 @@ async function renderBestellteArtikelTab(container, state) {
         try {
           await api.createBestellung({ mitglied_id: null, lagerartikel_id: lagerartikelId, menge, groesse });
           toast('Bestellung erstellt', 'success');
-          overlay.remove();
+          closeModal();
           renderBestellteArtikelTab(container, state);
         } catch (err) {
           toast(`Fehler: ${err.message || err}`, 'error');
@@ -1185,37 +1197,49 @@ async function renderBestellteArtikelTab(container, state) {
         }
 
         const overlay = document.createElement('div');
-        overlay.className = 'error-overlay';
-        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;';
+        overlay.className = 'modal-overlay';
         overlay.innerHTML = `
-          <div class="card" style="max-width:500px;width:90%;background:var(--surface);padding:24px;border-radius:8px;">
-            <div class="card__header" style="margin-bottom:20px;display:flex;align-items:flex-start;gap:12px">
+          <div class="modal modal--md">
+            <div class="modal__header">
               <span style="font-size:1.1rem;font-weight:600">Artikel übernehmen: ${esc(artikelName)} (${groesse || '-'}) × ${menge}</span>
+              <button type="button" class="modal__close" aria-label="Schließen">✕</button>
             </div>
-            <form id="uebernehmen-form" class="form-grid">
-              <div class="form-group form-group--full">
-                <label>Jugendmitglied <span class="required">*</span></label>
-                <select id="fld-u-mitglied" required>
-                  <option value="">-- Auswählen --</option>
-                  ${activeMitglieder.map(m => `<option value="${m.id}">${esc(m.vorname || '')} ${esc(m.nachname || '')}</option>`).join('')}
-                </select>
-              </div>
-              <div class="form-group form-group--half">
-                <label>Menge <span class="required">*</span></label>
-                <input type="number" id="fld-u-menge" min="1" max="${menge}" value="${menge}" required />
-              </div>
-              <div class="form-group form-group--half">
-                <label>Größe</label>
-                <input type="text" id="fld-u-groesse" value="${groesse || ''}" />
-              </div>
-              <div class="form-group form-group--full" style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
-                <button type="button" class="btn btn--outline" onclick="this.closest('.error-overlay').remove()">Abbrechen</button>
-                <button type="submit" class="btn btn--primary">Übernehmen & Übergabe</button>
-              </div>
-            </form>
+            <div class="modal__body">
+              <form id="uebernehmen-form" class="form-grid">
+                <div class="form-group form-group--full">
+                  <label>Jugendmitglied <span class="required">*</span></label>
+                  <select id="fld-u-mitglied" required>
+                    <option value="">-- Auswählen --</option>
+                    ${activeMitglieder.map(m => `<option value="${m.id}">${esc(m.vorname || '')} ${esc(m.nachname || '')}</option>`).join('')}
+                  </select>
+                </div>
+                <div class="form-group form-group--half">
+                  <label>Menge <span class="required">*</span></label>
+                  <input type="number" id="fld-u-menge" min="1" max="${menge}" value="${menge}" required />
+                </div>
+                <div class="form-group form-group--half">
+                  <label>Größe</label>
+                  <input type="text" id="fld-u-groesse" value="${groesse || ''}" />
+                </div>
+              </form>
+            </div>
+            <div class="modal__footer">
+              <button type="button" class="btn btn--outline" data-close-modal>Abbrechen</button>
+              <button type="submit" class="btn btn--primary" form="uebernehmen-form">Übernehmen & Übergabe</button>
+            </div>
           </div>
         `;
         document.body.appendChild(overlay);
+        requestAnimationFrame(() => overlay.classList.add('active'));
+
+        const closeModal = () => {
+          overlay.classList.remove('active');
+          setTimeout(() => overlay.remove(), 150);
+        };
+        overlay.querySelectorAll('.modal__close').forEach(btn => btn.addEventListener('click', closeModal));
+        overlay.querySelectorAll('[data-close-modal]').forEach(btn => btn.addEventListener('click', closeModal));
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
         document.getElementById('uebernehmen-form').addEventListener('submit', async (e) => {
           e.preventDefault();
           const mitgliedId = document.getElementById('fld-u-mitglied').value;
@@ -1225,12 +1249,26 @@ async function renderBestellteArtikelTab(container, state) {
           try {
             await api.übernehmenKleiderartikel(mitgliedId, lagerartikelId, uebernehmenMenge, uebernehmenGroesse);
             toast('Artikel erfolgreich übergeben', 'success');
-            overlay.remove();
+            closeModal();
             renderBestellteArtikelTab(container, state);
           } catch (err) {
             toast(`Fehler: ${err.message || err}`, 'error');
           }
         });
+      });
+    });
+
+    // "Bestellung löschen" Button-Handler
+    tbody.querySelectorAll('.btn-bestellung-loeschen').forEach(b => {
+      b.addEventListener('click', async () => {
+        if (!confirm('Bestellung wirklich löschen?')) return;
+        try {
+          await api.deleteKleiderausgabe(b.dataset.id);
+          toast('Bestellung gelöscht', 'success');
+          renderBestellteArtikelTab(container, state);
+        } catch (err) {
+          toast(`Fehler: ${err.message || err}`, 'error');
+        }
       });
     });
   }
