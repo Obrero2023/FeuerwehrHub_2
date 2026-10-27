@@ -1251,6 +1251,7 @@ async function renderAusgabenTab(container, state) {
           <td class="jugend-actions">
             <button class="btn btn--small btn--secondary btn-details-mitglied" data-id="${m.id}">Details</button>
             ${canWrite ? `<button class="btn btn--small btn--outline btn-bearbeiten-mitglied" data-id="${m.id}">Bearbeiten</button>` : ''}
+            <button class="btn btn--small btn--secondary btn-export-mitglied" data-id="${m.id}" data-name="${esc((m.vorname || '') + ' ' + (m.nachname || ''))}">Export</button>
           </td>
         </tr>
       `;
@@ -1258,6 +1259,27 @@ async function renderAusgabenTab(container, state) {
 
     tbody.querySelectorAll('.btn-details-mitglied').forEach(b => {
       b.addEventListener('click', () => showMitgliedKleidung(b.dataset.id, state));
+    });
+    tbody.querySelectorAll('.btn-export-mitglied').forEach(b => {
+      b.addEventListener('click', async () => {
+        const mitgliedId = b.dataset.id;
+        const mitgliedName = b.dataset.name;
+        try {
+          const csv = await api.getMitgliedBestellungen(mitgliedId);
+          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `bestellung_jugendmitglied_${mitgliedId}.csv`;
+          a.textContent = `Download: Bestellungen für ${mitgliedName}`;
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+        } catch (err) {
+          toast(`Fehler beim Exportieren: ${err.message || err}`, 'error');
+        }
+      });
     });
     if (canWrite) {
       tbody.querySelectorAll('.btn-bearbeiten-mitglied').forEach(b => {
@@ -1449,6 +1471,7 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
         <h4 style="margin:0">${esc(mitglied.vorname || '')} ${esc(mitglied.nachname || '')} – Kleidung bearbeiten</h4>
         <div style="display:flex;gap:8px">
           <button class="btn btn--sm btn--outline" id="btn-zurueck-zu-mitgliedern-edit">Zur&uuml;ck</button>
+          <button class="btn btn--sm btn--outline" id="btn-export-bestellung-edit" data-mitglied-id="${mitgliedId}" data-mitglied-name="${esc((mitglied.vorname || '') + ' ' + (mitglied.nachname || ''))}">Bestellung exportieren</button>
           <button class="btn btn--sm btn--primary" id="btn-speichern-kleidung-oben">Speichern</button>
         </div>
       </div>
@@ -1485,7 +1508,7 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
             <td><input type="number" min="0" value="${offen}" data-id="${a.id}" data-groesse="${esc(g)}" class="edit-qty" data-orig="${offen}" data-ausgabe-id="${ausgabeId}" data-open="${offen}"/></td>
             <td class="jugend-actions">
               ${offen > 0 ? `<button class="btn btn--small btn--danger btn-rueckgabe-edit" data-id="${a.id}" data-groesse="${esc(g)}" data-ausgabe-id="${ausgabeId}" data-offen="${offen}">Rückgabe</button>` : ''}
-              ${lagerBestand === 0 ? `<button class="btn btn--small btn--primary btn-bestellen-edit" data-id="${a.id}" data-groesse="${esc(g)}" data-mitglied-id="${mitgliedId}" data-artikel-name="${esc(a.name)}" data-lagerbestand="0">Bestellen</button>` : ''}
+              ${offen === 0 ? `<button class="btn btn--small btn--primary btn-bestellen-edit" data-id="${a.id}" data-groesse="${esc(g)}" data-mitglied-id="${mitgliedId}" data-artikel-name="${esc(a.name)}">Bestellen</button>` : ''}
             </td>
           </tr>
         `;
@@ -1619,6 +1642,26 @@ async function showMitgliedKleidungBearbeiten(mitgliedId, state) {
         toast('Keine Änderungen vorgenommen', 'info');
       }
     }
+
+    document.getElementById('btn-export-bestellung-edit')?.addEventListener('click', async () => {
+      const mid = document.getElementById('btn-export-bestellung-edit').dataset.mitgliedId;
+      const mname = document.getElementById('btn-export-bestellung-edit').dataset.mitgliedName;
+      try {
+        const csv = await api.getMitgliedBestellungen(mid);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bestellung_jugendmitglied_${mid}.csv`;
+        a.textContent = `Download: Bestellungen für ${mname}`;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+      } catch (err) {
+        toast(`Fehler beim Exportieren: ${err.message || err}`, 'error');
+      }
+    });
 
     document.getElementById('btn-speichern-kleidung-oben')?.addEventListener('click', speichernKleidung);
     document.getElementById('btn-speichern-kleidung-unten')?.addEventListener('click', speichernKleidung);
