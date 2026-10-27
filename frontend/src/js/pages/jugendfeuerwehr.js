@@ -1144,12 +1144,13 @@ async function renderBestellteArtikelTab(container, state) {
                 <label>Menge <span class="required">*</span></label>
                 <input type="number" id="fld-b-menge" min="1" value="1" required />
               </div>
+              <div class="form-group form-group--full" style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+                <button type="button" class="btn btn--outline" data-close-modal>Abbrechen</button>
+                <button type="submit" class="btn btn--primary">Bestellung erstellen</button>
+              </div>
             </form>
           </div>
-          <div class="modal__footer">
-            <button type="button" class="btn btn--outline" data-close-modal>Abbrechen</button>
-            <button type="submit" class="btn btn--primary" form="bestellung-form">Bestellung erstellen</button>
-          </div>
+          <div class="modal__footer"></div>
         </div>
       `;
       document.body.appendChild(overlay);
@@ -1221,12 +1222,13 @@ async function renderBestellteArtikelTab(container, state) {
                   <label>Größe</label>
                   <input type="text" id="fld-u-groesse" value="${groesse || ''}" />
                 </div>
+                <div class="form-group form-group--full" style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+                  <button type="button" class="btn btn--outline" data-close-modal>Abbrechen</button>
+                  <button type="submit" class="btn btn--primary">Übernehmen & Übergabe</button>
+                </div>
               </form>
             </div>
-            <div class="modal__footer">
-              <button type="button" class="btn btn--outline" data-close-modal>Abbrechen</button>
-              <button type="submit" class="btn btn--primary" form="uebernehmen-form">Übernehmen & Übergabe</button>
-            </div>
+            <div class="modal__footer"></div>
           </div>
         `;
         document.body.appendChild(overlay);
