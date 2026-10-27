@@ -1293,6 +1293,8 @@ pub async fn create_anwerter(
 
     let status = body.status.clone().unwrap_or_else(|| "aktiv".to_string());
     let geschlecht = body.geschlecht.clone().unwrap_or_else(|| "männlich".to_string());
+    let erstkontakt = body.erstkontakt.unwrap_or_else(|| chrono::Utc::now().date_naive());
+    let erstkontakt = body.erstkontakt.unwrap_or_else(|| chrono::Utc::now().date_naive());
 
     let anwerter = sqlx::query_as::<_, Anwerter>(
         r#"
