@@ -697,7 +697,7 @@ async function showAnwerterForm(a = null) {
       email,
       eltern_vorname,
       eltern_nachname,
-      eltern_telefonnummer,
+      eltern_telefonnummer: document.getElementById('fld-a-eltern-telefon').value || null,
       erstkontakt: document.getElementById('fld-a-erstkontakt').value || null,
       status: document.getElementById('fld-a-status').value,
       bemerkung: document.getElementById('fld-a-bemerkung').value || null,
