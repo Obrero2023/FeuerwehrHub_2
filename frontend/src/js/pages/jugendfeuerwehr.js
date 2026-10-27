@@ -1110,7 +1110,7 @@ async function renderBestellteArtikelTab(container, state) {
                       </td>
                       <td style="padding:10px 16px;color:var(--text);border-bottom:1px solid var(--border)">
                         <div class="btn-group">
-                          ${canWrite && (a.rueckgabe_menge || 0) < a.menge ? `<button class="btn btn--outline btn--sm btn-uebernehmen-bestellung" data-id="${a.id}" data-artikelName="${esc(a.lagerartikel_name || 'Artikel')}" data-groesse="${a.groesse || ''}" data-menge="${a.menge}" data-lagerartikelId="${a.lagerartikel_id}">Artikel übernehmen</button>` : ''}
+                          ${canWrite && (a.rueckgabe_menge || 0) < a.menge ? `<button class="btn btn--outline btn--sm btn-uebernehmen-bestellung" data-id="${a.id}" data-artikelName="${esc(a.lagerartikel_name || 'Artikel')}" data-groesse="${a.groesse || ''}" data-menge="${a.menge}" data-lagerartikel-id="${a.lagerartikel_id}">Artikel übernehmen</button>` : ''}
                           ${canWrite ? `<button class="btn btn--outline btn--sm btn-bestellung-loeschen" data-id="${a.id}">Bestellung löschen</button>` : ''}
                         </div>
                       </td>
