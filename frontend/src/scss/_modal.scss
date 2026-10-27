@@ -14,8 +14,13 @@
   z-index: 200;
   align-items: center;
   justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease;
 
-  &.active { display: flex; }
+  &.active {
+    display: flex;
+    opacity: 1;
+  }
 }
 
 
@@ -29,6 +34,13 @@
   max-width: 540px;
   max-height: 90vh;
   overflow-y: auto;
+  transform: scale(0.95);
+  transform-origin: center;
+  transition: transform 0.15s ease, box-shadow $transition-fast;
+
+  .modal-overlay.active & {
+    transform: scale(1);
+  }
 
   &--xs { max-width: 420px; }
   &--sm { max-width: 460px; }

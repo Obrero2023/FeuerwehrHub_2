@@ -374,15 +374,14 @@ async function showMemberForm(m = null, state = null) {
 
 async function showMemberDetail(m) {
   const overlay = document.createElement('div');
-  overlay.className = 'error-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;';
+  overlay.className = 'modal-overlay';
   overlay.innerHTML = `
-    <div class="card" style="max-width:620px;width:90%;background:var(--surface);padding:24px;border-radius:8px;">
-      <div class="card__header" style="margin-bottom:20px;display:flex;align-items:flex-start;gap:12px">
-        <span style="font-size:1.25rem;font-weight:600">${esc(m.vorname || '')} ${esc(m.nachname || '')}</span>
-        <button class="btn btn--sm btn--outline" onclick="this.closest('.error-overlay').remove()" style="margin-left:auto">Schließen</button>
+    <div class="modal modal--md">
+      <div class="modal__header">
+        <h3>${esc(m.vorname || '')} ${esc(m.nachname || '')}</h3>
+        <button class="modal__close" aria-label="Schließen">✕</button>
       </div>
-      <div class="mitglied-detail">
+      <div class="modal__body">
         <dl class="feld">
           <dt>Vorname</dt><dd>${esc(m.vorname || '-')}</dd>
           <dt>Nachname</dt><dd>${esc(m.nachname || '-')}</dd>
@@ -405,13 +404,29 @@ async function showMemberDetail(m) {
           <dt>Status</dt><dd>${m.archiviert ? 'Archiviert' : 'Aktiv'}</dd>
         </dl>
       </div>
-      <hr style="margin:16px 0;border:none;height:1px;background:var(--border);">
-      <button class="btn btn--sm btn--outline" id="btn-vorgaenge">${icon('history', 14)} Mitgliedschaftsvorgänge</button>
+      <div class="modal__footer">
+        <button class="btn btn--outline" id="btn-vorgaenge">${icon('history', 14)} Mitgliedschaftsvorgänge</button>
+        <button class="btn btn--outline" id="btn-close-mitglied">Schließen</button>
+      </div>
     </div>
   `;
   document.body.appendChild(overlay);
-  document.querySelector('.error-overlay button').addEventListener('click', () => overlay.remove());
-  document.getElementById('btn-vorgaenge')?.addEventListener('click', () => showVorgaenge(m.id));
+  // Show modal by adding active class (triggers CSS display:flex)
+  requestAnimationFrame(() => overlay.classList.add('active'));
+
+  const closeModal = () => {
+    overlay.classList.remove('active');
+    setTimeout(() => overlay.remove(), 150); // wait for transition
+  };
+
+  overlay.querySelectorAll('.modal__close').forEach(btn => btn.addEventListener('click', closeModal));
+  // Close on backdrop click
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+  document.getElementById('btn-close-mitglied')?.addEventListener('click', closeModal);
+  document.getElementById('btn-vorgaenge')?.addEventListener('click', () => {
+    closeModal();
+    showVorgaenge(m.id);
+  });
 }
 
 // ── Seiten: Anwerter ──────────────────────────────────────────────────────────
@@ -453,8 +468,6 @@ async function renderAnwerterTab(tab, state) {
     </div>
     <div id="anwerter-list"></div>
   `;
-
-  if (canCreate) document.getElementById('btn-new-anwerter').addEventListener('click', () => showAnwerterForm());
 
   let anwaeter;
   try {
@@ -535,6 +548,9 @@ async function renderAnwerterTab(tab, state) {
       });
     });
   }
+
+  // Listener nach allen innerHTML += Operationen anhängen (damit er nicht zerstört wird)
+  if (canCreate) document.getElementById('btn-new-anwerter')?.addEventListener('click', () => showAnwerterForm());
 }
 
 async function showAnwerterForm(a = null) {
