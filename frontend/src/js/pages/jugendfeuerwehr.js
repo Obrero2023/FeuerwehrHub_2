@@ -1133,12 +1133,17 @@ async function renderBestellteArtikelTab(container, state) {
           <div class="modal__body">
             <form id="bestellung-form" class="form-grid">
               <div class="form-group form-group--full">
-                <label>Artikel (ID) <span class="required">*</span></label>
-                <input type="text" id="fld-b-lagerartikel-id" placeholder="UUID des Artikels" required />
+                <label>Artikel <span class="required">*</span></label>
+                <select id="fld-b-lagerartikel-id" required>
+                  <option value="">-- Artikel auswählen --</option>
+                  ${artikel.map(a => `<option value="${a.id}" data-groessen='${JSON.stringify(a.groessen)}'>${esc(a.name)}</option>`).join('')}
+                </select>
               </div>
               <div class="form-group form-group--half">
-                <label>Größe</label>
-                <input type="text" id="fld-b-groesse" />
+                <label>Größe <span class="required">*</span></label>
+                <select id="fld-b-groesse" required disabled>
+                  <option value="">-- Größe wählen (Artikel zuerst) --</option>
+                </select>
               </div>
               <div class="form-group form-group--half">
                 <label>Menge <span class="required">*</span></label>
@@ -1155,6 +1160,25 @@ async function renderBestellteArtikelTab(container, state) {
       `;
       document.body.appendChild(overlay);
       requestAnimationFrame(() => overlay.classList.add('active'));
+
+      // Größe-Dropdown beim Artikel-Wechsel aktualisieren
+      const artikelSelect = document.getElementById('fld-b-lagerartikel-id');
+      const groesseSelect = document.getElementById('fld-b-groesse');
+      artikelSelect.addEventListener('change', (e) => {
+        const selected = artikel.find(a => a.id === e.target.value);
+        groesseSelect.innerHTML = '<option value="">-- Größe wählen --</option>';
+        if (selected && Array.isArray(selected.groessen) && selected.groessen.length > 0) {
+          selected.groessen.forEach(g => {
+            const opt = document.createElement('option');
+            opt.value = g;
+            opt.textContent = g;
+            groesseSelect.appendChild(opt);
+          });
+          groesseSelect.disabled = false;
+        } else {
+          groesseSelect.disabled = true;
+        }
+      });
 
       const closeModal = () => {
         overlay.classList.remove('active');
