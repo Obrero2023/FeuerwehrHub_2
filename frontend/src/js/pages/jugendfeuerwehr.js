@@ -463,10 +463,19 @@ async function renderAnwerterTab(tab, state) {
 
   if (!anwaeter.length) {
     c.innerHTML += `
-      <div class="empty-state">
-        <span class="icon icon--large">👦</span>
-        <p>Keine Anwärter vorhanden</p>
-        ${canCreate ? '<button class="btn btn--primary" id="btn-new-anw-empty">Neuen Anwerter anlegen</button>' : ''}
+      <div class="card">
+        <div class="card__header">
+          <span class="icon">👦</span>
+          <span>Keine Anwärter vorhanden</span>
+        </div>
+        <div class="card__body">
+          <p style="text-align:center;color:var(--text-muted);font-style:italic;margin:0 0 16px 0">
+            Noch keine Anwärter angelegt. Lege einen neuen Anwärter an.
+          </p>
+          <div style="text-align:center">
+            ${canCreate ? '<button class="btn btn--primary" id="btn-new-anw-empty">Neuen Anwerter anlegen</button>' : ''}
+          </div>
+        </div>
       </div>`;
     if (canCreate) document.getElementById('btn-new-anw-empty')?.addEventListener('click', () => showAnwerterForm());
     return;
