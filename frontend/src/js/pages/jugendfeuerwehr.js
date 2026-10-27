@@ -621,6 +621,13 @@ async function showAnwerterForm(a = null) {
             <label>Datum Erstkontakt</label>
             <input type="date" id="fld-a-erstkontakt" value="${a ? (a.erstkontakt || new Date().toISOString().slice(0, 10)) : new Date().toISOString().slice(0, 10)}" />
           </div>
+          <div class="form-group form-group--half">
+            <label>Status</label>
+            <select id="fld-a-status">
+              <option value="aktiv" ${a && a.status === 'aktiv' ? 'selected' : ''} selected>Aktiv</option>
+              <option value="archiviert" ${a && a.status === 'archiviert' ? 'selected' : ''}>Archiviert</option>
+            </select>
+          </div>
           <div class="form-group form-group--full" style="margin-top:12px">
             <button type="submit" class="btn btn--primary">${isEdit ? 'Speichern' : 'Anlegen'}</button>
           </div>
@@ -656,13 +663,12 @@ async function showAnwerterForm(a = null) {
       ort: document.getElementById('fld-a-ort').value.trim() || null,
       ortsteil: document.getElementById('fld-a-ortsteil').value.trim() || null,
       adresse: document.getElementById('fld-a-adresse').value.trim() || null,
-      eintrittsdatum: today,
-      geschlecht: 'männlich',
       telefon,
       email,
       eltern_vorname: document.getElementById('fld-a-eltern-vorname').value.trim() || null,
       eltern_telefonnummer: document.getElementById('fld-a-eltern-telefon').value || null,
       erstkontakt: document.getElementById('fld-a-erstkontakt').value || null,
+      status: document.getElementById('fld-a-status').value || 'aktiv',
     };
 
     try {

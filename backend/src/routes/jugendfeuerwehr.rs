@@ -157,8 +157,8 @@ pub struct CreateAnwerter {
     #[validate(length(min = 1, max = 200))]
     pub nachname: String,
     pub geburtsdatum: NaiveDate,
-    pub eintrittsdatum: NaiveDate,
-    pub geschlecht: String,
+    pub eintrittsdatum: Option<NaiveDate>,
+    pub geschlecht: Option<String>,
     pub adresse: Option<String>,
     #[validate(length(max = 50))]
     pub telefon: Option<String>,
@@ -1291,19 +1291,19 @@ pub async fn create_anwerter(
 ) -> AppResult<Json<Anwerter>> {
     body.validate()?;
 
-    let status = body.status.unwrap_or_else(|| "aktiv".to_string());
-    let erstkontakt = body.erstkontakt.unwrap_or_else(|| chrono::Utc::now().date_naive());
+    let status = body.status.clone().unwrap_or_else(|| "aktiv".to_string());
+    let geschlecht = body.geschlecht.clone().unwrap_or_else(|| "männlich".to_string());
 
     let anwerter = sqlx::query_as::<_, Anwerter>(
         r#"
         INSERT INTO jugendfeuerwehr_anwerter
-            (vorname, nachname, geburtsdatum, eintrittsdatum, geschlecht, adresse, telefon, email,
+            (vorname, nachname, geburtsdatum, geschlecht, adresse, telefon, email,
              plz, ort, ortsteil,
              eltern_vorname, eltern_nachname, eltern_telefonnummer, eltern_email, bemerkung, status, erstkontakt,
              erstellt_von, erstellt_von_name)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
         RETURNING id, name, vorname, nachname, plz, ort, ortsteil,
-                    geburtsdatum, eintrittsdatum, geschlecht,
+                    geburtsdatum, geschlecht,
                     adresse, telefon, email,
                     eltern_name, eltern_vorname, eltern_nachname, eltern_telefonnummer, eltern_email,
                     bemerkung, status,
@@ -1314,8 +1314,7 @@ pub async fn create_anwerter(
     .bind(&body.vorname)
     .bind(&body.nachname)
     .bind(body.geburtsdatum)
-    .bind(body.eintrittsdatum)
-    .bind(&body.geschlecht)
+    .bind(&geschlecht)
     .bind(&body.adresse)
     .bind(&body.telefon)
     .bind(&body.email)
