@@ -476,7 +476,7 @@ async function renderAnwerterTab(tab, state) {
   } catch { anwaeter = []; }
 
   if (!anwaeter.length) {
-    c.innerHTML += `
+    c.insertAdjacentHTML('beforeend', `
       <div class="card">
         <div class="card__header">
           <span class="icon">👦</span>
@@ -490,8 +490,11 @@ async function renderAnwerterTab(tab, state) {
             ${canCreate ? '<button class="btn btn--primary" id="btn-new-anw-empty">Neuen Anwärter anlegen</button>' : ''}
           </div>
         </div>
-      </div>`;
-    if (canCreate) document.getElementById('btn-new-anw-empty')?.addEventListener('click', () => showAnwerterForm());
+      </div>`);
+    if (canCreate) {
+      document.getElementById('btn-new-anwerter')?.addEventListener('click', () => showAnwerterForm());
+      document.getElementById('btn-new-anw-empty')?.addEventListener('click', () => showAnwerterForm());
+    }
     return;
   }
 
