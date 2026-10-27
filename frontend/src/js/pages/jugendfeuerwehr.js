@@ -1051,8 +1051,9 @@ async function renderBestellteArtikelTab(container, state) {
     <div class="card">
       <div class="card__header">
         <h3 style="margin:0;font-size:1.1rem">Bestellte Artikel (Ubersicht)</h3>
-        <div style="display:flex;gap:12px">
+        <div style="display:flex;gap:12px;align-items:center">
           ${canWrite ? '<button class="btn btn--secondary btn--sm" id="btn-new-bestellung">Neue Bestellung</button>' : ''}
+          ${canWrite ? '<button class="btn btn--secondary btn--sm" id="btn-export-bestellungen">Export als CSV</button>' : ''}
         </div>
       </div>
       <div class="card__body">
@@ -1080,6 +1081,8 @@ async function renderBestellteArtikelTab(container, state) {
             <table style="width:100%;border-collapse:collapse">
               <thead>
                 <tr>
+                  <th style="background:var(--bg-card-hover);padding:10px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);border-bottom:1px solid var(--border);white-space:nowrap;width:40px"><input type="checkbox" id="select-all-bestellungen" style="width:16px;height:16px;cursor:pointer"></th>
+                  <th style="background:var(--bg-card-hover);padding:10px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);border-bottom:1px solid var(--border);white-space:nowrap">Mitglied</th>
                   <th style="background:var(--bg-card-hover);padding:10px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);border-bottom:1px solid var(--border);white-space:nowrap">Artikel</th>
                   <th style="background:var(--bg-card-hover);padding:10px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);border-bottom:1px solid var(--border);white-space:nowrap">Größe</th>
                   <th style="background:var(--bg-card-hover);padding:10px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);border-bottom:1px solid var(--border);white-space:nowrap">Menge</th>
@@ -1096,6 +1099,8 @@ async function renderBestellteArtikelTab(container, state) {
                   const status = (a.rueckgabe_menge || 0) >= a.menge ? 'Zurückgegeben' : 'Bestellt';
                   const statusBadgeClass = (a.rueckgabe_menge || 0) >= a.menge ? 'vollstaendig' : 'teillieferung';
                   return `<tr data-id="${a.id}" style="background:var(--bg-card)">
+                      <td style="padding:10px 16px;color:var(--text);border-bottom:1px solid var(--border);text-align:center"><input type="checkbox" class="export-checkbox" value="${a.id}" style="width:16px;height:16px;cursor:pointer"></td>
+                      <td style="padding:10px 16px;color:var(--text);border-bottom:1px solid var(--border)">${esc(a.mitglied_name || 'Unbekannt')}</td>
                       <td style="padding:10px 16px;color:var(--text);border-bottom:1px solid var(--border)"><strong>${esc(artikelName)}</strong></td>
                       <td style="padding:10px 16px;color:var(--text);border-bottom:1px solid var(--border)">${esc(groesseLabel)}</td>
                       <td style="padding:10px 16px;color:var(--text);border-bottom:1px solid var(--border)">${a.menge}</td>
@@ -1121,6 +1126,44 @@ async function renderBestellteArtikelTab(container, state) {
   const tbody = document.getElementById('bestellte-artikel-list');
 
   if (canWrite) {
+    // "Select all" checkbox
+    document.getElementById('select-all-bestellungen')?.addEventListener('change', (e) => {
+      const checked = e.target.checked;
+      tbody.querySelectorAll('.export-checkbox').forEach(cb => cb.checked = checked);
+    });
+
+    // Export selected as CSV
+    document.getElementById('btn-export-bestellungen')?.addEventListener('click', () => {
+      const selected = Array.from(tbody.querySelectorAll('.export-checkbox:checked')).map(cb => cb.value);
+      if (!selected.length) {
+        toast('Bitte wähle mindestens einen Eintrag aus', 'error');
+        return;
+      }
+      const rows = [];
+      rows.push('Mitglied,Artikel,Größe,Menge,Bestellt am,Status');
+      for (const id of selected) {
+        const row = tbody.querySelector(`tr[data-id="${id}"]`);
+        if (!row) continue;
+        const mitglied = row.querySelector('td:nth-child(2)').textContent.trim();
+        const artikel = row.querySelector('td:nth-child(3)').textContent.trim();
+        const groesse = row.querySelector('td:nth-child(4)').textContent.trim();
+        const menge = row.querySelector('td:nth-child(5)').textContent.trim();
+        const datum = row.querySelector('td:nth-child(6)').textContent.trim();
+        const status = row.querySelector('td:nth-child(7)').textContent.trim();
+        rows.push(`"${mitglied}","${artikel}","${groesse}",${menge},"${datum}","${status}"`);
+      }
+      const csv = rows.join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bestellte_artikel_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+      toast('Export erstellt', 'success');
+    });
+
     document.getElementById('btn-new-bestellung')?.addEventListener('click', () => {
       const overlay = document.createElement('div');
       overlay.className = 'modal-overlay';
