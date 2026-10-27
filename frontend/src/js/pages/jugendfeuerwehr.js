@@ -63,7 +63,7 @@ function renderHeader(container, title, subtitle) {
 
 export async function renderJugendfeuerwehrMitglieder() {
   const { container, state } = await setupPage('jugendfeuerwehr');
-  renderHeader(container, 'Jugendmitglieder', 'Jugendmitglieder verwalten und archivieren');
+  renderHeader(container, 'Jugendfeuerwehrmitglieder', 'Jugendfeuerwehrmitglieder verwalten und archivieren');
 
   container.innerHTML += `
     <div class="jugend-tabs">
@@ -117,7 +117,7 @@ async function renderMitgliederTab(tab, state) {
     c.innerHTML += `
       <div class="empty-state">
         <span class="icon icon--large">👦</span>
-        <p>${tab === 'archiviert' ? 'Keine archivierten Mitglieder vorhanden' : 'Keine Jugendmitglieder vorhanden'}</p>
+        <p>${tab === 'archiviert' ? 'Keine archivierten Mitglieder vorhanden' : 'Keine Jugendfeuerwehrmitglieder vorhanden'}</p>
         ${canWrite ? '<button class="btn btn--primary" id="btn-new-mid-empty">Neues Mitglied</button>' : ''}
       </div>`;
     if (canWrite) document.getElementById('btn-new-mid-empty')?.addEventListener('click', () => showMemberForm(null, state));
@@ -430,7 +430,7 @@ async function showMemberDetail(m) {
   });
 }
 
-// ── Seiten: Anwerter ──────────────────────────────────────────────────────────
+// ── Seiten: Anwärter ──────────────────────────────────────────────────────────
 
 window.__jfAnwerterState = window.__jfAnwerterState || {};
 
@@ -465,7 +465,7 @@ async function renderAnwerterTab(tab, state) {
 
   c.innerHTML = `
     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-      ${canCreate ? '<button class="btn btn--primary" id="btn-new-anwerter">Neuen Anwerter anlegen</button>' : ''}
+      ${canCreate ? '<button class="btn btn--primary" id="btn-new-anwerter">Neuen Anwärter anlegen</button>' : ''}
     </div>
     <div id="anwerter-list"></div>
   `;
@@ -487,7 +487,7 @@ async function renderAnwerterTab(tab, state) {
             Noch keine Anwärter angelegt. Lege einen neuen Anwärter an.
           </p>
           <div style="text-align:center">
-            ${canCreate ? '<button class="btn btn--primary" id="btn-new-anw-empty">Neuen Anwerter anlegen</button>' : ''}
+            ${canCreate ? '<button class="btn btn--primary" id="btn-new-anw-empty">Neuen Anwärter anlegen</button>' : ''}
           </div>
         </div>
       </div>`;
@@ -715,7 +715,7 @@ async function showAnwerterForm(a = null) {
   });
 }
 
-// ── Anwerter → Dienstteilnahmen ───────────────────────────────────────────────
+// ── Anwärter → Dienstteilnahmen ───────────────────────────────────────────────
 
 async function renderAnwerterDienstteilnahmen(anwerterId, state) {
   const c = document.getElementById('tab-content');
@@ -1255,12 +1255,12 @@ async function renderBestellteArtikelTab(container, state) {
         const menge = +b.dataset.menge;
         const lagerartikelId = b.dataset.lagerartikelId;
 
-        // Jugendmitglieder laden
+        // Jugendfeuerwehrmitglieder laden
         const alle = await api.getJugendmitglieder();
         const activeMitglieder = alle.filter(m => !m.archiviert);
 
         if (!activeMitglieder.length) {
-          toast('Keine aktiven Jugendmitglieder vorhanden', 'error');
+          toast('Keine aktiven Jugendfeuerwehrmitglieder vorhanden', 'error');
           return;
         }
 
@@ -1374,7 +1374,7 @@ async function renderAusgabenTab(container, state) {
     const tbody = document.getElementById('ausgaben-mitglieder-list');
 
     if (!activeMitglieder.length) {
-      tbody.innerHTML = `<tr><td colspan="4" class="wrap-loading">Keine aktiven Jugendmitglieder vorhanden</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4" class="wrap-loading">Keine aktiven Jugendfeuerwehrmitglieder vorhanden</td></tr>`;
       return;
     }
 
