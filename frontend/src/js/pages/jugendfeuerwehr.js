@@ -1039,48 +1039,86 @@ async function renderKleiderkammerSubtab(subtab, state) {
 
 async function renderBestellteArtikelTab(container, state) {
   const canWrite = state.canWriteKleiderkammer;
+  const ausgaben = await api.getKleiderausgaben();
+  const artikel = await api.getLagerartikel();
+
+  // Statistik berechnen
+  const total = ausgaben.length;
+  const offen = ausgaben.filter(a => (a.rueckgabe_menge || 0) < a.menge).length;
+  const zurueckgegeben = ausgaben.filter(a => (a.rueckgabe_menge || 0) >= a.menge).length;
+
   container.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <h3 style="margin:0;font-size:1.1rem">Bestellte Artikel (Ubersicht)</h3>
-      ${canWrite ? '<button class="btn btn--primary btn--sm" id="btn-new-bestellung">Neue Bestellung anlegen</button>' : ''}
-    </div>
-    <div id="bestellte-artikel-list">
-      <table class="jugend-table" style="width:100%">
-        <thead>
-          <tr><th>Artikel</th><th>Größe</th><th>Menge</th><th>Bestellt am</th><th>Status</th><th>Aktionen</th></tr>
-        </thead>
-        <tbody>
-          <tr><td colspan="6" class="wrap-loading">Lade...</td></tr>
-        </tbody>
-      </table>
+    <div class="card">
+      <div class="card__header">
+        <h3 style="margin:0;font-size:1.1rem">Bestellte Artikel (Ubersicht)</h3>
+        <div style="display:flex;gap:12px">
+          ${canWrite ? '<button class="btn btn--secondary btn--sm" id="btn-new-bestellung">Neue Bestellung</button>' : ''}
+        </div>
+      </div>
+      <div class="card__body">
+        <div class="stats-row" style="display:flex;gap:16px;margin-bottom:16px">
+          <div class="stat-card" style="flex:1">
+            <div class="stat-card__number" style="font-size:20px;font-weight:700">${total}</div>
+            <div class="stat-card__label">Gesamt</div>
+          </div>
+          <div class="stat-card" style="flex:1">
+            <div class="stat-card__number" style="font-size:20px;font-weight:700;color:var(--gelb-dunkel)">${offen}</div>
+            <div class="stat-card__label">Offen</div>
+          </div>
+          <div class="stat-card" style="flex:1">
+            <div class="stat-card__number" style="font-size:20px;font-weight:700;color:var(--gruen-dunkel)">${zurueckgegeben}</div>
+            <div class="stat-card__label">Zurückgegeben</div>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          ${total === 0 ? `
+            <div class="empty-state" style="text-align:center;padding:$space-xl">
+              <span class="icon icon--large">📦</span>
+              <p style="color:var(--text-muted);margin:12px 0">Keine Bestellungen vorhanden.</p>
+              ${canWrite ? '<p style="color:var(--gruen-dunkel);font-size:$font-size-sm">Klicken Sie auf "Neue Bestellung", um eine Bestellung anzulegen.</p>' : ''}
+            </div>` : ''}
+            <table style="width:100%;border-collapse:collapse">
+              <thead>
+                <tr>
+                  <th style="background:var(--bg-card-hover);padding:10px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);border-bottom:1px solid var(--border);white-space:nowrap">Artikel</th>
+                  <th style="background:var(--bg-card-hover);padding:10px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);border-bottom:1px solid var(--border);white-space:nowrap">Größe</th>
+                  <th style="background:var(--bg-card-hover);padding:10px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);border-bottom:1px solid var(--border);white-space:nowrap">Menge</th>
+                  <th style="background:var(--bg-card-hover);padding:10px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);border-bottom:1px solid var(--border);white-space:nowrap">Bestellt am</th>
+                  <th style="background:var(--bg-card-hover);padding:10px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);border-bottom:1px solid var(--border);white-space:nowrap">Status</th>
+                  <th style="background:var(--bg-card-hover);padding:10px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);border-bottom:1px solid var(--border);white-space:nowrap">Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="bestellte-artikel-list">
+                ${ausgaben.map(a => {
+                  const lagerArtikel = Array.isArray(artikel) ? artikel.find(x => x.id === a.lagerartikel_id) : null;
+                  const artikelName = lagerArtikel ? lagerArtikel.name : 'Unbekannt';
+                  const groesseLabel = Array.isArray(lagerArtikel?.groessen) && lagerArtikel.groessen.includes(a.groesse || '') ? (a.groesse || '') : (a.groesse || '-');
+                  const status = (a.rueckgabe_menge || 0) >= a.menge ? 'Zurückgegeben' : 'Bestellt';
+                  const statusBadgeClass = (a.rueckgabe_menge || 0) >= a.menge ? 'vollstaendig' : 'teillieferung';
+                  return `<tr data-id="${a.id}" style="background:var(--bg-card)">
+                      <td style="padding:10px 16px;color:var(--text);border-bottom:1px solid var(--border)"><strong>${esc(artikelName)}</strong></td>
+                      <td style="padding:10px 16px;color:var(--text);border-bottom:1px solid var(--border)">${esc(groesseLabel)}</td>
+                      <td style="padding:10px 16px;color:var(--text);border-bottom:1px solid var(--border)">${a.menge}</td>
+                      <td style="padding:10px 16px;color:var(--text);border-bottom:1px solid var(--border)">${formatDatumDeutsch(a.ausgabedatum)}</td>
+                      <td style="padding:10px 16px;color:var(--text);border-bottom:1px solid var(--border)">
+                        <span class="badge badge--${statusBadgeClass}">${status}</span>
+                      </td>
+                      <td style="padding:10px 16px;color:var(--text);border-bottom:1px solid var(--border)">
+                        <div class="btn-group">
+                          ${canWrite && (a.rueckgabe_menge || 0) < a.menge ? `<button class="btn btn--outline btn--sm btn-uebernehmen-bestellung" data-id="${a.id}" data-artikelName="${esc(a.lagerartikel_name || 'Artikel')}" data-groesse="${a.groesse || ''}" data-menge="${a.menge}" data-lagerartikelId="${a.lagerartikel_id}">Artikel übernehmen</button>` : ''}
+                          ${canWrite ? `<button class="btn btn--outline btn--sm btn-bestellung-loeschen" data-id="${a.id}">Bestellung löschen</button>` : ''}
+                        </div>
+                      </td>
+                    </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+        </div>
+      </div>
     </div>
   `;
 
   const tbody = document.getElementById('bestellte-artikel-list');
-  const ausgaben = await api.getKleiderausgaben();
-  const artikel = await api.getLagerartikel();
-
-  const rows = ausgaben.map(a => {
-    const status = (a.rueckgabe_menge || 0) >= a.menge ? 'Zurückgegeben' : 'Bestellt';
-    const lagerArtikel = Array.isArray(artikel) ? artikel.find(x => x.id === a.lagerartikel_id) : null;
-    const artikelName = lagerArtikel ? lagerArtikel.name : 'Unbekannt';
-    const groesseLabel = Array.isArray(lagerArtikel?.groessen) && lagerArtikel.groessen.includes(a.groesse || '') ? (a.groesse || '') : (a.groesse || '-');
-    return `<tr data-id="${a.id}">
-      <td class="jugend-name"><strong>${esc(artikelName)}</strong></td>
-      <td>${esc(groesseLabel)}</td>
-      <td>${a.menge}</td>
-      <td class="jugend-geburtsdatum">${formatDatumDeutsch(a.ausgabedatum)}</td>
-      <td class="jugend-status"><span class="badge badge--${(a.rueckgabe_menge || 0) >= a.menge ? 'success' : 'warning'}">${status}</span></td>
-      <td class="jugend-actions">
-        ${canWrite ? `
-          ${(a.rueckgabe_menge || 0) < a.menge ? `<button class="btn btn--small btn--primary btn-uebernehmen-bestellung" data-id="${a.id}" data-artikelName="${esc(a.lagerartikel_name || 'Artikel')}" data-groesse="${a.groesse || ''}" data-menge="${a.menge}" data-lagerartikelId="${a.lagerartikel_id}">Artikel übernehmen</button>` : ''}
-          ${a.id > 0 ? `<button class="btn btn--small btn--danger btn-bestellung-loeschen" data-id="${a.id}">Bestellung löschen</button>` : ''}
-        ` : ''}
-      </td>
-    </tr>`;
-  }).join('');
-
-  tbody.innerHTML = rows || `<tr><td colspan="6">Keine Bestellungen vorhanden</td></tr>`;
 
   if (canWrite) {
     document.getElementById('btn-new-bestellung')?.addEventListener('click', () => {
