@@ -9,6 +9,7 @@ pub mod incident_types;
 pub mod incidents;
 pub mod integrations;
 pub mod intranet;
+pub mod jugendfeuerwehr;
 pub mod lehrgaenge;
 pub mod orders;
 pub mod personal;
