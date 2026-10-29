@@ -98,8 +98,6 @@ async function renderMitgliederTab(tab, state) {
     <div id="mitglied-form" style="display:none"></div>
   `;
 
-  if (canWrite) document.getElementById('btn-new-mitglied').addEventListener('click', () => showMemberForm(null, state));
-
   if (!canRead) {
     c.innerHTML += '<p style="color:#c00;margin-top:12px">Keine Berechtigung zum Einsehen von Mitgliederdaten.</p>';
     if (canWrite) document.getElementById('btn-new-mitglied').addEventListener('click', () => showMemberForm(null, state));
@@ -120,7 +118,10 @@ async function renderMitgliederTab(tab, state) {
         <p>${tab === 'archiviert' ? 'Keine archivierten Mitglieder vorhanden' : 'Keine Jugendfeuerwehrmitglieder vorhanden'}</p>
         ${canWrite ? '<button class="btn btn--primary" id="btn-new-mid-empty">Neues Mitglied</button>' : ''}
       </div>`;
-    if (canWrite) document.getElementById('btn-new-mid-empty')?.addEventListener('click', () => showMemberForm(null, state));
+    if (canWrite) {
+      document.getElementById('btn-new-mid-empty')?.addEventListener('click', () => showMemberForm(null, state));
+      document.getElementById('btn-new-mitglied').addEventListener('click', () => showMemberForm(null, state));
+    }
     return;
   }
 
@@ -193,6 +194,8 @@ async function renderMitgliederTab(tab, state) {
       });
     });
   }
+
+  if (canWrite) document.getElementById('btn-new-mitglied').addEventListener('click', () => showMemberForm(null, state));
 }
 
 // ── Mitglieder-Formular (Neu/Bearbeiten) ──────────────────────────────────────
