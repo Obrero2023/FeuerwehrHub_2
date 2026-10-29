@@ -395,6 +395,18 @@ export async function renderAdmin() {
       </div>
     </div>
 
+    <div id="tab-dienstgrade" class="tab-panel" style="display:none">
+      <div class="card">
+        <div class="card__header">
+          <span>Dienstgrade</span>
+          <button class="btn btn--primary btn--sm" id="btn-new-dienstgrad">+ Dienstgrad anlegen</button>
+        </div>
+        <div class="card__body" id="dienstgrade-table-wrap">
+          <p>Lade...</p>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal: Badge-Code setzen -->
     <div id="modal-badge" class="modal-overlay">
       <div class="modal">
@@ -558,6 +570,7 @@ export async function renderAdmin() {
       if (btn.dataset.tab === 'einsatzarten')    loadEinsatzarten();
       if (btn.dataset.tab === 'dienstausweise')  loadDienstausweise();
       if (btn.dataset.tab === 'integrations')    loadIntegrations();
+      if (btn.dataset.tab === 'dienstgrade')     loadDienstgrade();
     });
   });
 

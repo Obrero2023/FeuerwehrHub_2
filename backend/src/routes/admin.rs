@@ -957,22 +957,34 @@ pub async fn update_dienstgrad(
     let permissions = filter_permissions(body.permissions);
     let min_duration = body.min_duration_months.unwrap_or(0);
 
-    let dg = sqlx::query_as::<_, DienstgradEntry>(
+    // UPDATE zuerst
+    let result = sqlx::query(
         "UPDATE roles SET name = $1, permissions = $2, previous_role_id = $3, min_duration_months = $4
-         WHERE id = $5 AND type = 'dienstgrad'
-         RETURNING r.id, r.name, r.permissions, r.level, r.previous_role_id,
-                   pr.name as previous_role_name, r.min_duration_months, r.created_at
-         FROM roles r LEFT JOIN roles pr ON pr.id = r.previous_role_id
-         WHERE r.id = $5"
+         WHERE id = $5 AND type = 'dienstgrad'"
     )
     .bind(&name)
     .bind(&permissions)
     .bind(body.previous_role_id)
     .bind(min_duration)
     .bind(id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    .execute(&state.db)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    // Dann SELECT mit JOIN
+    let dg = sqlx::query_as::<_, DienstgradEntry>(
+        "SELECT r.id, r.name, r.permissions, r.level, r.previous_role_id,
+                pr.name as previous_role_name, r.min_duration_months, r.created_at
+         FROM roles r
+         LEFT JOIN roles pr ON pr.id = r.previous_role_id
+         WHERE r.id = $1 AND r.type = 'dienstgrad'"
+    )
+    .bind(id)
+    .fetch_one(&state.db)
+    .await?;
 
     Ok(Json(dg))
 }
