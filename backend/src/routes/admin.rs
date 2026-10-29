@@ -816,6 +816,28 @@ pub struct DienstgradBody {
     pub min_duration_months: Option<i32>,
 }
 
+fn filter_permissions_for_dienstgrad(perms: Vec<String>) -> Vec<String> {
+    const KNOWN_MODULES: &[&str] = &[
+        "lager.read", "lager", "lager.approve",
+        "personal", "fahrzeuge",
+        "fahrzeugpruefung",
+        "einsatzberichte.read", "einsatzberichte", "einsatzberichte.approve",
+        "verein",
+        "intranet",
+        "fahrzeugbuchung",
+        "fahrzeugbuchung.verwalten",
+        "lehrgangsverwaltung",
+        "lehrgangsverwaltung.verwalten",
+        "jugendfeuerwehr",
+        "jugendfeuerwehr.lesen",
+        "personal.funktionen.lesen",
+        "personal.funktionen.schreiben",
+    ];
+    perms.into_iter()
+        .filter(|p| KNOWN_MODULES.contains(&p.as_str()))
+        .collect()
+}
+
 async fn check_dienstgrad_permission(state: &AppState, claims: &Claims) -> Result<(), AppError> {
     if claims.is_admin_or_above() {
         return Ok(());
@@ -847,11 +869,10 @@ async fn check_circular_previous_role(state: &AppState, role_id: Uuid, previous_
         if current == role_id {
             return Err(AppError::BadRequest("Zirkel-Verweis: Vorgänger-Dienstgrad führt zurück zum eigenen Eintrag".into()));
         }
-        let next: Option<Uuid> = sqlx::query_scalar("SELECT previous_role_id FROM roles WHERE id = $1")
+        let next: Option<Uuid> = sqlx::query_scalar::<Option<Uuid>>("SELECT previous_role_id FROM roles WHERE id = $1")
             .bind(current)
             .fetch_optional(&state.db)
-            .await
-            .ok();
+            .await?;
         match next {
             Some(next_id) => current = next_id,
             None => break,
@@ -897,7 +918,7 @@ pub async fn create_dienstgrad(
         check_circular_previous_role(&state, Uuid::nil(), prev_id).await?;
     }
 
-    let permissions = filter_permissions(body.permissions);
+    let permissions = filter_permissions_for_dienstgrad(body.permissions);
     let min_duration = body.min_duration_months.unwrap_or(0);
 
     // Zuerst einfügen, dann mit JOIN auslesen (RETURNING kann kein JOIN)
@@ -954,7 +975,7 @@ pub async fn update_dienstgrad(
         check_circular_previous_role(&state, id, prev_id).await?;
     }
 
-    let permissions = filter_permissions(body.permissions);
+    let permissions = filter_permissions_for_dienstgrad(body.permissions);
     let min_duration = body.min_duration_months.unwrap_or(0);
 
     // UPDATE zuerst
