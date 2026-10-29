@@ -49,6 +49,12 @@ pub struct MemberDetails {
     pub emergency_contact_phone: Option<String>,
     pub updated_by_id:           Option<Uuid>,
     pub updated_by_name:         Option<String>,
+    // Erweiterungen für Dienstgrad & Gruppe
+    pub einheit:                 Option<String>,
+    pub gruppe_id:               Option<Uuid>,
+    pub gruppe_name:             Option<String>,
+    pub dienstgrad_id:           Option<Uuid>,
+    pub dienstgrad_name:         Option<String>,
 }
 
 #[derive(Deserialize, Validate)]
@@ -81,6 +87,10 @@ pub struct UpdateDetailsBody {
     pub personnel_number: Option<String>,
     #[validate(length(max = 2000))]
     pub notes:            Option<String>,
+    #[validate(length(max = 100))]
+    pub einheit:          Option<String>,
+    pub gruppe_id:        Option<Uuid>,
+    pub dienstgrad_id:    Option<Uuid>,
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -154,6 +164,31 @@ pub struct HonorBody {
     pub status:     Option<String>,
 }
 
+// ── Gruppen ────────────────────────────────────────────────────────────────────
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct Gruppe {
+    pub id:         Uuid,
+    pub name:       String,
+    pub fahrzeug:   Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Deserialize, Validate)]
+pub struct GruppeBody {
+    #[validate(length(min = 1, max = 100))]
+    pub name:     String,
+    #[validate(length(max = 100))]
+    pub fahrzeug: Option<String>,
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct MemberFunctionEntry {
+    pub role_id:     Uuid,
+    pub name:        String,
+    pub permissions: Vec<String>,
+}
+
 // ── Encrypt/Decrypt-Helpers ───────────────────────────────────────────────────
 
 fn dec(val: Option<String>, key: &str) -> Option<String> {
@@ -214,9 +249,13 @@ pub async fn get_details(
                 d.personnel_number, d.notes, d.updated_at,
                 p.phone, p.email_private, p.address,
                 p.emergency_contact_name, p.emergency_contact_phone,
-                p.updated_by_id, p.updated_by_name
+                p.updated_by_id, p.updated_by_name,
+                d.einheit, d.gruppe_id, g.name as gruppe_name,
+                d.dienstgrad_id, dr.name as dienstgrad_name
          FROM member_details d
          LEFT JOIN member_profiles p ON p.user_id = d.user_id
+         LEFT JOIN gruppen g ON g.id = d.gruppe_id
+         LEFT JOIN roles dr ON dr.id = d.dienstgrad_id
          WHERE d.user_id = $1"
     )
     .bind(user_id)
@@ -240,15 +279,20 @@ pub async fn get_details(
              VALUES ($1)
              ON CONFLICT (user_id) DO UPDATE SET user_id = EXCLUDED.user_id
              RETURNING id, user_id, date_of_birth, entry_date, exit_date,
-                       personnel_number, notes, updated_at
+                       personnel_number, notes, updated_at,
+                       einheit, gruppe_id, dienstgrad_id
          )
          SELECT ins.id, ins.user_id, ins.date_of_birth, ins.entry_date, ins.exit_date,
                 ins.personnel_number, ins.notes, ins.updated_at,
                 p.phone, p.email_private, p.address,
                 p.emergency_contact_name, p.emergency_contact_phone,
-                p.updated_by_id, p.updated_by_name
+                p.updated_by_id, p.updated_by_name,
+                ins.einheit, ins.gruppe_id, g.name as gruppe_name,
+                ins.dienstgrad_id, dr.name as dienstgrad_name
          FROM ins
-         LEFT JOIN member_profiles p ON p.user_id = ins.user_id"
+         LEFT JOIN member_profiles p ON p.user_id = ins.user_id
+         LEFT JOIN gruppen g ON g.id = ins.gruppe_id
+         LEFT JOIN roles dr ON dr.id = ins.dienstgrad_id"
     )
     .bind(user_id)
     .fetch_one(&state.db)
@@ -267,25 +311,32 @@ pub async fn update_details(
     let key = &state.config.encryption_key;
     let details = sqlx::query_as::<_, MemberDetails>(
         "WITH upd AS (
-             INSERT INTO member_details (user_id, date_of_birth, entry_date, exit_date, personnel_number, notes)
-             VALUES ($1, $2, $3, $4, $5, $6)
+             INSERT INTO member_details (user_id, date_of_birth, entry_date, exit_date, personnel_number, notes, einheit, gruppe_id, dienstgrad_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
              ON CONFLICT (user_id) DO UPDATE SET
                  date_of_birth    = EXCLUDED.date_of_birth,
                  entry_date       = EXCLUDED.entry_date,
                  exit_date        = EXCLUDED.exit_date,
                  personnel_number = EXCLUDED.personnel_number,
                  notes            = EXCLUDED.notes,
+                 einheit           = COALESCE(EXCLUDED.einheit, member_details.einheit),
+                 gruppe_id        = COALESCE(EXCLUDED.gruppe_id, member_details.gruppe_id),
+                 dienstgrad_id    = COALESCE(EXCLUDED.dienstgrad_id, member_details.dienstgrad_id),
                  updated_at       = NOW()
              RETURNING id, user_id, date_of_birth, entry_date, exit_date,
-                       personnel_number, notes, updated_at
+                       personnel_number, notes, updated_at,
+                       einheit, gruppe_id, dienstgrad_id
          )
          SELECT upd.id, upd.user_id, upd.date_of_birth, upd.entry_date, upd.exit_date,
                 upd.personnel_number, upd.notes, upd.updated_at,
                 p.phone, p.email_private, p.address,
                 p.emergency_contact_name, p.emergency_contact_phone,
-                p.updated_by_id, p.updated_by_name
+                p.updated_by_id, p.updated_by_name,
+                g.name as gruppe_name, dr.name as dienstgrad_name
          FROM upd
-         LEFT JOIN member_profiles p ON p.user_id = upd.user_id"
+         LEFT JOIN member_profiles p ON p.user_id = upd.user_id
+         LEFT JOIN gruppen g ON g.id = upd.gruppe_id
+         LEFT JOIN roles dr ON dr.id = upd.dienstgrad_id"
     )
     .bind(user_id)
     .bind(body.date_of_birth)
@@ -293,6 +344,9 @@ pub async fn update_details(
     .bind(body.exit_date)
     .bind(body.personnel_number.as_deref().map(str::trim).filter(|s| !s.is_empty()))
     .bind(body.notes.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(body.einheit.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(body.gruppe_id)
+    .bind(body.dienstgrad_id)
     .fetch_one(&state.db)
     .await?;
 
@@ -1020,7 +1074,210 @@ pub async fn get_attendance_chart(
     Ok(Json(AttendanceChartResponse { year, months }))
 }
 
-// ── Router ────────────────────────────────────────────────────────────────────
+// ── Gruppen (für Mitglieder) ──────────────────────────────────────────────────
+
+pub async fn list_gruppen(
+    State(state): State<AppState>,
+) -> AppResult<Json<Vec<Gruppe>>> {
+    let gruppen = sqlx::query_as::<_, Gruppe>(
+        "SELECT id, name, fahrzeug, created_at
+         FROM gruppen
+         ORDER BY name ASC"
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    Ok(Json(gruppen))
+}
+
+pub async fn create_gruppe(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Json(body): Json<GruppeBody>,
+) -> AppResult<Json<Gruppe>> {
+    let name = body.name.trim().to_string();
+    if name.is_empty() {
+        return Err(AppError::BadRequest("Gruppenname darf nicht leer sein".into()));
+    }
+
+    let gruppe = sqlx::query_as::<_, Gruppe>(
+        "INSERT INTO gruppen (name, fahrzeug) VALUES ($1, $2)
+         RETURNING id, name, fahrzeug, created_at"
+    )
+    .bind(&name)
+    .bind(body.fahrzeug.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .fetch_one(&state.db)
+    .await?;
+
+    Ok(Json(gruppe))
+}
+
+pub async fn update_gruppe(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<GruppeBody>,
+) -> AppResult<Json<Gruppe>> {
+    let name = body.name.trim().to_string();
+    if name.is_empty() {
+        return Err(AppError::BadRequest("Gruppenname darf nicht leer sein".into()));
+    }
+
+    let gruppe = sqlx::query_as::<_, Gruppe>(
+        "UPDATE gruppen SET name = $1, fahrzeug = $2 WHERE id = $3
+         RETURNING id, name, fahrzeug, created_at"
+    )
+    .bind(&name)
+    .bind(body.fahrzeug.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    Ok(Json(gruppe))
+}
+
+pub async fn delete_gruppe(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> AppResult<Json<serde_json::Value>> {
+    // Prüfen ob Gruppe noch von Mitgliedern referenziert wird
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM member_details WHERE gruppe_id = $1"
+    )
+    .bind(id)
+    .fetch_one(&state.db)
+    .await?;
+
+    if count > 0 {
+        return Err(AppError::BadRequest(format!(
+            "Gruppe wird noch von {} Mitglied(ern) verwendet", count
+        )));
+    }
+
+    let result = sqlx::query("DELETE FROM gruppen WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(Json(serde_json::json!({ "message": "Gruppe gelöscht" })))
+}
+
+// ── Funktionen (Zusatzfunktionen) für Mitglieder ─────────────────────────────
+
+pub async fn list_member_functions(
+    State(state): State<AppState>,
+    Path(user_id): Path<Uuid>,
+) -> AppResult<Json<Vec<MemberFunctionEntry>>> {
+    let functions = sqlx::query_as::<_, MemberFunctionEntry>(
+        "SELECT r.id as role_id, r.name, r.permissions
+         FROM user_functions uf
+         JOIN roles r ON r.id = uf.role_id
+         WHERE uf.user_id = $1
+         ORDER BY r.name ASC"
+    )
+    .bind(user_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    Ok(Json(functions))
+}
+
+pub async fn assign_member_function(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(user_id): Path<Uuid>,
+    Json(body): Json<super::admin::AssignRoleBody>,
+) -> AppResult<Json<serde_json::Value>> {
+    // Nur Admin oder mit personal.funktionen.schreiben
+    if !claims.is_admin_or_above() {
+        let has_perm: bool = sqlx::query_scalar(
+            "SELECT $1 = ANY(
+                SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
+                FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
+                UNION
+                SELECT unnest(fr.permissions)
+                FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
+             )"
+        )
+        .bind("personal.funktionen.schreiben")
+        .bind(claims.sub)
+        .fetch_one(&state.db)
+        .await
+        .unwrap_or(false);
+
+        if !has_perm {
+            return Err(AppError::Forbidden);
+        }
+    }
+
+    // Nur 'funktion'-Typ Rollen dürfen zugewiesen werden
+    let role_type: Option<String> = sqlx::query_scalar(
+        "SELECT type FROM roles WHERE id = $1"
+    )
+    .bind(body.role_id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    match role_type.as_deref() {
+        Some("funktion") => {}
+        Some(_) => return Err(AppError::BadRequest("Nur Zusatzfunktionen können zugewiesen werden".into())),
+        None => return Err(AppError::NotFound),
+    }
+
+    sqlx::query(
+        "INSERT INTO user_functions (user_id, role_id, assigned_by) VALUES ($1, $2, $3)
+         ON CONFLICT (user_id, role_id) DO NOTHING"
+    )
+    .bind(user_id)
+    .bind(body.role_id)
+    .bind(claims.sub)
+    .execute(&state.db)
+    .await?;
+
+    Ok(Json(serde_json::json!({ "message": "Funktion zugewiesen" })))
+}
+
+pub async fn remove_member_function(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((user_id, role_id)): Path<(Uuid, Uuid)>,
+) -> AppResult<Json<serde_json::Value>> {
+    // Nur Admin oder mit personal.funktionen.schreiben
+    if !claims.is_admin_or_above() {
+        let has_perm: bool = sqlx::query_scalar(
+            "SELECT $1 = ANY(
+                SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
+                FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
+                UNION
+                SELECT unnest(fr.permissions)
+                FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
+             )"
+        )
+        .bind("personal.funktionen.schreiben")
+        .bind(claims.sub)
+        .fetch_one(&state.db)
+        .await
+        .unwrap_or(false);
+
+        if !has_perm {
+            return Err(AppError::Forbidden);
+        }
+    }
+
+    sqlx::query(
+        "DELETE FROM user_functions WHERE user_id = $1 AND role_id = $2"
+    )
+    .bind(user_id)
+    .bind(role_id)
+    .execute(&state.db)
+    .await?;
+
+    Ok(Json(serde_json::json!({ "message": "Funktion entfernt" })))
+}
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
@@ -1040,6 +1297,10 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/members/:id/attendance/export",                get(export_attendance_csv))
         .route("/members/:id/profile",                          put(update_member_profile))
         .route("/members/:id/emergency-contacts",               get(list_member_emergency_contacts))
+        .route("/gruppen",                           get(list_gruppen).post(create_gruppe))
+        .route("/gruppen/:id",                       put(update_gruppe).delete(delete_gruppe))
+        .route("/members/:id/functions",             get(list_member_functions).post(assign_member_function))
+        .route("/members/:id/functions/:role_id",    delete(remove_member_function))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_module("personal")))
         .route_layer(middleware::from_fn_with_state(state, require_auth))
 }

@@ -151,15 +151,19 @@ async function openMember(userId, members) {
   const member = members.find(m => m.id === userId);
 
   try {
-    const [details, qualifications, equipment, honors, settings, attendance] = await Promise.all([
+    const [details, qualifications, equipment, honors, settings, attendance, gruppen, dienstrate, functions] = await Promise.all([
       api.getPersonalDetails(userId),
       api.getPersonalQualifications(userId),
       api.getPersonalEquipment(userId),
       api.getPersonalHonors(userId),
       api.getSettings(),
       api.getAttendance(userId),
+      api.getGruppen(),
+      api.getRoles().catch(() => []),
+      api.getPersonalFunctions(userId),
     ]);
     const warnDays = settings?.qualification_warn_days ?? 90;
+    const dienstgrade = dienstrate.filter(r => r.type === 'dienstgrad');
 
     detailWrap.innerHTML = `
       <div class="member-detail-header">
@@ -176,6 +180,7 @@ async function openMember(userId, members) {
         <button class="tab-btn" data-tab="pequip">${icon('wrench', 14)} Ausrüstung</button>
         <button class="tab-btn" data-tab="phonors">${icon('award', 14)} Ehrungen</button>
         <button class="tab-btn" data-tab="panwesenheit">${icon('calendar', 14)} Anwesenheit</button>
+        <button class="tab-btn" data-tab="pgruppen">${icon('users', 14)} Gruppen</button>
       </div>
 
       <div id="ptab-pstamm"></div>
@@ -183,6 +188,7 @@ async function openMember(userId, members) {
       <div id="ptab-pequip"       style="display:none"></div>
       <div id="ptab-phonors"      style="display:none"></div>
       <div id="ptab-panwesenheit" style="display:none"></div>
+      <div id="ptab-pgruppen"     style="display:none"></div>
     `;
 
     document.getElementById('btn-back-personal').addEventListener('click', loadMemberList);
@@ -196,11 +202,12 @@ async function openMember(userId, members) {
       });
     });
 
-    renderStammdaten(userId, details);
+    renderStammdaten(userId, details, gruppen, dienstgrade, functions, me, dienstrate);
     renderQualifikationen(userId, qualifications, warnDays);
     renderAusruestung(userId, equipment);
     renderEhrungen(userId, honors);
     renderAnwesenheit(userId, attendance, member);
+    renderGruppenTab(userId, gruppen, me);
     renderIcons(document.getElementById('personal-detail-wrap'));
 
   } catch (e) {
@@ -210,8 +217,10 @@ async function openMember(userId, members) {
 
 // ── Tab: Stammdaten ───────────────────────────────────────────────────────────
 
-function renderStammdaten(userId, details) {
+function renderStammdaten(userId, details, gruppen, dienstgrade, functions, me, allRoles) {
   const wrap = document.getElementById('ptab-pstamm');
+  const canWrite = me && (me.role === 'superuser' || me.role === 'admin' || (me.permissions && me.permissions.includes('personal.funktionen.schreiben')));
+
   wrap.innerHTML = `
     <div class="card card--narrow">
       <div class="card__header">Stammdaten</div>
@@ -232,6 +241,24 @@ function renderStammdaten(userId, details) {
           <div class="form-group">
             <label>Austrittsdatum</label>
             <input type="date" id="d-exit" value="${details?.exit_date || ''}" />
+          </div>
+          <div class="form-group">
+            <label>Einheit</label>
+            <input type="text" id="d-einheit" maxlength="100" value="${esc(details?.einheit || '')}" placeholder="z.B. Freiwillige Feuerwehr Musterstadt" />
+          </div>
+          <div class="form-group">
+            <label>Gruppe</label>
+            <select id="d-gruppe" class="field">
+              <option value="">– keine Gruppe –</option>
+              ${gruppen.length ? gruppen.map(g => `<option value="${g.id}" ${details?.gruppe_id?.toString() === g.id.toString() ? 'selected' : ''}>${esc(g.name)}</option>`).join('') : '<option>Keine Gruppen</option>'}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Dienstgrad</label>
+            <select id="d-dienstgrad" class="field">
+              <option value="">– kein Dienstgrad –</option>
+              ${dienstgrade.length ? dienstgrade.map(d => `<option value="${d.id}" ${details?.dienstgrad_id?.toString() === d.id.toString() ? 'selected' : ''}>${esc(d.name)}</option>`).join('') : '<option>Keine Dienstgrade</option>'}
+            </select>
           </div>
           <div class="form-group form-group--full">
             <label>Interne Notizen</label>
@@ -276,6 +303,35 @@ function renderStammdaten(userId, details) {
     </div>
 
     <div class="card card--narrow">
+      <div class="card__header">
+        <span>Funktionen (Zusatzfunktionen)</span>
+        ${canWrite
+          ? `<span class="text-muted text-xs fw-sm">Editierbar</span>` : `<span class="text-muted text-xs">Nur lesbar</span>`}
+      </div>
+      <div class="card__body">
+        ${functions && functions.length > 0
+          ? `<div class="func-list">
+              ${functions.map(f => `
+                <div class="func-item">
+                  <span class="func-name">${esc(f.name)}</span>
+                  <span class="func-perms">${f.permissions && f.permissions.length ? f.permissions.map(p => MODULE_LABELS[p] || esc(p)).join(', ') : '–'}</span>
+                  ${canWrite ? `<button class="btn btn--danger btn--sm btn--remove-func" data-func-id="${f.role_id}">Entfernen</button>` : ''}
+                </div>`).join('')}
+            </div>` : '<p class="text-muted text-sm">Keine Zusatzfunktionen zugewiesen.</p>'}
+        ${canWrite
+          ? `
+          <div class="func-add">
+            <label>Zusatzfunktion hinzufügen:</label>
+            <select id="func-add-select" class="field">
+              <option value="">– Funktion auswählen –</option>
+              ${allRoles.filter(r => r.type === 'funktion').map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('')}
+            </select>
+            <button class="btn btn--primary btn--sm" id="func-add-btn">Hinzufügen</button>
+          </div>` : ''}
+      </div>
+    </div>
+
+    <div class="card card--narrow">
       <div class="card__header">Notfallkontakte</div>
       <div class="card__body">
         <div id="member-emergency-contacts-list">
@@ -292,6 +348,9 @@ function renderStammdaten(userId, details) {
         entry_date:       document.getElementById('d-entry').value || null,
         exit_date:        document.getElementById('d-exit').value  || null,
         personnel_number: document.getElementById('d-persnr').value.trim() || null,
+        einheit:          document.getElementById('d-einheit').value  || null,
+        gruppe_id:        document.getElementById('d-gruppe').value || null,
+        dienstgrad_id:    document.getElementById('d-dienstgrad').value || null,
         notes:            document.getElementById('d-notes').value.trim()  || null,
       });
       toast('Stammdaten gespeichert');
@@ -311,6 +370,218 @@ function renderStammdaten(userId, details) {
 
   // Notfallkontakte laden (read-only)
   loadMemberEmergencyContacts(userId);
+
+  // Funktionen-Event-Handler
+  bindFunktionenActions(userId, functions, me);
+}
+
+// ── Gruppen-Tab ────────────────────────────────────────────────────────────────
+
+function renderGruppenTab(userId, gruppen, me) {
+  const wrap = document.getElementById('ptab-pgruppen');
+  if (!wrap) return;
+
+  const canWrite = me && (me.role === 'superuser' || me.role === 'admin');
+
+  wrap.innerHTML = `
+    <div class="card">
+      <div class="card__header">
+        <span>Gruppen</span>
+        ${canWrite ? `<button class="btn btn--primary btn--sm" id="btn-add-gruppe">+ Gruppe anlegen</button>` : ''}
+      </div>
+      <div class="card__body card__body--flush">
+        <div id="gruppen-list">
+          ${gruppen.length ? renderGruppenTable(gruppen, canWrite) : '<p class="text-muted text-sm">Keine Gruppen angelegt.</p>'}
+        </div>
+      </div>
+    </div>
+
+    <div id="gruppe-modal" class="modal-overlay">
+      <div class="modal modal--xs">
+        <div class="modal__header">
+          <h3 id="gruppe-modal-title">Gruppe anlegen</h3>
+          <button class="modal__close" id="btn-close-gruppe-x">✕</button>
+        </div>
+        <div class="modal__body">
+          <div class="form-grid">
+            <div class="form-group form-group--full">
+              <label>Name</label>
+              <input type="text" id="grp-name" maxlength="100" placeholder="z.B. 1. Gruppe" />
+            </div>
+            <div class="form-group form-group--full">
+              <label>Fahrzeug</label>
+              <input type="text" id="grp-fahrzeug" maxlength="100" placeholder="z.B. LF 10, HLF 20..." />
+            </div>
+          </div>
+        </div>
+        <div class="modal__footer">
+          <button class="btn btn--outline" id="btn-cancel-gruppe">Abbrechen</button>
+          <button class="btn btn--primary" id="btn-save-gruppe">Speichern</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  renderIcons(wrap);
+
+  let editGruppeId = null;
+
+  const openModal = (g = null) => {
+    editGruppeId = g?.id || null;
+    document.getElementById('gruppe-modal-title').textContent = g ? 'Gruppe bearbeiten' : 'Gruppe anlegen';
+    document.getElementById('grp-name').value = g?.name || '';
+    document.getElementById('grp-fahrzeug').value = g?.fahrzeug || '';
+    document.getElementById('gruppe-modal').classList.add('active');
+  };
+  const closeModal = () => { document.getElementById('gruppe-modal').classList.remove('active'); };
+
+  if (canWrite) {
+    document.getElementById('btn-add-gruppe').addEventListener('click', () => openModal());
+    document.getElementById('btn-cancel-gruppe').addEventListener('click', closeModal);
+    document.getElementById('btn-close-gruppe-x').addEventListener('click', closeModal);
+
+    document.getElementById('btn-save-gruppe').addEventListener('click', async () => {
+      const name = document.getElementById('grp-name').value.trim();
+      if (!name) { toast('Name eingeben', 'error'); return; }
+      try {
+        const body = {
+          name,
+          fahrzeug: document.getElementById('grp-fahrzeug').value.trim() || null,
+        };
+        if (editGruppeId) {
+          await api.updateGruppe(editGruppeId, body);
+          toast('Gruppe gespeichert');
+        } else {
+          await api.createGruppe(body);
+          toast('Gruppe angelegt');
+        }
+        closeModal();
+        await refreshGruppen();
+      } catch (e) { toast(e.message, 'error'); }
+    });
+  }
+}
+
+function renderGruppenTable(gruppen, canWrite) {
+  const rows = gruppen.map(g => `
+    <tr data-gid="${g.id}">
+      <td><strong>${esc(g.name)}</strong></td>
+      <td class="text-muted">${esc(g.fahrzeug || '–')}</td>
+      <td class="text-muted text-sm">${formatDate(g.created_at)}</td>
+      <td>
+        ${canWrite ? `
+        <div class="btn-group">
+          <button class="btn btn--outline btn--sm" data-action="edit-gruppe" data-gid="${g.id}" data-name="${esc(g.name)}" data-fahrzeug="${esc(g.fahrzeug || '')}">Bearbeiten</button>
+          <button class="btn btn--danger btn--sm" data-action="delete-gruppe" data-gid="${g.id}" data-name="${esc(g.name)}">Löschen</button>
+        </div>` : '–'}
+      </td>
+    </tr>
+  `).join('');
+
+  return `
+    <table class="data-table">
+      <thead><tr>
+        <th>Name</th>
+        <th>Fahrzeug</th>
+        <th>Erstellt</th>
+        <th></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+async function refreshGruppen() {
+  try {
+    const gruppen = await api.getGruppen();
+    const wrap = document.getElementById('gruppen-list');
+    if (!wrap) return;
+    const canWrite = true; // Wird nur angezeigt wenn admin
+    wrap.innerHTML = gruppen.length
+      ? renderGruppenTable(gruppen, canWrite)
+      : '<p class="text-muted text-sm">Keine Gruppen angelegt.</p>';
+    renderIcons(wrap);
+    bindGruppenActions();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function bindGruppenActions() {
+  let editGruppeId = null;
+  document.querySelectorAll('[data-action="edit-gruppe"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('gruppe-modal-title').textContent = 'Gruppe bearbeiten';
+      document.getElementById('grp-name').value = btn.dataset.name;
+      document.getElementById('grp-fahrzeug').value = btn.dataset.fahrzeug;
+      editGruppeId = btn.dataset.gid;
+      document.getElementById('gruppe-modal').classList.add('active');
+    });
+  });
+  document.querySelectorAll('[data-action="delete-gruppe"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm(`Gruppe "${btn.dataset.name}" wirklich löschen?`)) return;
+      try {
+        await api.deleteGruppe(btn.dataset.gid);
+        toast('Gelöscht');
+        await refreshGruppen();
+      } catch (e) { toast(e.message, 'error'); }
+    });
+  });
+  document.getElementById('btn-save-gruppe').onclick = async () => {
+    const name = document.getElementById('grp-name').value.trim();
+    if (!name) { toast('Name eingeben', 'error'); return; }
+    try {
+      const body = {
+        name,
+        fahrzeug: document.getElementById('grp-fahrzeug').value.trim() || null,
+      };
+      if (editGruppeId) {
+        await api.updateGruppe(editGruppeId, body);
+        toast('Gruppe gespeichert');
+      } else {
+        await api.createGruppe(body);
+        toast('Gruppe angelegt');
+      }
+      document.getElementById('gruppe-modal').classList.remove('active');
+      await refreshGruppen();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+}
+
+function bindFunktionenActions(userId, functions, me) {
+  const canWrite = me && (me.role === 'superuser' || me.role === 'admin' || (me.permissions && me.permissions.includes('personal.funktionen.schreiben')));
+  if (!canWrite) return;
+
+  document.querySelectorAll('.btn--remove-func').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Funktion entfernen?')) return;
+      try {
+        await api.removePersonalFunction(userId, btn.dataset.funcId);
+        toast('Funktion entfernt');
+        // Neu laden
+        const updated = await api.getPersonalFunctions(userId);
+        const canWriteNow = true;
+        const canWrite2 = me && (me.role === 'superuser' || me.role === 'admin' || (me.permissions && me.permissions.includes('personal.funktionen.schreiben')));
+        renderStammdaten(userId, { /* details re-laden */ }, []);
+      } catch (e) { toast(e.message, 'error'); }
+    });
+  });
+
+  const addBtn = document.getElementById('func-add-btn');
+  if (addBtn) {
+    addBtn.addEventListener('click', async () => {
+      const roleId = document.getElementById('func-add-select').value;
+      if (!roleId) { toast('Funktion auswählen', 'error'); return; }
+      try {
+        await api.assignPersonalFunction(userId, { role_id: roleId });
+        toast('Funktion zugewiesen');
+        document.getElementById('func-add-select').value = '';
+        // Neu laden
+        const updated = await api.getPersonalFunctions(userId);
+        renderStammdaten(userId, { /* details re-laden */ }, []);
+      } catch (e) { toast(e.message, 'error'); }
+    });
+  }
 }
 
 async function loadMemberEmergencyContacts(userId) {

@@ -1,0 +1,8 @@
+-- Migration 104: Dokumentation für neue Permissions (keine DB-Änderung)
+--
+-- Die Permissions personal.funktionen.lesen und personal.funktionen.schreiben
+-- werden als Strings in den permissions-Arrays (users, roles, user_functions)
+-- gespeichert und müssen in KNOWN_MODULES (backend/src/routes/roles.rs) sowie
+-- in accepted_permissions (backend/src/auth/middleware.rs) registriert werden.
+-- Vergabe erfolgt über die Admin-Oberfläche (Rollen erstellen / Bearbeiten).
+-- Diese Migration ist ein Platzhalter ohne SQL-Änderungen.

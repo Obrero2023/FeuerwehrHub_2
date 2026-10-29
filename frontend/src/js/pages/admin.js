@@ -78,6 +78,7 @@ export async function renderAdmin() {
       <button class="tab-btn" data-tab="audit">Audit-Log</button>
       <button class="tab-btn" data-tab="container-log">Container-Log</button>
       <button class="tab-btn" data-tab="integrations">Schnittstellen</button>
+      <button class="tab-btn" data-tab="dienstgrade">Dienstgrade</button>
     </div>
 
     <div id="tab-users" class="tab-panel">

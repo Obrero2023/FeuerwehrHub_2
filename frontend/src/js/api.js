@@ -203,6 +203,12 @@ export const api = {
   updateRole: (id, b) => request("PUT", `/roles/${id}`, b),
   deleteRole: (id) => request("DELETE", `/roles/${id}`),
 
+  // Admin - Dienstgrade
+  getDienstgrade: () => request("GET", "/admin/dienstgrade"),
+  createDienstgrad: (body) => request("POST", "/admin/dienstgrade", body),
+  updateDienstgrad: (id, body) => request("PUT", `/admin/dienstgrade/${id}`, body),
+  deleteDienstgrad: (id) => request("DELETE", `/admin/dienstgrade/${id}`),
+
   // Zusatzfunktionen
   getUserFunctions: (id) => request("GET", `/admin/users/${id}/functions`),
   assignFunction: (id, body) =>
@@ -281,6 +287,19 @@ export const api = {
     request("PUT", `/personal/members/${id}/profile`, b),
   getMemberEmergencyContacts: (id) =>
     request("GET", `/personal/members/${id}/emergency-contacts`),
+
+  // Personal - Gruppen
+  getGruppen: () => request("GET", "/personal/gruppen"),
+  createGruppe: (body) => request("POST", "/personal/gruppen", body),
+  updateGruppe: (id, body) => request("PUT", `/personal/gruppen/${id}`, body),
+  deleteGruppe: (id) => request("DELETE", `/personal/gruppen/${id}`),
+
+  // Personal - Funktionen (Zusatzfunktionen)
+  getPersonalFunctions: (id) => request("GET", `/personal/members/${id}/functions`),
+  assignPersonalFunction: (id, body) =>
+    request("POST", `/personal/members/${id}/functions`, body),
+  removePersonalFunction: (id, roleId) =>
+    request("DELETE", `/personal/members/${id}/functions/${roleId}`),
 
   // Termine (Personal-Modul)
   getTermine: () => request("GET", "/personal/termine"),

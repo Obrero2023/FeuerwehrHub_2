@@ -144,6 +144,9 @@ fn accepted_permissions(module: &str) -> Option<Vec<&'static str>> {
         "jugendfeuerwehr.kleiderkammer"      => Some(vec!["jugendfeuerwehr.kleiderkammer", "jugendfeuerwehr"]),
         "jugendfeuerwehr.kleiderkammer.lesen" => Some(vec!["jugendfeuerwehr.kleiderkammer.lesen", "jugendfeuerwehr.lesen", "jugendfeuerwehr"]),
         "jugendfeuerwehr.mitgliedschaftsvorgaenge" => Some(vec!["jugendfeuerwehr.mitgliedschaftsvorgaenge", "jugendfeuerwehr"]),
+        // Personal: Funktionen lesen/schreiben
+        "personal.funktionen.lesen" => Some(vec!["personal.funktionen.lesen", "personal.funktionen.schreiben"]),
+        "personal.funktionen"       => Some(vec!["personal.funktionen", "personal.funktionen.schreiben"]),
         _                                     => None,
     }
 }

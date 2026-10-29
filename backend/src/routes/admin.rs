@@ -792,7 +792,230 @@ pub async fn export_user_data(
     Ok(Json(data))
 }
 
-// ── Router ────────────────────────────────────────────────────────────────────
+// ── Handler: Dienstgrade ──────────────────────────────────────────────────────
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct DienstgradEntry {
+    pub id:                    Uuid,
+    pub name:                  String,
+    pub permissions:           Vec<String>,
+    pub level:                 Option<i32>,
+    pub previous_role_id:      Option<Uuid>,
+    pub previous_role_name:    Option<String>,
+    pub min_duration_months:   i32,
+    pub created_at:            DateTime<Utc>,
+}
+
+#[derive(Deserialize, Validate)]
+pub struct DienstgradBody {
+    #[validate(length(min = 1, max = 100))]
+    pub name:                String,
+    pub permissions:         Vec<String>,
+    pub previous_role_id:    Option<Uuid>,
+    #[validate(range(min = 0, max = 600))]
+    pub min_duration_months: Option<i32>,
+}
+
+async fn check_dienstgrad_permission(state: &AppState, claims: &Claims) -> Result<(), AppError> {
+    if claims.is_admin_or_above() {
+        return Ok(());
+    }
+    let has_perm: bool = sqlx::query_scalar(
+        "SELECT $1 = ANY(
+            SELECT unnest(COALESCE(u.permissions, '{}') || COALESCE(r.permissions, '{}'))
+            FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = $2
+            UNION
+            SELECT unnest(fr.permissions)
+            FROM user_functions uf JOIN roles fr ON fr.id = uf.role_id WHERE uf.user_id = $2
+         )"
+    )
+    .bind("personal.funktionen.schreiben")
+    .bind(claims.sub)
+    .fetch_one(&state.db)
+    .await
+    .unwrap_or(false);
+
+    if !has_perm {
+        return Err(AppError::Forbidden);
+    }
+    Ok(())
+}
+
+async fn check_circular_previous_role(state: &AppState, role_id: Uuid, previous_role_id: Uuid) -> Result<(), AppError> {
+    let mut current = previous_role_id;
+    for _ in 0..50 { // Max 50 Hops als Schutz
+        if current == role_id {
+            return Err(AppError::BadRequest("Zirkel-Verweis: Vorgänger-Dienstgrad führt zurück zum eigenen Eintrag".into()));
+        }
+        let next: Option<Uuid> = sqlx::query_scalar("SELECT previous_role_id FROM roles WHERE id = $1")
+            .bind(current)
+            .fetch_optional(&state.db)
+            .await
+            .ok();
+        match next {
+            Some(next_id) => current = next_id,
+            None => break,
+        }
+    }
+    Ok(())
+}
+
+pub async fn list_dienstgrade(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> AppResult<Json<Vec<DienstgradEntry>>> {
+    check_dienstgrad_permission(&state, &claims).await?;
+
+    let dienstgrade = sqlx::query_as::<_, DienstgradEntry>(
+        "SELECT r.id, r.name, r.permissions, r.level, r.previous_role_id,
+                pr.name as previous_role_name, r.min_duration_months, r.created_at
+         FROM roles r
+         LEFT JOIN roles pr ON pr.id = r.previous_role_id
+         WHERE r.type = 'dienstgrad'
+         ORDER BY r.level ASC NULLS LAST, r.name ASC"
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    Ok(Json(dienstgrade))
+}
+
+pub async fn create_dienstgrad(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<DienstgradBody>,
+) -> AppResult<Json<DienstgradEntry>> {
+    check_dienstgrad_permission(&state, &claims).await?;
+    body.validate()?;
+
+    let name = body.name.trim().to_string();
+    if name.is_empty() {
+        return Err(AppError::BadRequest("Dienstgrad-Name darf nicht leer sein".into()));
+    }
+
+    if let Some(prev_id) = body.previous_role_id {
+        check_circular_previous_role(&state, Uuid::nil(), prev_id).await?;
+    }
+
+    let permissions = filter_permissions(body.permissions);
+    let min_duration = body.min_duration_months.unwrap_or(0);
+
+    // Zuerst einfügen, dann mit JOIN auslesen (RETURNING kann kein JOIN)
+    let dg_id = sqlx::query_scalar::<_, Uuid>(
+        "INSERT INTO roles (name, permissions, type, level, previous_role_id, min_duration_months)
+         VALUES ($1, $2, 'dienstgrad', NULL, $3, $4) RETURNING id"
+    )
+    .bind(&name)
+    .bind(&permissions)
+    .bind(body.previous_role_id)
+    .bind(min_duration)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        if e.to_string().contains("unique") {
+            AppError::BadRequest("Dienstgrad-Name bereits vergeben".into())
+        } else {
+            AppError::Database(e)
+        }
+    })?;
+
+    let dg = sqlx::query_as::<_, DienstgradEntry>(
+        "SELECT r.id, r.name, r.permissions, r.level, r.previous_role_id,
+                pr.name as previous_role_name, r.min_duration_months, r.created_at
+         FROM roles r
+         LEFT JOIN roles pr ON pr.id = r.previous_role_id
+         WHERE r.id = $1 AND r.type = 'dienstgrad'"
+    )
+    .bind(dg_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    Ok(Json(dg))
+}
+
+pub async fn update_dienstgrad(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<DienstgradBody>,
+) -> AppResult<Json<DienstgradEntry>> {
+    check_dienstgrad_permission(&state, &claims).await?;
+    body.validate()?;
+
+    let name = body.name.trim().to_string();
+    if name.is_empty() {
+        return Err(AppError::BadRequest("Dienstgrad-Name darf nicht leer sein".into()));
+    }
+
+    if let Some(prev_id) = body.previous_role_id {
+        if prev_id == id {
+            return Err(AppError::BadRequest("Ein Dienstgrad kann nicht sein eigener Vorgänger sein".into()));
+        }
+        check_circular_previous_role(&state, id, prev_id).await?;
+    }
+
+    let permissions = filter_permissions(body.permissions);
+    let min_duration = body.min_duration_months.unwrap_or(0);
+
+    let dg = sqlx::query_as::<_, DienstgradEntry>(
+        "UPDATE roles SET name = $1, permissions = $2, previous_role_id = $3, min_duration_months = $4
+         WHERE id = $5 AND type = 'dienstgrad'
+         RETURNING r.id, r.name, r.permissions, r.level, r.previous_role_id,
+                   pr.name as previous_role_name, r.min_duration_months, r.created_at
+         FROM roles r LEFT JOIN roles pr ON pr.id = r.previous_role_id
+         WHERE r.id = $5"
+    )
+    .bind(&name)
+    .bind(&permissions)
+    .bind(body.previous_role_id)
+    .bind(min_duration)
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    Ok(Json(dg))
+}
+
+pub async fn delete_dienstgrad(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> AppResult<Json<serde_json::Value>> {
+    check_dienstgrad_permission(&state, &claims).await?;
+
+    // Prüfen ob Dienstgrad noch von Mitgliedern verwendet wird
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM member_details WHERE dienstgrad_id = $1"
+    )
+    .bind(id)
+    .fetch_one(&state.db)
+    .await?;
+
+    let func_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM user_functions WHERE role_id = $1"
+    )
+    .bind(id)
+    .fetch_one(&state.db)
+    .await?;
+
+    if count + func_count > 0 {
+        return Err(AppError::BadRequest(format!(
+            "Dienstgrad wird noch von {} Benutzer(n) verwendet", count + func_count
+        )));
+    }
+
+    let result = sqlx::query("DELETE FROM roles WHERE id = $1 AND type = 'dienstgrad'")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(Json(serde_json::json!({ "message": "Dienstgrad gelöscht" })))
+}
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
@@ -812,6 +1035,8 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/audit-log", get(get_audit_log))
         .route("/container-log", get(get_container_log))
         .route("/update-check", get(check_for_update))
+        .route("/dienstgrade", get(list_dienstgrade).post(create_dienstgrad))
+        .route("/dienstgrade/:id", put(update_dienstgrad).delete(delete_dienstgrad))
         .route_layer(middleware::from_fn_with_state(state, require_auth))
 }
 
