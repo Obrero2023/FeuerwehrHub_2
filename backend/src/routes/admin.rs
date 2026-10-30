@@ -869,7 +869,7 @@ async fn check_circular_previous_role(state: &AppState, role_id: Uuid, previous_
         if current == role_id {
             return Err(AppError::BadRequest("Zirkel-Verweis: Vorgänger-Dienstgrad führt zurück zum eigenen Eintrag".into()));
         }
-        let next: Option<Uuid> = sqlx::query_scalar::<Option<Uuid>>("SELECT previous_role_id FROM roles WHERE id = $1")
+        let next: Option<Uuid> = sqlx::query_scalar::<_, Option<Uuid>>("SELECT previous_role_id FROM roles WHERE id = $1")
             .bind(current)
             .fetch_optional(&state.db)
             .await?;
