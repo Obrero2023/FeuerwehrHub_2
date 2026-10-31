@@ -402,10 +402,6 @@ export async function renderAdmin() {
           <button class="btn btn--primary btn--sm" id="btn-new-dienstgrad">+ Neuen Dienstgrad erstellen</button>
         </div>
         <div class="card__body">
-          <p class="text-muted text-sm mb-md">
-            Hier können neue Dienstgrade angelegt werden, die getrennt vom Rollen-System verwaltet werden.
-            Die Liste startet leer — keine vorgegebenen Dienstgrade.
-          </p>
           <div id="dienstgrade-table-wrap">
             <p class="text-subtle text-sm">Noch keine Dienstgrade angelegt.</p>
           </div>
@@ -437,14 +433,6 @@ export async function renderAdmin() {
               <label>Mindesthaltezeit (Monate)</label>
               <input type="number" id="dg-min-duration" min="0" max="600" value="0" />
               <small class="text-subtle">Wie lange muss der Vorgänger-Dienstgrad gehalten werden, um befordert werden zu können?</small>
-            </div>
-            <div class="form-group">
-              <label>Level (optional)</label>
-              <input type="number" id="dg-level" min="0" placeholder="z.B. 10, 20, 30" />
-            </div>
-            <div class="form-group form-group--full">
-              <label>Module (Berechtigungen)</label>
-              <div id="dg-perm-checks" class="admin-check-list"></div>
             </div>
           </div>
         </div>
@@ -1787,24 +1775,12 @@ async function loadIntegrations() {
 
 // ── Dienstgrade ─────────────────────────────────────────────────────────────
 
-function buildPermCheckboxes(selected = []) {
-  const el = document.getElementById('dg-perm-checks');
-  if (!el) return;
-  el.innerHTML = Object.entries(MODULE_LABELS).map(([key, label]) => `
-    <label class="check-label">
-      <input type="checkbox" value="${key}" ${selected.includes(key) ? 'checked' : ''} />
-      ${label}
-    </label>
-  `).join('');
-}
-
 function closeModal() {
   document.getElementById('modal-dienstgrad')?.classList.remove('active');
   document.getElementById('dg-name').value = '';
   const sel = document.getElementById('dg-previous');
   if (sel) sel.innerHTML = '<option value="">– keinen Vorgänger –</option>';
   document.getElementById('dg-min-duration').value = '0';
-  document.getElementById('dg-level').value = '';
 }
 
 async function loadDienstgrade() {
@@ -1839,11 +1815,9 @@ async function loadDienstgrade() {
       document.getElementById('dg-modal-title').textContent = 'Dienstgrad anlegen';
       document.getElementById('dg-name').value = '';
       document.getElementById('dg-min-duration').value = '0';
-      document.getElementById('dg-level').value = '';
       const sel = document.getElementById('dg-previous');
       sel.innerHTML = `<option value="">– keinen Vorgänger –</option>` +
         dgRoles.map(r => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('');
-      buildPermCheckboxes();
       document.getElementById('modal-dienstgrad').classList.add('active');
     });
   };
@@ -1861,8 +1835,6 @@ async function loadDienstgrade() {
   document.getElementById('btn-submit-dg')?.addEventListener('click', async () => {
     const name = document.getElementById('dg-name').value.trim();
     if (!name) { toast('Name eingeben', 'error'); return; }
-    const permissions = [...document.querySelectorAll('#dg-perm-checks input:checked')]
-      .map(cb => cb.value);
     const minDuration = document.getElementById('dg-min-duration').value
       ? +document.getElementById('dg-min-duration').value : 0;
     const previousRoleId = document.getElementById('dg-previous').value || null;
@@ -1870,12 +1842,12 @@ async function loadDienstgrade() {
     try {
       if (editTarget) {
         await api.updateDienstgrad(editTarget, {
-          name, permissions, previous_role_id: previousRoleId, min_duration_months: minDuration
+          name, permissions: [], previous_role_id: previousRoleId, min_duration_months: minDuration
         });
         toast('Dienstgrad gespeichert');
       } else {
         await api.createDienstgrad({
-          name, permissions, previous_role_id: previousRoleId, min_duration_months: minDuration
+          name, permissions: [], previous_role_id: previousRoleId, min_duration_months: minDuration
         });
         toast(`Dienstgrad "${name}" angelegt`);
       }
