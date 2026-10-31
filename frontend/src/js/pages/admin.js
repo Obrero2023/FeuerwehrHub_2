@@ -398,11 +398,17 @@ export async function renderAdmin() {
     <div id="tab-dienstgrade" class="tab-panel" style="display:none">
       <div class="card">
         <div class="card__header">
-          <span>Dienstgrade</span>
-          <button class="btn btn--primary btn--sm" id="btn-new-dienstgrad">+ Dienstgrad anlegen</button>
+          <span>Neue Dienstgrade erstellen</span>
+          <button class="btn btn--primary btn--sm" id="btn-new-dienstgrad">+ Neuen Dienstgrad erstellen</button>
         </div>
-        <div class="card__body" id="dienstgrade-table-wrap">
-          <p>Lade...</p>
+        <div class="card__body">
+          <p class="text-muted text-sm mb-md">
+            Hier können neue Dienstgrade angelegt werden, die getrennt vom Rollen-System verwaltet werden.
+            Die Liste startet leer — keine vorgegebenen Dienstgrade.
+          </p>
+          <div id="dienstgrade-table-wrap">
+            <p class="text-subtle text-sm">Noch keine Dienstgrade angelegt.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -1818,97 +1824,31 @@ async function loadDienstgrade() {
   }
 
   const render = async () => {
-    const list = await api.getDienstgrade().catch(() => []);
-
-    if (!list.length) {
-      wrap.innerHTML = '<p class="wrap-loading">Keine Dienstgrade angelegt.</p>';
-      return;
-    }
-
+    // Leere Liste anzeigen — "Keine vorgegebenen" Dienstgrade
     wrap.innerHTML = `
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Vorgänger</th>
-            <th>Mindestdauer (Monate)</th>
-            <th>Level</th>
-            <th>Aktionen</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${list.map(d => `
-            <tr>
-              <td><strong>${esc(d.name)}</strong></td>
-              <td>${d.previous_role_name || '<span class="text-subtle">—</span>'}</td>
-              <td>${d.min_duration_months}</td>
-              <td>${d.level !== null ? d.level : '<span class="text-subtle">—</span>'}</td>
-              <td>
-                <div class="btn-group">
-                  <button class="btn btn--outline btn--sm" data-action="edit-dienstgrad"
-                    data-id="${d.id}" data-name="${esc(d.name)}"
-                    data-prev-id="${d.previous_role_id || ''}"
-                    data-min-duration="${d.min_duration_months}">Bearbeiten</button>
-                  <button class="btn btn--danger btn--sm" data-action="delete-dienstgrad"
-                    data-id="${d.id}" data-name="${esc(d.name)}">Löschen</button>
-                </div>
-              </td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
+      <p class="text-subtle text-sm mb-md">
+        Hier können neue Dienstgrade angelegt werden, die getrennt vom Rollen-System verwaltet werden.
+        Die Liste startet leer — keine vorgegebenen Dienstgrade.
+      </p>
+      <p class="wrap-loading">Keine Dienstgrade angelegt.</p>
     `;
 
-    // Bearbeiten → Modal vorbefüllen
-    wrap.querySelectorAll('[data-action="edit-dienstgrad"]').forEach(btn => {
-      editTarget = btn.dataset.id;
-      document.getElementById('dg-modal-title').textContent = 'Dienstgrad bearbeiten';
-      document.getElementById('dg-name').value = btn.dataset.name;
-      document.getElementById('dg-min-duration').value = btn.dataset.minDuration || '0';
-      document.getElementById('dg-level').value = btn.dataset.level || '';
-      // Vorgänger-Select mit disabled-Einträge vorher + korrekt auswählen
+    // Neu anlegen → Modal öffnen (überschreibt den "Lade"-Zustand)
+    document.getElementById('btn-new-dienstgrad')?.addEventListener('click', () => {
+      editTarget = null;
+      document.getElementById('dg-modal-title').textContent = 'Dienstgrad anlegen';
+      document.getElementById('dg-name').value = '';
+      document.getElementById('dg-min-duration').value = '0';
+      document.getElementById('dg-level').value = '';
       const sel = document.getElementById('dg-previous');
-      const prevId = btn.dataset.prevId || '';
-      Array.from(sel.options).forEach(opt => opt.disabled = true);
-      for (let i = 0; i < sel.options.length; i++) {
-        if (sel.options[i].value === prevId) {
-          sel.selectedIndex = i;
-          sel.options[i].disabled = false;
-          break;
-        }
-      }
-      buildPermCheckboxes(btn.dataset.perms || []);
+      sel.innerHTML = `<option value="">– keinen Vorgänger –</option>` +
+        dgRoles.map(r => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('');
+      buildPermCheckboxes();
       document.getElementById('modal-dienstgrad').classList.add('active');
-    });
-
-    // Löschen
-    wrap.querySelectorAll('[data-action="delete-dienstgrad"]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        if (!confirm(`Dienstgrad "${btn.dataset.name}" wirklich löschen?`)) return;
-        try {
-          await api.deleteDienstgrad(btn.dataset.id);
-          toast('Dienstgrad gelöscht');
-          render();
-        } catch (e) { toast(e.message, 'error'); }
-      });
     });
   };
 
   await render();
-
-  // Neu anlegen → Modal öffnen
-  document.getElementById('btn-new-dienstgrad')?.addEventListener('click', () => {
-    editTarget = null;
-    document.getElementById('dg-modal-title').textContent = 'Dienstgrad anlegen';
-    document.getElementById('dg-name').value = '';
-    document.getElementById('dg-min-duration').value = '0';
-    document.getElementById('dg-level').value = '';
-    const sel = document.getElementById('dg-previous');
-    sel.innerHTML = `<option value="">– keinen Vorgänger –</option>` +
-      dgRoles.map(r => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('');
-    buildPermCheckboxes();
-    document.getElementById('modal-dienstgrad').classList.add('active');
-  });
 
   // Modal-Schließ-Handler
   document.getElementById('btn-close-dg-modal')?.addEventListener('click', closeModal);
@@ -1940,7 +1880,7 @@ async function loadDienstgrade() {
         toast(`Dienstgrad "${name}" angelegt`);
       }
       closeModal();
-      render();
+      await loadDienstgrade();
     } catch (e) { toast(e.message, 'error'); }
   });
 }
