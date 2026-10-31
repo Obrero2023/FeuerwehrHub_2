@@ -1789,27 +1789,95 @@ async function loadDienstgrade() {
 
   let editTarget = null;
 
-  // Lade Rollen, um das Vorgänger-Select zu füllen
-  const alleRollen = await api.getRoles().catch(() => []);
-  const dgRoles = alleRollen.filter(r => r.type === 'dienstgrad');
-
-  const prevSelect = document.getElementById('dg-previous');
-  if (prevSelect) {
-    prevSelect.innerHTML = `<option value="">– keinen Vorgänger –</option>` +
-      dgRoles.map(r => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('');
-  }
+  // Lade bereits erstellte Dienstgrade für das Vorgänger-Select
+  const existingDienstgrade = await api.getDienstgrade().catch(() => []);
 
   const render = async () => {
-    // Leere Liste anzeigen — "Keine vorgegebenen" Dienstgrade
+    if (!existingDienstgrade.length) {
+      wrap.innerHTML = `
+        <p class="text-subtle text-sm mb-md">
+          Hier können neue Dienstgrade angelegt werden, die getrennt vom Rollen-System verwaltet werden.
+          Die Liste startet leer — keine vorgegebenen Dienstgrade.
+        </p>
+      `;
+      // Neu anlegen → Modal öffnen
+      document.getElementById('btn-new-dienstgrad')?.addEventListener('click', () => {
+        editTarget = null;
+        document.getElementById('dg-modal-title').textContent = 'Dienstgrad anlegen';
+        document.getElementById('dg-name').value = '';
+        document.getElementById('dg-min-duration').value = '0';
+        const sel = document.getElementById('dg-previous');
+        sel.innerHTML = '<option value="">– keinen Vorgänger –</option>';
+        document.getElementById('modal-dienstgrad').classList.add('active');
+      });
+      return;
+    }
+
     wrap.innerHTML = `
       <p class="text-subtle text-sm mb-md">
         Hier können neue Dienstgrade angelegt werden, die getrennt vom Rollen-System verwaltet werden.
         Die Liste startet leer — keine vorgegebenen Dienstgrade.
       </p>
-      <p class="wrap-loading">Keine Dienstgrade angelegt.</p>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Vorgänger</th>
+            <th>Mindestdauer (Monate)</th>
+            <th>Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${existingDienstgrade.map(d => `
+            <tr>
+              <td><strong>${esc(d.name)}</strong></td>
+              <td>${d.previous_role_name || '<span class="text-subtle">—</span>'}</td>
+              <td>${d.min_duration_months}</td>
+              <td>
+                <div class="btn-group">
+                  <button class="btn btn--outline btn--sm" data-action="edit-dienstgrad"
+                    data-id="${d.id}" data-name="${esc(d.name)}"
+                    data-prev-id="${d.previous_role_id || ''}"
+                    data-min-duration="${d.min_duration_months}">Bearbeiten</button>
+                  <button class="btn btn--danger btn--sm" data-action="delete-dienstgrad"
+                    data-id="${d.id}" data-name="${esc(d.name)}">Löschen</button>
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
     `;
 
-    // Neu anlegen → Modal öffnen (überschreibt den "Lade"-Zustand)
+    // Bearbeiten → Modal vorbefüllen
+    wrap.querySelectorAll('[data-action="edit-dienstgrad"]').forEach(btn => {
+      editTarget = btn.dataset.id;
+      document.getElementById('dg-modal-title').textContent = 'Dienstgrad bearbeiten';
+      document.getElementById('dg-name').value = btn.dataset.name;
+      document.getElementById('dg-min-duration').value = btn.dataset.minDuration || '0';
+      const sel = document.getElementById('dg-previous');
+      const prevId = btn.dataset.prevId || '';
+      // Vorgänger-Select mit den bereits erstellten Dienstgraden befüllen
+      sel.innerHTML = `<option value="">– keinen Vorgänger –</option>` +
+        existingDienstgrade.filter(d => d.id !== editTarget).map(d =>
+          `<option value="${esc(d.id)}" ${d.id === prevId ? 'selected' : ''}>${esc(d.name)}</option>`
+        ).join('');
+      document.getElementById('modal-dienstgrad').classList.add('active');
+    });
+
+    // Löschen
+    wrap.querySelectorAll('[data-action="delete-dienstgrad"]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm(`Dienstgrad "${btn.dataset.name}" wirklich löschen?`)) return;
+        try {
+          await api.deleteDienstgrad(btn.dataset.id);
+          toast('Dienstgrad gelöscht');
+          await loadDienstgrade();
+        } catch (e) { toast(e.message, 'error'); }
+      });
+    });
+
+    // Neu anlegen → Modal öffnen
     document.getElementById('btn-new-dienstgrad')?.addEventListener('click', () => {
       editTarget = null;
       document.getElementById('dg-modal-title').textContent = 'Dienstgrad anlegen';
@@ -1817,7 +1885,9 @@ async function loadDienstgrade() {
       document.getElementById('dg-min-duration').value = '0';
       const sel = document.getElementById('dg-previous');
       sel.innerHTML = `<option value="">– keinen Vorgänger –</option>` +
-        dgRoles.map(r => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('');
+        existingDienstgrade.map(d =>
+          `<option value="${esc(d.id)}">${esc(d.name)}</option>`
+        ).join('');
       document.getElementById('modal-dienstgrad').classList.add('active');
     });
   };
