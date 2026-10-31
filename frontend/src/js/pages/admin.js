@@ -407,6 +407,48 @@ export async function renderAdmin() {
       </div>
     </div>
 
+    <!-- Modal: Dienstgrad anlegen/bearbeiten -->
+    <div id="modal-dienstgrad" class="modal-overlay">
+      <div class="modal modal--xs">
+        <div class="modal__header">
+          <h3 id="dg-modal-title">Dienstgrad anlegen</h3>
+          <button class="modal__close" id="btn-close-dg-modal">✕</button>
+        </div>
+        <div class="modal__body">
+          <div class="form-grid">
+            <div class="form-group form-group--full">
+              <label>Name <span class="required">*</span></label>
+              <input type="text" id="dg-name" maxlength="100" placeholder="z.B. Truppmann, Gruppenführer" autocomplete="off" />
+            </div>
+            <div class="form-group">
+              <label>Vorgänger-Dienstgrad</label>
+              <select id="dg-previous" class="field">
+                <option value="">– kein Vorgänger –</option>
+              </select>
+              <small class="text-subtle">Welcher Dienstgrad muss vorher absolviert werden?</small>
+            </div>
+            <div class="form-group">
+              <label>Mindesthaltezeit (Monate)</label>
+              <input type="number" id="dg-min-duration" min="0" max="600" value="0" />
+              <small class="text-subtle">Wie lange muss der Vorgänger-Dienstgrad gehalten werden, um befordert werden zu können?</small>
+            </div>
+            <div class="form-group">
+              <label>Level (optional)</label>
+              <input type="number" id="dg-level" min="0" placeholder="z.B. 10, 20, 30" />
+            </div>
+            <div class="form-group form-group--full">
+              <label>Module (Berechtigungen)</label>
+              <div id="dg-perm-checks" class="admin-check-list"></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal__footer">
+          <button class="btn btn--primary" id="btn-submit-dg">Speichern</button>
+          <button class="btn btn--outline" id="btn-cancel-dg">Abbrechen</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal: Badge-Code setzen -->
     <div id="modal-badge" class="modal-overlay">
       <div class="modal">
@@ -1734,5 +1776,171 @@ async function loadIntegrations() {
     } catch (e) {
       toast(e.message, 'error');
     }
+  });
+}
+
+// ── Dienstgrade ─────────────────────────────────────────────────────────────
+
+function buildPermCheckboxes(selected = []) {
+  const el = document.getElementById('dg-perm-checks');
+  if (!el) return;
+  el.innerHTML = Object.entries(MODULE_LABELS).map(([key, label]) => `
+    <label class="check-label">
+      <input type="checkbox" value="${key}" ${selected.includes(key) ? 'checked' : ''} />
+      ${label}
+    </label>
+  `).join('');
+}
+
+function closeModal() {
+  document.getElementById('modal-dienstgrad')?.classList.remove('active');
+  document.getElementById('dg-name').value = '';
+  const sel = document.getElementById('dg-previous');
+  if (sel) sel.innerHTML = '<option value="">– keinen Vorgänger –</option>';
+  document.getElementById('dg-min-duration').value = '0';
+  document.getElementById('dg-level').value = '';
+}
+
+async function loadDienstgrade() {
+  const wrap = document.getElementById('dienstgrade-table-wrap');
+  if (!wrap) return;
+
+  let editTarget = null;
+
+  // Lade Rollen, um das Vorgänger-Select zu füllen
+  const alleRollen = await api.getRoles().catch(() => []);
+  const dgRoles = alleRollen.filter(r => r.type === 'dienstgrad');
+
+  const prevSelect = document.getElementById('dg-previous');
+  if (prevSelect) {
+    prevSelect.innerHTML = `<option value="">– keinen Vorgänger –</option>` +
+      dgRoles.map(r => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('');
+  }
+
+  const render = async () => {
+    const list = await api.getDienstgrade().catch(() => []);
+
+    if (!list.length) {
+      wrap.innerHTML = '<p class="wrap-loading">Keine Dienstgrade angelegt.</p>';
+      return;
+    }
+
+    wrap.innerHTML = `
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Vorgänger</th>
+            <th>Mindestdauer (Monate)</th>
+            <th>Level</th>
+            <th>Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${list.map(d => `
+            <tr>
+              <td><strong>${esc(d.name)}</strong></td>
+              <td>${d.previous_role_name || '<span class="text-subtle">—</span>'}</td>
+              <td>${d.min_duration_months}</td>
+              <td>${d.level !== null ? d.level : '<span class="text-subtle">—</span>'}</td>
+              <td>
+                <div class="btn-group">
+                  <button class="btn btn--outline btn--sm" data-action="edit-dienstgrad"
+                    data-id="${d.id}" data-name="${esc(d.name)}"
+                    data-prev-id="${d.previous_role_id || ''}"
+                    data-min-duration="${d.min_duration_months}">Bearbeiten</button>
+                  <button class="btn btn--danger btn--sm" data-action="delete-dienstgrad"
+                    data-id="${d.id}" data-name="${esc(d.name)}">Löschen</button>
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+
+    // Bearbeiten → Modal vorbefüllen
+    wrap.querySelectorAll('[data-action="edit-dienstgrad"]').forEach(btn => {
+      editTarget = btn.dataset.id;
+      document.getElementById('dg-modal-title').textContent = 'Dienstgrad bearbeiten';
+      document.getElementById('dg-name').value = btn.dataset.name;
+      document.getElementById('dg-min-duration').value = btn.dataset.minDuration || '0';
+      document.getElementById('dg-level').value = btn.dataset.level || '';
+      // Vorgänger-Select mit disabled-Einträge vorher + korrekt auswählen
+      const sel = document.getElementById('dg-previous');
+      const prevId = btn.dataset.prevId || '';
+      Array.from(sel.options).forEach(opt => opt.disabled = true);
+      for (let i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].value === prevId) {
+          sel.selectedIndex = i;
+          sel.options[i].disabled = false;
+          break;
+        }
+      }
+      buildPermCheckboxes(btn.dataset.perms || []);
+      document.getElementById('modal-dienstgrad').classList.add('active');
+    });
+
+    // Löschen
+    wrap.querySelectorAll('[data-action="delete-dienstgrad"]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm(`Dienstgrad "${btn.dataset.name}" wirklich löschen?`)) return;
+        try {
+          await api.deleteDienstgrad(btn.dataset.id);
+          toast('Dienstgrad gelöscht');
+          render();
+        } catch (e) { toast(e.message, 'error'); }
+      });
+    });
+  };
+
+  await render();
+
+  // Neu anlegen → Modal öffnen
+  document.getElementById('btn-new-dienstgrad')?.addEventListener('click', () => {
+    editTarget = null;
+    document.getElementById('dg-modal-title').textContent = 'Dienstgrad anlegen';
+    document.getElementById('dg-name').value = '';
+    document.getElementById('dg-min-duration').value = '0';
+    document.getElementById('dg-level').value = '';
+    const sel = document.getElementById('dg-previous');
+    sel.innerHTML = `<option value="">– keinen Vorgänger –</option>` +
+      dgRoles.map(r => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('');
+    buildPermCheckboxes();
+    document.getElementById('modal-dienstgrad').classList.add('active');
+  });
+
+  // Modal-Schließ-Handler
+  document.getElementById('btn-close-dg-modal')?.addEventListener('click', closeModal);
+  document.getElementById('btn-cancel-dg')?.addEventListener('click', closeModal);
+  document.getElementById('modal-dienstgrad')?.addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModal();
+  });
+
+  // Modal absenden
+  document.getElementById('btn-submit-dg')?.addEventListener('click', async () => {
+    const name = document.getElementById('dg-name').value.trim();
+    if (!name) { toast('Name eingeben', 'error'); return; }
+    const permissions = [...document.querySelectorAll('#dg-perm-checks input:checked')]
+      .map(cb => cb.value);
+    const minDuration = document.getElementById('dg-min-duration').value
+      ? +document.getElementById('dg-min-duration').value : 0;
+    const previousRoleId = document.getElementById('dg-previous').value || null;
+
+    try {
+      if (editTarget) {
+        await api.updateDienstgrad(editTarget, {
+          name, permissions, previous_role_id: previousRoleId, min_duration_months: minDuration
+        });
+        toast('Dienstgrad gespeichert');
+      } else {
+        await api.createDienstgrad({
+          name, permissions, previous_role_id: previousRoleId, min_duration_months: minDuration
+        });
+        toast(`Dienstgrad "${name}" angelegt`);
+      }
+      closeModal();
+      render();
+    } catch (e) { toast(e.message, 'error'); }
   });
 }
