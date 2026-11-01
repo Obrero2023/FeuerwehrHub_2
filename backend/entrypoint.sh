@@ -18,4 +18,4 @@ mkdir -p /data /data/signaturen || true
 # unsupported filesystem, or already correct ownership)
 chown -R app:app /data 2>/dev/null || true
 
-exec runuser -u app -- /app/feuerwehrhub
+exec gosu app /app/feuerwehrhub

@@ -47,4 +47,9 @@ RUN groupadd -r app \
     && mkdir -p /data /data/signaturen \
     && chown -R app:app /data /app/feuerwehrhub
 
+# Install gosu für privilegienarmen User-Wechsel (funktioniert auch mit cap_drop: ALL)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gosu && \
+    rm -rf /var/lib/apt/lists/*
+
 CMD ["/entrypoint.sh"]
