@@ -27,6 +27,8 @@ import { renderDienstReports } from './pages/dienst-reports.js';
 import { renderIntranet } from './pages/intranet.js';
 import { renderVehicleBookings } from './pages/vehicle-bookings.js';
 import { renderTeilnahmebescheinigung } from './pages/teilnahmebescheinigung.js';
+import { renderLehrgaenge, renderLehrgangDetail, renderLehrgangEdit, renderLehrgangAnmeldungen } from './pages/lehrgaenge.js';
+import { renderJugendfeuerwehr, renderJugendfeuerwehrMitglieder, renderJugendfeuerwehrAnwerter, renderJugendfeuerwehrKleiderkammer, renderJugendfeuerwehrDienstteilnahmen } from './pages/jugendfeuerwehr.js';
 
 // Routen registrieren
 registerRoute('#/login',     renderLogin);
@@ -56,6 +58,15 @@ registerRoute('#/dienstberichte', renderDienstReports);
 registerRoute('#/intranet', renderIntranet);
 registerRoute('#/teilnahmebescheinigung', renderTeilnahmebescheinigung, ['teilnahmebescheinigung', 'teilnahmebescheinigung.schreiben']);
 registerRoute('#/fahrzeugbuchung', renderVehicleBookings, 'fahrzeugbuchung');
+registerRoute('#/lehrgaenge',  renderLehrgaenge,  ['lehrgangsverwaltung', 'lehrgangsverwaltung.lesen', 'lehrgangsverwaltung.verwalten', 'lehrgangsverwaltung.admin']);
+registerRoute('#/lehrgang/:id',  renderLehrgangDetail,  ['lehrgangsverwaltung', 'lehrgangsverwaltung.lesen', 'lehrgangsverwaltung.verwalten', 'lehrgangsverwaltung.admin']);
+registerRoute('#/lehrgang-edit/:id',  renderLehrgangEdit,  ['lehrgangsverwaltung.verwalten', 'lehrgangsverwaltung.admin']);
+registerRoute('#/lehrgang/:id/anmeldungen',  renderLehrgangAnmeldungen,  ['lehrgangsverwaltung', 'lehrgangsverwaltung.verwalten', 'lehrgangsverwaltung.admin']);
+registerRoute('#/jugendfeuerwehr', renderJugendfeuerwehr, ['jugendfeuerwehr', 'jugendfeuerwehr.lesen']);
+registerRoute('#/jugendfeuerwehr/mitglieder', renderJugendfeuerwehrMitglieder, ['jugendfeuerwehr', 'jugendfeuerwehr.lesen']);
+registerRoute('#/jugendfeuerwehr/anwerter', renderJugendfeuerwehrAnwerter, ['jugendfeuerwehr', 'jugendfeuerwehr.lesen']);
+registerRoute('#/jugendfeuerwehr/kleiderkammer', renderJugendfeuerwehrKleiderkammer, ['jugendfeuerwehr', 'jugendfeuerwehr.lesen']);
+registerRoute('#/jugendfeuerwehr/dienstteilnahmen', renderJugendfeuerwehrDienstteilnahmen, ['jugendfeuerwehr', 'jugendfeuerwehr.lesen']);
 
 // Scan-Route (dynamisch, tokenbasiert)
 registerScanRoute(renderScanView);

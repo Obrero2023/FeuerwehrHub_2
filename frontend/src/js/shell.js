@@ -19,6 +19,8 @@ const MODULE_ACCENTS = {
   verein:          '#7c3aed',
   intranet:        '#0891b2',
   teilnahmebescheinigung: '#7c3aed',
+  lehrgangsverwaltung: '#c026d3',  // pink-violet
+  jugendfeuerwehr: '#0ea5e9',  // sky-blue
 };
 
 const PAGE_MODULE = {
@@ -39,9 +41,13 @@ const PAGE_MODULE = {
   'hlf2-inspection':    'fahrzeugpruefung',
   'mtf-inspection':     'fahrzeugpruefung',
   'fahrzeugbuchung': 'fahrzeugbuchung',
-  'teilnahmebescheinigung': 'teilnahmebescheinigung',
   verein:          'verein',
   intranet:        'intranet',
+  lehrgaenge:      'lehrgangsverwaltung',
+  jugendfeuerwehr:            'jugendfeuerwehr',
+  'jugendfeuerwehr/anwerter':        'jugendfeuerwehr',
+  'jugendfeuerwehr/kleiderkammer':   'jugendfeuerwehr',
+  'jugendfeuerwehr/dienstteilnahmen':'jugendfeuerwehr',
 };
 
 const MODULE_COLORS = {
@@ -50,9 +56,11 @@ const MODULE_COLORS = {
   fahrzeuge:       { c: 'var(--fahrzeug-c)', hell: 'var(--fahrzeug-hell)' },
   fahrzeugpruefung: { c: 'var(--fahrzeug_checklist-c)', hell: 'var(--fahrzeug_checklist-hell)' },
   fahrzeugbuchung: { c: 'var(--fahrzeugbuchung-c)', hell: 'var(--fahrzeugbuchung-hell)' },
+  lehrgangsverwaltung: { c: 'var(--lehrgangsverwaltung-c)', hell: 'var(--lehrgangsverwaltung-hell)' },
   einsatzberichte: { c: 'var(--einsatz-c)',  hell: 'var(--einsatz-hell)' },
   verein:          { c: 'var(--verein-c)',   hell: 'var(--verein-hell)' },
   intranet:        { c: 'var(--intranet-c)', hell: 'var(--intranet-hell)' },
+  jugendfeuerwehr: { c: 'var(--jugendfeuerwehr-c)', hell: 'var(--jugendfeuerwehr-hell)' },
 };
 
 export function setShellInfo(name, user, modules) {
@@ -64,7 +72,16 @@ export function setShellInfo(name, user, modules) {
 export function canAccess(user, permission) {
   if (!user) return false;
   if (user.role === 'admin' || user.role === 'superuser') return true;
-  return (user.permissions || []).includes(permission);
+  const perms = user.permissions || [];
+  if (perms.includes(permission)) return true;
+  // Hierarchie für Module prüfen: Admin-Rechte erlauben auch die Basis-Permission
+  // z.B. 'lehrgangsverwaltung.verwalten' → auch 'lehrgangsverwaltung.lesen'
+  const base = permission.split('.')[0];
+  if (base !== permission && perms.includes(base)) return true;
+  // Lehrgangsverwaltung: Verwalten- und Admin-Rechte erlauben auch Lesen
+  if (permission === 'lehrgangsverwaltung.lesen' && (perms.includes('lehrgangsverwaltung.verwalten') || perms.includes('lehrgangsverwaltung.admin'))) return true;
+  if (permission === 'lehrgangsverwaltung' && (perms.includes('lehrgangsverwaltung.verwalten') || perms.includes('lehrgangsverwaltung.admin'))) return true;
+  return false;
 }
 
 function showModule(minPerm, moduleKey) {
@@ -98,12 +115,12 @@ function ddIcon(icon, module) {
 
 function buildNavItem(moduleKey, label, items) {
   const primaryPage = items[0].page;
-  const isActive = isModuleActive(moduleKey);
+  const moduleActive = isModuleActive(moduleKey);
   const extraItems = items.slice(1);
 
   // No extra items → plain direct link
   if (!extraItems.length) {
-    return `<button class="topnav__item${isActive_(primaryPage) ? ' active' : ''}" data-page="${primaryPage}">${label}</button>`;
+    return `<button class="topnav__item${isActive(primaryPage) ? ' active' : ''}" data-page="${primaryPage}">${label}</button>`;
   }
 
   // Has extra items → direct link + dropdown arrow for secondary pages
@@ -179,10 +196,6 @@ function buildShell() {
     { page: 'fahrzeugbuchung', label: 'Fahrzeugbuchung', icon: icon('calendar', 16) },
   ];
 
-  const teilnahmebescheinigungItems = [
-    { page: 'teilnahmebescheinigung', label: 'Teilnahmebescheinigung', icon: icon('file-text', 16) },
-  ];
-
   return `
     <div class="app-shell" style="--accent: ${accent}">
 
@@ -218,7 +231,6 @@ function buildShell() {
         ${showModule('verein', 'verein')               ? buildNavItem('verein',          'Verein',   vereinItems)   : ''}
         ${showModulePublic('intranet')         ? buildNavItem('intranet',        'Intranet', intranetItems) : ''}
         ${showModule('fahrzeugbuchung', 'fahrzeugbuchung') ? buildNavItem('fahrzeugbuchung', 'Fahrzeugbuchung', fahrzeugbuchungItems) : ''}
-        ${showModule('teilnahmebescheinigung', 'teilnahmebescheinigung') ? buildNavItem('teilnahmebescheinigung', 'Teilnahmebescheinigung', teilnahmebescheinigungItems) : ''}
 
         <div class="topnav__spacer"></div>
 

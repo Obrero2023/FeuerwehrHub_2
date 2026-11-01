@@ -1,3 +1,5 @@
+import { setRedirect } from './redirect-store.js';
+
 const BASE = "/api";
 
 let _authenticated = null; // null=unbekannt, true=eingeloggt, false=ausgeloggt
@@ -19,14 +21,29 @@ async function request(method, path, body) {
 
   if (res.status === 401) {
     _authenticated = false;
+    // Store the current hash for redirect after login
+    setRedirect(window.location.hash);
     window.location.hash = "#/login";
     return null;
   }
 
-  const data = await res.json().catch(() => null);
+  // Try to get the raw text first, then parse as JSON if possible
+  const rawText = await res.text();
+  let data = null;
+  try {
+    if (rawText) {
+      data = JSON.parse(rawText);
+    }
+  } catch (_) {
+    // Not JSON, keep data as null
+  }
 
   if (!res.ok) {
-    throw new Error(data?.error || `HTTP ${res.status}`);
+    const err = new Error(data?.error || rawText || `HTTP ${res.status}`);
+    // Attach the raw response for debugging
+    err.rawResponse = rawText;
+    err.status = res.status;
+    throw err;
   }
 
   return data;
@@ -425,6 +442,73 @@ export const api = {
   deleteStempel: () => request("DELETE", "/participation-certificates/stempel"),
   getUnitLeaders: () => request("GET", "/participation-certificates/unit-leaders"),
 
+  // ── Lehrgangsarten ─────────────────────────────────────────────
+  getLehrgangsarten: () => request("GET", "/lehrgaenge/lehrgangsarten"),
+  createLehrgangsart: (body) => request("POST", "/lehrgaenge/lehrgangsarten", body),
+  updateLehrgangsart: (id, body) => request("PUT", `/lehrgaenge/lehrgangsarten/${id}`, body),
+  deleteLehrgangsart: (id) => request("DELETE", `/lehrgaenge/lehrgangsarten/${id}`),
+
+  // ── Lehrgangsverwaltung ──────────────────────────────────────────
+  getLehrgaenge: (params) => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(params || {})) {
+      if (v != null && v !== "") p.append(k, v);
+    }
+    return request("GET", `/lehrgaenge?${p}`);
+  },
+  getLehrgang: (id) => request("GET", `/lehrgaenge/${id}`),
+  createLehrgang: (body) => request("POST", "/lehrgaenge", body),
+  updateLehrgang: (id, body) => request("PUT", `/lehrgaenge/${id}`, body),
+  deleteLehrgang: (id) => request("DELETE", `/lehrgaenge/${id}`),
+  getAnmeldungen: (lehrgangId) => request("GET", `/lehrgaenge/${lehrgangId}/anmeldungen`),
+  getMyAnmeldungen: () => request("GET", "/lehrgaenge/user/anmeldungen"),
+  createAnmeldung: (lehrgangId, body) => request("POST", `/lehrgaenge/${lehrgangId}/anmeldungen`, body),
+  updateAnmeldung: (lehrgangId, anmeldungId, body) => request("PUT", `/lehrgaenge/${lehrgangId}/anmeldungen/${anmeldungId}`, body),
+  deleteAnmeldung: (lehrgangId, anmeldungId) => request("DELETE", `/lehrgaenge/${lehrgangId}/anmeldungen/${anmeldungId}`),
+  generateEmailTemplate: (lehrgangId) => request("GET", `/lehrgaenge/${lehrgangId}/email-template`),
+
+  // ── Jugendfeuerwehr ─────────────────────────────────────────────────
+  getJugendmitglieder: () => request("GET", "/jugendfeuerwehr"),
+  getJugendmitgliederArchiviert: () => request("GET", "/jugendfeuerwehr/archiviert"),
+  getJugendmitglied: (id) => request("GET", `/jugendfeuerwehr/${id}`),
+  createJugendmitglied: (body) => request("POST", "/jugendfeuerwehr", body),
+  updateJugendmitglied: (id, body) => request("PUT", `/jugendfeuerwehr/${id}`, body),
+  deleteJugendmitglied: (id) => request("DELETE", `/jugendfeuerwehr/${id}`),
+
+  // Jugendfeuerwehr — Anwerter
+  getAnwaeter: () => request("GET", "/jugendfeuerwehr/anwaester"),
+  getAnwaeterArchiviert: () => request("GET", "/jugendfeuerwehr/anwaester/archiviert"),
+  getAnwerter: (id) => request("GET", `/jugendfeuerwehr/anwaester/${id}`),
+  createAnwerter: (body) => request("POST", "/jugendfeuerwehr/anwaester", body),
+  updateAnwerter: (id, body) => request("PUT", `/jugendfeuerwehr/anwaester/${id}`, body),
+  deleteAnwerter: (id) => request("DELETE", `/jugendfeuerwehr/anwaester/${id}`),
+  promoteAnwerter: (id) => request("POST", `/jugendfeuerwehr/anwaester/${id}/promote`),
+
+  // Jugendfeuerwehr — Dienstteilnahmen
+  getDienstteilnahmen: (anwerterId) => request("GET", `/jugendfeuerwehr/anwaester/${anwerterId}/dienstteilnahmen`),
+  createDienstteilnahme: (anwerterId, body) => request("POST", `/jugendfeuerwehr/anwaester/${anwerterId}/dienstteilnahmen`, body),
+  updateDienstteilnahme: (id, body) => request("PUT", `/jugendfeuerwehr/dienstteilnahmen/${id}`, body),
+
+  // Jugendfeuerwehr — Kleiderkammer
+  getLagerartikel: () => request("GET", "/jugendfeuerwehr/lagerartikel"),
+  getLagerartikelItem: (id) => request("GET", `/jugendfeuerwehr/lagerartikel/${id}`),
+  createLagerartikel: (body) => request("POST", "/jugendfeuerwehr/lagerartikel", body),
+  updateLagerartikel: (id, body) => request("PUT", `/jugendfeuerwehr/lagerartikel/${id}`, body),
+  deleteLagerartikel: (id) => request("DELETE", `/jugendfeuerwehr/lagerartikel/${id}`),
+  patchLagerartikelStock: (id, size, delta) => request("PATCH", `/jugendfeuerwehr/lagerartikel/${id}`, { size, delta }),
+  getKleiderausgaben: () => request("GET", "/jugendfeuerwehr/ausgaben"),
+  createKleiderausgabe: (body) => request("POST", "/jugendfeuerwehr/ausgaben", body),
+  rueckgabeKleiderausgabe: (ausgabeId, body) => request("POST", `/jugendfeuerwehr/ausgaben/${ausgabeId}/rueckgabe`, body),
+  createBestellung: (body) => request("POST", "/jugendfeuerwehr/bestellungen", body),
+  deleteKleiderausgabe: (ausgabeId) => request("DELETE", `/jugendfeuerwehr/ausgaben/${ausgabeId}`),
+  übernehmenKleiderartikel: (mitgliedId, lagerartikelId, menge, groesse) => request("POST", `/jugendfeuerwehr/uebernehmen`, { mitglied_id: mitgliedId, lagerartikel_id: lagerartikelId, menge, groesse }),
+  // Export: each youth member's clothing orders as CSV
+  getMitgliedBestellungen: (memberId) => request("GET", `/jugendfeuerwehr/${memberId}/export`),
+
+  // Jugendfeuerwehr — Mitgliedschaftsvorgänge
+  getMitgliedschaftsvorgaenge: (mitgliedId) => request("GET", `/jugendfeuerwehr/${mitgliedId}/vorgaenge`),
+  createMitgliedschaftsvorgang: (body) => request("POST", "/jugendfeuerwehr/vorgaenge", body),
+
   // Fahrtenbuch
   getTrips: (vid) => request("GET", `/vehicles/${vid}/trips`),
   createTrip: (vid, body) => request("POST", `/vehicles/${vid}/trips`, body),
@@ -736,6 +820,8 @@ export const api = {
     }).then(async (res) => {
       if (res.status === 401) {
         _authenticated = false;
+        // Store the current hash for redirect after login
+        setRedirect(window.location.hash);
         window.location.hash = "#/login";
         return null;
       }

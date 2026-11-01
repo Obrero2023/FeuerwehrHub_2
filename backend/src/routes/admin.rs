@@ -527,6 +527,10 @@ pub async fn update_permissions(
         "teilnahmebescheinigung",
         "teilnahmebescheinigung.schreiben",
         "teilnahmebescheinigung.admin",
+        "fahrzeugbuchung",
+        "fahrzeugbuchung.verwalten",
+        "lehrgangsverwaltung",
+        "lehrgangsverwaltung.verwalten",
     ];
     let permissions: Vec<String> = body.permissions
         .into_iter()

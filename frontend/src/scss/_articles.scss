@@ -221,6 +221,33 @@
   font-size: $font-size-sm;
 }
 
+.camera-error {
+  padding: $space-md;
+  text-align: center;
+
+  &__icon {
+    font-size: 32px;
+    margin-bottom: $space-sm;
+  }
+
+  &__message {
+    color: $text;
+    font-size: $font-size-sm;
+    margin: 0 0 $space-sm 0;
+  }
+
+  &__hints {
+    margin: 0 0 $space-sm 0;
+    padding-left: 1.2em;
+    text-align: left;
+    color: $text-muted;
+    font-size: $font-size-xs;
+    line-height: 1.5;
+
+    li + li { margin-top: 4px; }
+  }
+}
+
 // ── Scan-Detailansicht ────────────────────────────────────────────────────────
 .scan-card {
   max-width: 480px;

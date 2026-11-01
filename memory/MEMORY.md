@@ -1,0 +1,1 @@
+- [Project Grundregeln](project-grundregeln.md) — Frontend/Backend-Grundregeln für FeuerwehrHub_2 (responsive, session-unabhängig, DSGVO/Sicherheitsstandards)

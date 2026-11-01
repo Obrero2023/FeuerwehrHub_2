@@ -27,6 +27,19 @@ const MODULE_LABELS = {
   teilnahmebescheinigung:    'Teilnahmebescheinigung (Lesen)',
   'teilnahmebescheinigung.schreiben': 'Teilnahmebescheinigung (Schreiben)',
   'teilnahmebescheinigung.admin':    'Teilnahmebescheinigung (Admin)',
+  'lehrgangsverwaltung':     'Lehrgangsverwaltung (Lesen)',
+  'lehrgangsverwaltung.lesen':     'Lehrgangsverwaltung (Lesen)',
+  'lehrgangsverwaltung.verwalten': 'Lehrgangsverwaltung (Verwalten)',
+  'lehrgangsverwaltung.admin':     'Lehrgangsverwaltung (Admin)',
+  'jugendfeuerwehr':                  'Jugendfeuerwehr (Gesamt)',
+  'jugendfeuerwehr.lesen':           'Jugendfeuerwehr (Lesen)',
+  'jugendfeuerwehr.mitglieder':      'Jugendfeuerwehr (Mitglieder)',
+  'jugendfeuerwehr.mitglieder.lesen': 'Jugendfeuerwehr (Mitglieder Lesen)',
+  'jugendfeuerwehr.anwerter':        'Jugendfeuerwehr (Anwerter)',
+  'jugendfeuerwehr.dienstteilnahmen': 'Jugendfeuerwehr (Dienstteilnahmen)',
+  'jugendfeuerwehr.kleiderkammer':   'Jugendfeuerwehr (Kleiderkammer)',
+  'jugendfeuerwehr.kleiderkammer.lesen': 'Jugendfeuerwehr (Kleiderkammer Lesen)',
+  'jugendfeuerwehr.mitgliedschaftsvorgaenge': 'Jugendfeuerwehr (Mitgliedschaftsvorgaenge)',
 };
 
 export async function renderAdmin() {
@@ -1388,7 +1401,8 @@ const MODULE_DEFS = [
   { key: 'fahrzeugpruefung',iconName: 'check-square',    label: 'Fahrzeugprüfung', desc: 'Prüfungen, Geräte, Protokolle pro Fahrzeug' },
   { key: 'fahrzeugbuchung', iconName: 'calendar',        label: 'Fahrzeugbuchung', desc: 'Fahrzeuge buchen und verwalten' },
   { key: 'teilnahmebescheinigung', iconName: 'file-text', label: 'Teilnahmebescheinigung Feuerwehreinsatz', desc: 'Bescheinigungen für Einsatzteilnahme erstellen, freigeben und unterschreiben' },
-  { key: 'jugendfeuerwehr', iconName: 'users',           label: 'Jugendfeuerwehr', desc: 'JF-Mitglieder, Termine, Wettbewerbe',                  soon: true },
+  { key: 'lehrgangsverwaltung', iconName: 'book-open',     label: 'Lehrgangsverwaltung', desc: 'Lehrgänge, Anmeldungen, Teilnehmerlisten' },
+  { key: 'jugendfeuerwehr', iconName: 'users',           label: 'Jugendfeuerwehr', desc: 'JF-Mitglieder, Anwerter, Kleiderkammer, Dienstteilnahmen' },
   { key: 'intranet',        iconName: 'globe',           label: 'Intranet',        desc: 'Links und Dokumente für alle' },
 ];
 
@@ -1419,8 +1433,7 @@ async function loadModules() {
             </div>
             <label class="toggle-switch">
               <input type="checkbox" data-module="${m.key}"
-                ${modules[m.key] ? 'checked' : ''}
-                ${m.soon ? 'disabled' : ''} />
+                ${modules[m.key] ? 'checked' : ''} />
               <span class="toggle-switch__track"></span>
             </label>
           </div>

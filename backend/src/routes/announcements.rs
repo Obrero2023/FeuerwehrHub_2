@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, State},
     middleware,
-    routing::{delete, get, post, put},
+    routing::{get, post, put},
     Extension, Json, Router,
 };
 use chrono::{DateTime, Utc};

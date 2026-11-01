@@ -28,6 +28,10 @@ const KNOWN_MODULES: &[&str] = &[
     "teilnahmebescheinigung",
     "teilnahmebescheinigung.schreiben",
     "teilnahmebescheinigung.admin",
+    "lehrgangsverwaltung",
+    "lehrgangsverwaltung.verwalten",
+    "jugendfeuerwehr",
+    "jugendfeuerwehr.lesen",
 ];
 
 #[derive(Serialize, sqlx::FromRow)]
