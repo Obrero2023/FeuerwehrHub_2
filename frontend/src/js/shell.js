@@ -40,7 +40,8 @@ const PAGE_MODULE = {
   'hlf1-inspection':    'fahrzeugpruefung',
   'hlf2-inspection':    'fahrzeugpruefung',
   'mtf-inspection':     'fahrzeugpruefung',
-  'fahrzeugbuchung': 'fahrzeugbuchung',
+  'vehicle_bookings':    'fahrzeugbuchung',
+  'teilnahmebescheinigung': 'teilnahmebescheinigung',
   verein:          'verein',
   intranet:        'intranet',
   lehrgaenge:      'lehrgangsverwaltung',
@@ -196,6 +197,21 @@ function buildShell() {
     { page: 'fahrzeugbuchung', label: 'Fahrzeugbuchung', icon: icon('calendar', 16) },
   ];
 
+  const teilnahmebescheinigungItems = [
+    { page: 'teilnahmebescheinigung', label: 'Teilnahmebescheinigung', icon: icon('file-text', 16) },
+  ];
+
+  const lehrgaengeItems = [
+    { page: 'lehrgaenge', label: 'Lehrgänge', icon: icon('calendar-check', 16) },
+  ];
+
+  const jugendfeuerwehrItems = [
+    { page: 'jugendfeuerwehr', label: 'Jugendmitglieder', icon: icon('user-group', 16) },
+    { page: 'jugendfeuerwehr/anwerter', label: 'Anwärter', icon: icon('user-plus', 16) },
+    { page: 'jugendfeuerwehr/kleiderkammer', label: 'Kleiderkammer', icon: icon('shirt', 16) },
+    { page: 'jugendfeuerwehr/dienstteilnahmen', label: 'Dienstteilnahmen', icon: icon('calendar-check', 16) },
+  ];
+
   return `
     <div class="app-shell" style="--accent: ${accent}">
 
@@ -231,6 +247,9 @@ function buildShell() {
         ${showModule('verein', 'verein')               ? buildNavItem('verein',          'Verein',   vereinItems)   : ''}
         ${showModulePublic('intranet')         ? buildNavItem('intranet',        'Intranet', intranetItems) : ''}
         ${showModule('fahrzeugbuchung', 'fahrzeugbuchung') ? buildNavItem('fahrzeugbuchung', 'Fahrzeugbuchung', fahrzeugbuchungItems) : ''}
+        ${showModule('teilnahmebescheinigung', 'teilnahmebescheinigung') ? buildNavItem('teilnahmebescheinigung', 'Teilnahmebescheinigung', teilnahmebescheinigungItems) : ''}
+        ${showModule('lehrgangsverwaltung.lesen', 'lehrgangsverwaltung') || showModule('lehrgangsverwaltung.verwalten', 'lehrgangsverwaltung') ? buildNavItem('lehrgangsverwaltung', 'Lehrgänge', lehrgaengeItems) : ''}
+        ${showModule('jugendfeuerwehr.lesen', 'jugendfeuerwehr') || showModule('jugendfeuerwehr', 'jugendfeuerwehr') ? buildNavItem('jugendfeuerwehr', 'Jugendfeuerwehr', jugendfeuerwehrItems) : ''}
 
         <div class="topnav__spacer"></div>
 
