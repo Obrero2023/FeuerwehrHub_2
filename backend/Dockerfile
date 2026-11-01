@@ -44,7 +44,7 @@ RUN chmod +x /entrypoint.sh
 RUN groupadd -r app \
     && useradd -r -g app -s /sbin/nologin app \
     && (getent group docker > /dev/null && usermod -aG docker app || true) \
-    && mkdir -p /data \
-    && chown app:app /data /app/feuerwehrhub
+    && mkdir -p /data /data/signaturen \
+    && chown -R app:app /data /app/feuerwehrhub
 
 CMD ["/entrypoint.sh"]

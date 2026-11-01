@@ -10,7 +10,12 @@
 # als dieser gestartet.
 set -e
 
-mkdir -p /data /data/signaturen
-chown -R app:app /data
+# Ensure data directories exist; suppress mkdir errors if directory already exists
+# with incompatible permissions (common on Windows/WSL2 Docker setups)
+mkdir -p /data /data/signaturen || true
+
+# Attempt to fix ownership, but don't fail if we can't (e.g., read-only volume,
+# unsupported filesystem, or already correct ownership)
+chown -R app:app /data 2>/dev/null || true
 
 exec runuser -u app -- /app/feuerwehrhub
