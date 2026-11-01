@@ -21,6 +21,6 @@ CREATE TABLE IF NOT EXISTS lehrgaenge (
     aktualisiert_am TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_lehrgaenge_start_datum ON lehrgaenge(start_datum);
-CREATE INDEX idx_lehrgaenge_status ON lehrgaenge(status);
-CREATE INDEX idx_lehrgaenge_art ON lehrgaenge(lehrgangsart_id);
+CREATE INDEX IF NOT EXISTS idx_lehrgaenge_start_datum ON lehrgaenge(start_datum);
+CREATE INDEX IF NOT EXISTS idx_lehrgaenge_status ON lehrgaenge(status);
+CREATE INDEX IF NOT EXISTS idx_lehrgaenge_art ON lehrgaenge(lehrgangsart_id);
